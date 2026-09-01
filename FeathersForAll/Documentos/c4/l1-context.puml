@@ -1,0 +1,26 @@
+@startuml l1-context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Diagrama de Contexto (C4 Nivel 1) — AulaViva
+
+Person(docente, "Docente", "Crea cursos, evaluaciones y revisa resultados")
+Person(estudiante, "Estudiante", "Rinde evaluaciones y consulta al Tutor IA")
+Person(admin, "Administrador de colegio", "Gestiona el tenant: matrícula de cursos y usuarios")
+
+System(aulaviva, "AulaViva", "SaaS multi-tenant de gestión académica, evaluaciones auto-corregidas y tutor IA, aislado por colegio")
+
+System_Ext(llm, "Proveedor LLM", "API externa de modelo de lenguaje usada por el Tutor IA (RAG)")
+System_Ext(email, "Proveedor Email/SMTP", "Envío de notificaciones a docentes y apoderados")
+System_Ext(auth, "Auth institucional (SSO)", "Login institucional del colegio, a validar por tenant")
+
+Rel(docente, aulaviva, "Crea cursos y evaluaciones, revisa dashboard", "HTTPS")
+Rel(estudiante, aulaviva, "Rinde evaluaciones, consulta tutor IA", "HTTPS")
+Rel(admin, aulaviva, "Administra tenant, matrícula usuarios", "HTTPS")
+
+Rel(aulaviva, llm, "Envía consultas del tutor IA (RAG)", "HTTPS/API")
+Rel(aulaviva, email, "Envía notificaciones", "SMTP/API")
+Rel(aulaviva, auth, "Valida identidad institucional", "SSO/OAuth2")
+
+@enduml

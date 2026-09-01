@@ -1,0 +1,37 @@
+@startuml l2-container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Diagrama de Contenedor (C4 Nivel 2) — AulaViva
+
+Person(docente, "Docente")
+Person(estudiante, "Estudiante")
+Person(admin, "Administrador de colegio")
+
+System_Boundary(aulaviva, "AulaViva") {
+  Container(web, "Aplicación Web", "HTML + CSS + JavaScript", "Interfaz de docentes, estudiantes y administradores, renderizada por el backend")
+  Container(api, "Backend monolítico", "Node.js + Express", "Lógica de negocio, autenticación, RBAC por tenant y renderizado de vistas")
+  ContainerDb(db, "Base de datos", "PostgreSQL", "Cursos, evaluaciones, resultados; aislamiento por colegio (schema/RLS)")
+  Container(tutor, "Servicio Tutor IA", "RAG + pgvector", "Responde dudas ancladas al currículum del curso/tenant")
+  Container(worker, "Worker / cola asíncrona", "Opcional — a validar", "Notificaciones y consultas largas al Tutor IA sin bloquear la API")
+}
+
+System_Ext(llm, "Proveedor LLM", "API externa de modelo de lenguaje")
+System_Ext(email, "Proveedor Email/SMTP")
+System_Ext(auth, "Auth institucional (SSO)")
+
+Rel(docente, web, "Usa", "HTTPS")
+Rel(estudiante, web, "Usa", "HTTPS")
+Rel(admin, web, "Usa", "HTTPS")
+
+Rel(web, api, "Llama", "HTTPS/JSON")
+Rel(api, db, "Lee/escribe", "SQL")
+Rel(api, tutor, "Reenvía consultas del tutor IA", "HTTPS/JSON")
+Rel(api, worker, "Encola tareas", "HTTPS/cola")
+Rel(tutor, db, "Lee apuntes/embeddings del curso", "SQL")
+Rel(tutor, llm, "Consulta el modelo", "HTTPS/API")
+Rel(worker, email, "Envía notificaciones", "SMTP/API")
+Rel(api, auth, "Valida identidad", "SSO/OAuth2")
+
+@enduml
