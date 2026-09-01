@@ -1,4 +1,4 @@
-# AulaViva — Equipo XX
+# FeathersForAll — Equipo XX
 
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
