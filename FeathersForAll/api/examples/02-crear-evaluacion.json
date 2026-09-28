@@ -1,0 +1,14 @@
+{
+  "name": "H2 · Docente crea una evaluación auto-corregida",
+  "method": "POST",
+  "path": "/courses/3fa85f64-5717-4562-b3fc-2c963f66afa6/assessments",
+  "headers": { "Idempotency-Key": "6ec0bd7f-11c0-43da-975e-2a8ad9ebae0b" },
+  "body": {
+    "title": "Prueba de fracciones",
+    "questions": [
+      { "statement": "¿Cuánto es 3/4 + 1/4?", "options": ["1/2", "1", "4/8", "3/16"], "correct_option": 1, "feedback": "Suma los numeradores con igual denominador: 4/4 = 1." },
+      { "statement": "¿Qué fracción equivale a 0,5?", "options": ["1/5", "1/2", "5/1"], "correct_option": 1, "feedback": "0,5 = 5/10 = 1/2." }
+    ]
+  },
+  "expect_status": 201
+}

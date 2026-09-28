@@ -1,0 +1,8 @@
+{
+  "name": "Error · POST sin Idempotency-Key es rechazado por el contrato",
+  "method": "POST",
+  "path": "/courses",
+  "headers": {},
+  "body": { "name": "Historia 8° B", "period": "2026-S2" },
+  "expect_status": 422
+}
