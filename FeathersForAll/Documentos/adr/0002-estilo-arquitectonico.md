@@ -2,7 +2,7 @@
 
 ## Estado
 
-Aceptado — 2026-09-28. Decisión del Tech Lead (Iván Oliva); pendiente de ratificar en la reunión del equipo (Ignacio Ibañez, Juan Castillo, Bastián González, Cristofer Jeria, Alex Flores). Si el equipo objeta algún punto, se crea un ADR nuevo que lo reemplace (los ADR no se editan).
+Aceptado — 2026-09-28 (D2 y D3 ajustadas el mismo día para alinearlas con el deck de S04). Decisión del Tech Lead (Iván Oliva); pendiente de ratificar en la reunión del equipo (Ignacio Ibañez, Juan Castillo, Bastián González, Cristofer Jeria, Alex Flores). Si el equipo objeta algún punto, se crea un ADR nuevo que lo reemplace (los ADR no se editan).
 
 ## Contexto
 
@@ -24,14 +24,17 @@ Se adopta un **modular monolith** como estilo arquitectónico inicial, con front
 - Consecuencia: el aislamiento depende de que ninguna consulta evite RLS; se cubre con tests automatizados de fuga entre tenants (QA) y con el atributo de calidad "0 fugas".
 - En configuración (12-Factor): `TENANT_STRATEGY="shared_schema_rls"`.
 
-**D2. Ubicación del Tutor IA: módulo dentro del mismo proceso Express en el MVP.**
-- Vive en su propia carpeta/módulo con una interfaz explícita (`tutorService.ask(tenantId, courseId, question)`); ningún otro módulo toca sus tablas ni sus prompts.
-- Llama al proveedor LLM por HTTPS con timeout y circuit breaker, de modo que la caída del LLM no bloquee cursos ni evaluaciones (atributo de disponibilidad).
-- Se extrae a servicio aparte solo si se cumple alguna condición: latencia p95 del tutor degrada al resto de la API, o el costo/uso de LLM exige escalarlo de forma independiente.
+**D2. Tutor IA: contenedor propio en el C4, con módulo aislado y preparado para extracción.**
+- En el C4 L2 (S04) aparece como "Servicio Tutor IA": el backend lo consulta por HTTP/JSON y él lee apuntes y embeddings de PostgreSQL (pgvector), siempre filtrando por `tenant_id` y `course_id`.
+- En el código vive en su propia carpeta/módulo con interfaz explícita; ningún otro módulo toca sus tablas ni sus prompts. Así se mantiene el monolito modular y la extracción futura sigue siendo barata.
+- El hosting del Tutor IA queda por confirmar en el ADR 0003 (se asume junto al backend).
+- Debe tolerar la caída del proveedor LLM sin bloquear cursos ni evaluaciones (timeout y circuit breaker).
+- Se separa como servicio independiente solo si su latencia o su costo de LLM lo exigen.
 
-**D3. Worker / cola asíncrona: diferido, fuera del MVP.**
-- Las notificaciones y consultas largas se resuelven de forma asíncrona dentro del proceso (promesas/timeouts) mientras el volumen del piloto sea bajo.
-- Si aparece la necesidad, el primer paso es una tabla de jobs en PostgreSQL (patrón outbox), antes de introducir un broker. La elección de broker se revisa en el ADR 0004 (datos y eventos).
+**D3. Worker / cola asíncrona: incluido, con AWS SQS (cerrado en S04).**
+- El C4 L2 actualizado incluye "Worker / cola" en Render: el backend encola tareas por SQS y el worker atiende consultas al LLM y notificaciones sin bloquear la API.
+- Esto reemplaza la postura de la versión anterior de este ADR (worker diferido); la selección de SQS y su justificación están en el ADR 0003.
+- La elección de broker y el catálogo de eventos se profundizan en el ADR 0004.
 
 ## Consecuencias
 
@@ -47,19 +50,19 @@ Se adopta un **modular monolith** como estilo arquitectónico inicial, con front
 - Requiere disciplina de módulos: si el monolito no se mantiene realmente modular, la futura extracción del Tutor IA será costosa.
 - Escalabilidad acoplada: si el tutor IA necesita escalar de forma independiente al resto del sistema, el monolito no lo permite sin refactor.
 - El aislamiento entre colegios descansa en RLS y en `tenant_id` bien aplicado: un error de política es una fuga de datos entre tenants (dato de menores). Requiere pruebas específicas.
-- Sin cola en el MVP, un pico de consultas al tutor compite con la API por recursos del mismo proceso.
+- Aunque el Tutor IA sea un contenedor propio, sigue acoplado al mismo repositorio y al mismo esquema de datos; la independencia real llega solo si se extrae.
 
 ## Alternativas descartadas
 
 - **Microservicios desde el día 0:** complejidad operacional excesiva para un equipo de 6 personas sin DevOps dedicado; no se justifica en la etapa de MVP/piloto.
 - **Serverless puro (FaaS):** los cold starts son incompatibles con una experiencia de tutor IA conversacional y fluida para el estudiante.
 - **Esquema por tenant (`schema_per_tenant`):** mejor aislamiento lógico, pero costo de migraciones, pooling y pgvector demasiado alto para el equipo actual.
-- **Tutor IA como servicio separado desde el inicio:** añade red, despliegue y observabilidad distribuida sin evidencia de que se necesite.
-- **Worker con broker (Kafka/RabbitMQ) desde el inicio:** sobredimensionado para el volumen del piloto.
+- **Tutor IA como microservicio totalmente independiente desde el inicio:** añade despliegue y observabilidad distribuida sin evidencia de que se necesite.
+- **Worker con broker propio (Kafka/RabbitMQ):** sobredimensionado y con carga operacional; se usa SQS gestionado (ADR 0003).
 
 ## Stack confirmado
 
-- **Frontend:** HTML + CSS + JavaScript (sin framework de SPA), servido por el propio backend.
+- **Frontend:** HTML + CSS + JavaScript (sin framework de SPA), desplegado en Vercel (ADR 0003) y consumiendo la API del backend.
 
 - **Backend:** Node.js + Express, como monolito único.
 
@@ -78,5 +81,5 @@ Equipo AulaViva (redacción: Tech Lead)
 ## Próximos pasos
 
 - Ratificar este ADR en la reunión del equipo (lunes o miércoles) y dejar constancia en el PR.
-- Reflejar D1–D3 en el C4 L2 (ya actualizado en `c4/l2-container.puml`) y en el checklist 12-Factor de la S04.
-- Escribir el ADR 0003 (estilo cloud) y el ADR 0004 (datos y eventos), que heredan estas decisiones.
+- D1–D3 ya están reflejadas en el C4 L2, el checklist 12-Factor y el ADR 0003 (S04).
+- Escribir el ADR 0004 (datos y eventos), que hereda estas decisiones.

@@ -78,11 +78,14 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
         ├── scenarios/                  # 15 escenarios Gherkin (h1..h5 .feature)
+        ├── cloud/
+        │   └── managed-services.md      # Servicios gestionados y trazabilidad
+        ├── 12-factor-checklist.md      # Auditoría 12-Factor (S04)
         ├── impact-map.md
         └── backlog.md                  # 5 historias INVEST + MoSCoW
 ```
 
-Pendiente según el taller: `12-factor-checklist.md`, `adr/0003` (S04); `api/openapi.yaml` (S05); `data/` y `adr/0004` (S06).
+Pendiente según el taller: `api/openapi.yaml` (S05); `data/` y `adr/0004` (S06).
 
 ---
 
@@ -93,8 +96,8 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | ADR | Título | Estado | Fecha |
 |---|---|---|---|
 | [0001](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md) | Elección de la iniciativa del semestre: AulaViva | Aceptada | 21-08-2026 |
-| [0002](FeathersForAll/Documentos/adr/0002-estilo-arquitectonico.md) | Estilo arquitectónico: modular monolith (incluye aislamiento multi-tenant con RLS, Tutor IA como módulo interno y worker diferido) | Aceptada (por ratificar en reunión) | 28-09-2026 |
-| 0003 | Estilo cloud y servicios gestionados | Pendiente | S04 |
+| [0002](FeathersForAll/Documentos/adr/0002-estilo-arquitectonico.md) | Estilo arquitectónico: modular monolith (incluye aislamiento multi-tenant con RLS, Tutor IA como contenedor con módulo aislado y worker con cola) | Aceptada (por ratificar en reunión) | 28-09-2026 |
+| [0003](FeathersForAll/Documentos/adr/0003-cloud.md) | Decisión cloud: arquitectura híbrida Vercel + Render + AWS | Aceptada (por ratificar en reunión) | 28-09-2026 |
 | 0004 | Datos y eventos | Pendiente | S06 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
