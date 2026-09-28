@@ -1,11 +1,11 @@
-# FeathersForAll — Equipo XX
+# FeathersForAll — Equipo AulaViva
 
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
 
-[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S01-informational)](docs/adr/0001-eleccion-iniciativa.md)
-[![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](docs/adr/0001-eleccion-iniciativa.md)
-[![Charter](https://img.shields.io/badge/charter-v1.0-blue)](CHARTER.md)
+[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S03-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Charter](https://img.shields.io/badge/charter-v1.0-blue)](FeathersForAll/Documentos/Entregables/Charter.md)
 
 ---
 
@@ -57,7 +57,7 @@ graph TB
 | Cristofer | QA Lead | Estrategia de pruebas |
 | Alex | QA — Automatización | Suite automatizada y quality gates |
 
-Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](CHARTER.md)**.
+Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](FeathersForAll/Documentos/Entregables/Charter.md)**.
 
 ---
 
@@ -65,19 +65,24 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](C
 
 ```text
 .
-├── CHARTER.md                  # Acta del equipo: roles, DoD, política de IA
-├── README.md
-├── docs/
-│   ├── adr/                    # Architecture Decision Records
-│   │   ├── template.md
-│   │   └── 0001-eleccion-iniciativa.md
-│   └── compromisos-s02.md      # Compromisos hasta la próxima sesión
-├── .github/
-│   ├── ISSUE_TEMPLATE/
-│   └── pull_request_template.md
-└── scripts/
-    └── bootstrap-board.sh      # Crea labels e issues iniciales vía gh CLI
+├── readme.md
+└── FeathersForAll/
+    └── Documentos/
+        ├── Entregables/
+        │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
+        ├── adr/                        # Architecture Decision Records
+        │   ├── template.md
+        │   ├── 0001-eleccion-iniciativa.md
+        │   └── 0002-estilo-arquitectonico.md
+        ├── arch/
+        │   └── atributos-calidad.md    # Top 3 NFRs con métricas
+        ├── c4/                         # l1-context y l2-container (.puml + .png)
+        ├── scenarios/                  # 15 escenarios Gherkin (h1..h5 .feature)
+        ├── impact-map.md
+        └── backlog.md                  # 5 historias INVEST + MoSCoW
 ```
+
+Pendiente según el taller: `12-factor-checklist.md`, `adr/0003` (S04); `api/openapi.yaml` (S05); `data/` y `adr/0004` (S06).
 
 ---
 
@@ -87,10 +92,12 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 
 | ADR | Título | Estado | Fecha |
 |---|---|---|---|
-| [0001](docs/adr/0001-eleccion-iniciativa.md) | Elección de la iniciativa del semestre: AulaViva | Aceptada | `<DD-MM-2026>` |
-| 0002 | Modelo de aislamiento multi-tenant | Pendiente | S03 |
+| [0001](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md) | Elección de la iniciativa del semestre: AulaViva | Aceptada | 21-08-2026 |
+| [0002](FeathersForAll/Documentos/adr/0002-estilo-arquitectonico.md) | Estilo arquitectónico: modular monolith (incluye aislamiento multi-tenant con RLS, Tutor IA como módulo interno y worker diferido) | Aceptada (por ratificar en reunión) | 28-09-2026 |
+| 0003 | Estilo cloud y servicios gestionados | Pendiente | S04 |
+| 0004 | Datos y eventos | Pendiente | S06 |
 
-Para crear una nueva: copiar `docs/adr/template.md` con el número correlativo y enlazarla en esta tabla.
+Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 
 ---
 
@@ -101,7 +108,7 @@ Para crear una nueva: copiar `docs/adr/template.md` con el número correlativo y
 3. Commits en formato [Conventional Commits](https://www.conventionalcommits.org).
 4. Si usaste IA, decláralo con el trailer `AI-Assisted:` en el commit y completa la sección correspondiente del PR.
 5. Abre el PR contra `develop` con `Closes #NN`. Requiere 1 aprobación y CI en verde.
-6. Verifica el [Definition of Done](CHARTER.md#4-definition-of-done-preliminar) antes de mover la issue a `Done`.
+6. Verifica el [Definition of Done](FeathersForAll/Documentos/Entregables/Charter.md#7-definition-of-done-dod) antes de mover la issue a `Done`.
 
 > Las ramas `main` y `develop` están protegidas: sin push directo.
 
@@ -124,7 +131,7 @@ Seis columnas con criterios de entrada explícitos:
 
 ## Política de uso de IA
 
-Permitida y esperada, **siempre declarada**. Prohibido subir datos personales reales a cualquier servicio de IA: el proyecto trata datos de menores de edad y trabajamos exclusivamente con datos sintéticos. Detalle completo en el [Charter, sección 5](CHARTER.md#5-política-de-uso-de-ia).
+Permitida y esperada, **siempre declarada**. Prohibido subir datos personales reales a cualquier servicio de IA: el proyecto trata datos de menores de edad y trabajamos exclusivamente con datos sintéticos. Detalle completo en el [Charter, sección 8](FeathersForAll/Documentos/Entregables/Charter.md#8-política-de-uso-de-inteligencia-artificial).
 
 ---
 

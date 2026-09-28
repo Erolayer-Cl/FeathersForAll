@@ -10,11 +10,9 @@ Person(estudiante, "Estudiante")
 Person(admin, "Administrador de colegio")
 
 System_Boundary(aulaviva, "AulaViva") {
-  Container(web, "Aplicación Web", "HTML + CSS + JavaScript", "Interfaz de docentes, estudiantes y administradores, renderizada por el backend")
-  Container(api, "Backend monolítico", "Node.js + Express", "Lógica de negocio, autenticación, RBAC por tenant y renderizado de vistas")
-  ContainerDb(db, "Base de datos", "PostgreSQL", "Cursos, evaluaciones, resultados; aislamiento por colegio (schema/RLS)")
-  Container(tutor, "Servicio Tutor IA", "RAG + pgvector", "Responde dudas ancladas al currículum del curso/tenant")
-  Container(worker, "Worker / cola asíncrona", "Opcional — a validar", "Notificaciones y consultas largas al Tutor IA sin bloquear la API")
+  Container(web, "Aplicación Web", "HTML + CSS + JavaScript", "Interfaz de docentes, estudiantes y administradores, servida por el backend")
+  Container(api, "Backend monolítico modular", "Node.js + Express", "Módulos: Cursos/Matrícula, Evaluaciones y Tutor IA (RAG). Autenticación, RBAC y validación de tenant en cada request")
+  ContainerDb(db, "Base de datos", "PostgreSQL + pgvector", "Esquema compartido con tenant_id y Row-Level Security; cursos, evaluaciones, resultados y embeddings de apuntes por curso")
 }
 
 System_Ext(llm, "Proveedor LLM", "API externa de modelo de lenguaje")
@@ -26,12 +24,15 @@ Rel(estudiante, web, "Usa", "HTTPS")
 Rel(admin, web, "Usa", "HTTPS")
 
 Rel(web, api, "Llama", "HTTPS/JSON")
-Rel(api, db, "Lee/escribe", "SQL")
-Rel(api, tutor, "Reenvía consultas del tutor IA", "HTTPS/JSON")
-Rel(api, worker, "Encola tareas", "HTTPS/cola")
-Rel(tutor, db, "Lee apuntes/embeddings del curso", "SQL")
-Rel(tutor, llm, "Consulta el modelo", "HTTPS/API")
-Rel(worker, email, "Envía notificaciones", "SMTP/API")
+Rel(api, db, "Lee/escribe (tenant fijado por transacción)", "SQL")
+Rel(api, llm, "Módulo Tutor IA consulta el modelo (timeout + circuit breaker)", "HTTPS/API")
+Rel(api, email, "Envía notificaciones (asíncrono en proceso)", "SMTP/API")
 Rel(api, auth, "Valida identidad", "SSO/OAuth2")
+
+note right of api
+  ADR 0002: Tutor IA como módulo interno del monolito (D2).
+  Worker/cola diferido fuera del MVP (D3).
+  Extraíble a servicio event-driven si su latencia o costo lo exigen.
+end note
 
 @enduml
