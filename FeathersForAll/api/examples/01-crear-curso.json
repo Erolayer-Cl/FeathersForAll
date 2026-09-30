@@ -1,0 +1,8 @@
+{
+  "name": "H1 · Docente crea un curso",
+  "method": "POST",
+  "path": "/courses",
+  "headers": { "Idempotency-Key": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed" },
+  "body": { "name": "Matemáticas 7° Básico A", "period": "2026-S2", "subject": "Matemática", "grade_level": "7B" },
+  "expect_status": 201
+}

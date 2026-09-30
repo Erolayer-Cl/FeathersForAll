@@ -1,0 +1,8 @@
+{
+  "name": "H4 · Estudiante rinde la evaluación (idempotente)",
+  "method": "POST",
+  "path": "/assessments/3b1f7c1e-2a4d-4c1b-9d7e-0c5a1e2f3a4b/submissions",
+  "headers": { "Idempotency-Key": "a3bb189e-8bf9-3888-9912-ace4e6543002" },
+  "body": { "answers": [ { "question_id": "9c858901-8a57-4791-81fe-4c455b099bc9", "selected_option": 1 } ] },
+  "expect_status": 201
+}

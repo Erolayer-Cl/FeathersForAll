@@ -3,7 +3,7 @@
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
 
-[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S03-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S05-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Charter](https://img.shields.io/badge/charter-v1.0-blue)](FeathersForAll/Documentos/Entregables/Charter.md)
 
@@ -67,6 +67,12 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 .
 ├── readme.md
 └── FeathersForAll/
+    ├── .spectral.yaml                  # Reglas de lint del contrato (S05)
+    ├── api/
+    │   ├── openapi.yaml                # Contrato OpenAPI 3.1 (10 endpoints)
+    │   └── examples/                   # Ejemplos ejecutables + run-examples.mjs
+    ├── packages/
+    │   └── api-client/                 # Cliente TypeScript generado
     └── Documentos/
         ├── Entregables/
         │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
@@ -78,6 +84,8 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
         ├── scenarios/                  # 15 escenarios Gherkin (h1..h5 .feature)
+        ├── api/
+        │   └── versioning-policy.md    # Política de versionado (S05)
         ├── cloud/
         │   └── managed-services.md      # Servicios gestionados y trazabilidad
         ├── 12-factor-checklist.md      # Auditoría 12-Factor (S04)
@@ -85,7 +93,18 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
         └── backlog.md                  # 5 historias INVEST + MoSCoW
 ```
 
-Pendiente según el taller: `api/openapi.yaml` (S05); `data/` y `adr/0004` (S06).
+Pendiente según el taller: `data/` y `adr/0004` (S06).
+
+### API (S05, contract-first)
+
+```bash
+cd FeathersForAll
+npx @stoplight/spectral-cli lint api/openapi.yaml    # lint del contrato
+npx @stoplight/prism-cli mock api/openapi.yaml       # mock en http://127.0.0.1:4010
+node api/examples/run-examples.mjs                   # ejemplos contra el mock (otra terminal)
+```
+
+Documentación viva: abrir `api/openapi.yaml` en https://editor.swagger.io o con Redoc.
 
 ---
 

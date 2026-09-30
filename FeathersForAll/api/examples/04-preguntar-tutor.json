@@ -1,0 +1,8 @@
+{
+  "name": "H5 · Estudiante pregunta al tutor IA (asíncrono)",
+  "method": "POST",
+  "path": "/courses/3fa85f64-5717-4562-b3fc-2c963f66afa6/tutor-questions",
+  "headers": { "Idempotency-Key": "16fd2706-8baf-433b-82eb-8c7fada847da" },
+  "body": { "question": "¿Por qué 3/4 + 1/4 da 1?" },
+  "expect_status": 202
+}
