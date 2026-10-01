@@ -1,0 +1,19 @@
+{
+  "name": "@feathersforall/backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend de FeathersForAll (monolito modular Express). Paso 1: chat de desarrollo con LLM local (Ollama).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "dev": "node --watch --env-file-if-exists=.env src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pino": "^9.7.0"
+  }
+}
