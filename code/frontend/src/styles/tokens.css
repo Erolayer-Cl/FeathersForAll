@@ -1,0 +1,87 @@
+/* Tokens de diseño de FeathersForAll: sistema "Organic" con paleta azul oscuro
+   (handoff de Claude Design). Fuente única de colores, tipografía, espacios y radios. */
+:root {
+  color-scheme: dark;
+
+  /* Base */
+  --color-bg: oklch(0.21 0.05 262);
+  --color-surface: oklch(0.27 0.06 262);
+  --color-text: oklch(0.96 0.01 262);
+  --color-on-accent: #fff;
+
+  /* Neutros (invertidos para fondo oscuro) */
+  --color-neutral-100: oklch(0.25 0.03 262);
+  --color-neutral-200: oklch(0.29 0.03 262);
+  --color-neutral-300: oklch(0.35 0.03 262);
+  --color-neutral-400: oklch(0.45 0.03 262);
+  --color-neutral-500: oklch(0.55 0.03 262);
+  --color-neutral-600: oklch(0.66 0.03 262);
+  --color-neutral-700: oklch(0.76 0.03 262);
+  --color-neutral-800: oklch(0.86 0.03 262);
+  --color-neutral-900: oklch(0.93 0.03 262);
+
+  /* Acento 1 — modo Tutor (azul marino, tono 262) */
+  --color-accent: oklch(0.55 0.14 262);
+  --color-accent-100: oklch(0.27 0.072 262);
+  --color-accent-200: oklch(0.32 0.072 262);
+  --color-accent-300: oklch(0.4 0.13 262);
+  --color-accent-400: oklch(0.5 0.13 262);
+  --color-accent-500: oklch(0.6 0.13 262);
+  --color-accent-600: oklch(0.68 0.13 262);
+  --color-accent-700: oklch(0.76 0.13 262);
+  --color-accent-800: oklch(0.86 0.072 262);
+  --color-accent-900: oklch(0.93 0.072 262);
+
+  /* Acento 2 — modo Aula virtual (azul cian, tono 232) */
+  --color-accent-2: oklch(0.55 0.1 232);
+  --color-accent-2-100: oklch(0.27 0.055 232);
+  --color-accent-2-200: oklch(0.32 0.055 232);
+  --color-accent-2-300: oklch(0.4 0.1 232);
+  --color-accent-2-400: oklch(0.5 0.1 232);
+  --color-accent-2-500: oklch(0.6 0.1 232);
+  --color-accent-2-600: oklch(0.68 0.1 232);
+  --color-accent-2-700: oklch(0.76 0.1 232);
+  --color-accent-2-800: oklch(0.86 0.055 232);
+  --color-accent-2-900: oklch(0.93 0.055 232);
+
+  /* Tipografía */
+  --font-heading: "Caprasimo", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, sans-serif;
+
+  /* Espaciado */
+  --space-1: 4.4px;
+  --space-2: 8.8px;
+  --space-3: 13.2px;
+  --space-4: 17.6px;
+  --space-6: 26.4px;
+  --space-8: 35.2px;
+
+  /* Radios */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+
+  /* Sombras: el handoff sugiere reforzarlas sobre fondo oscuro */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-md: 0 3px 10px rgb(0 0 0 / 0.32);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.45);
+
+  /* Movimiento */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-color: 0.3s;
+}
+
+/* Colores por modo: cada componente usa --accent-base/soft/text y el modo
+   activo (atributo data-mode en la raíz de la app) decide qué rampa aplica. */
+[data-mode="tutor"] {
+  --accent-base: var(--color-accent);
+  --accent-soft: var(--color-accent-200);
+  --accent-text: var(--color-accent-800);
+}
+
+[data-mode="aula"] {
+  --accent-base: var(--color-accent-2);
+  --accent-soft: var(--color-accent-2-200);
+  --accent-text: var(--color-accent-2-800);
+}

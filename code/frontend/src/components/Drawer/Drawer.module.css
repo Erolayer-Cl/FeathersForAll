@@ -1,0 +1,171 @@
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgb(0 0 0 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.backdrop[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(320px, 86vw);
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-lg);
+  /* -48px extra para que la sombra quede totalmente oculta. */
+  transform: translateX(calc(-100% - 48px));
+  transition: transform var(--duration-color) var(--ease-out);
+}
+
+.panel[data-open="true"] {
+  transform: translateX(0);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+}
+
+/* Botón principal "Nueva conversación" */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.primary:hover {
+  background: var(--color-accent-600);
+}
+
+.primary:active {
+  background: var(--color-accent-700);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.item[data-tone="accent"]:hover {
+  background: var(--color-accent-100);
+}
+
+.item[data-tone="accent"][data-active="true"] {
+  background: var(--color-accent-200);
+}
+
+.item[data-tone="accent2"]:hover,
+.item[data-tone="accent2"][data-active="true"] {
+  background: var(--color-accent-2-200);
+}
+
+.nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.historyLabel {
+  padding: 0 var(--space-4) var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-neutral-700);
+}
+
+.historyEmpty {
+  padding: 0 var(--space-4);
+  font-size: 14px;
+  color: var(--color-neutral-700);
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px var(--space-4);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.historyItem:hover {
+  background: var(--color-accent-100);
+}
+
+.historyTitle {
+  max-width: 240px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyMeta {
+  font-size: 12px;
+  color: var(--color-neutral-700);
+}

@@ -1,0 +1,113 @@
+.userBubble {
+  align-self: flex-end;
+  max-width: 78%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg) var(--radius-lg) 6px var(--radius-lg);
+  background: var(--accent-base);
+  color: var(--color-on-accent);
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  transition: background var(--duration-color) ease;
+}
+
+.aiRow {
+  display: flex;
+  align-self: flex-start;
+  gap: var(--space-2);
+  max-width: 86%;
+}
+
+.avatar {
+  margin-top: 2px;
+}
+
+.aiColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aiBubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 6px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 16px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.errorBubble {
+  color: var(--color-neutral-800);
+  font-style: italic;
+}
+
+.copyButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-accent-800);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.copyButton:hover {
+  background: var(--color-accent-100);
+}
+
+.typing {
+  display: flex;
+  align-self: flex-start;
+  gap: 6px;
+  margin-left: 48px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-base);
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dotPulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .userBubble {
+    max-width: 88%;
+  }
+
+  .aiRow {
+    max-width: 100%;
+  }
+}

@@ -1,0 +1,28 @@
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.main {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.bottomComposer {
+  padding: 0 var(--space-4) var(--space-4);
+}

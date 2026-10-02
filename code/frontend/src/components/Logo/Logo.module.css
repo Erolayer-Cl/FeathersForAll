@@ -1,0 +1,19 @@
+.logo {
+  display: flex;
+  flex-shrink: 0;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  transition: background var(--duration-color) ease;
+}
+
+/* La pluma es una máscara: se pinta con background-color, así se puede recolorear. */
+.feather {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  mask: url("../../assets/pluma.svg") center / contain no-repeat;
+}

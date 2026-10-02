@@ -1,0 +1,36 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.brandName {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  color: #fff;
+}
+
+.modeLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+@media (max-width: 400px) {
+  .header {
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+  }
+
+  .brandName {
+    font-size: 17px;
+  }
+}

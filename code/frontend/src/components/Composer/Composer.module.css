@@ -1,0 +1,58 @@
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 6px 6px 6px var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.composer:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--accent-base) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+.input:focus-visible {
+  outline: none; /* el anillo de foco lo dibuja la barra completa (.composer:focus-within) */
+}
+
+.input::placeholder {
+  color: var(--color-neutral-600);
+}
+
+.send {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--accent-base);
+  border-radius: var(--radius-pill);
+  background: var(--accent-base);
+  color: var(--color-on-accent);
+  transition: background var(--duration-color) ease, filter 0.15s ease;
+}
+
+.send:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.send:disabled {
+  opacity: 0.45;
+}
