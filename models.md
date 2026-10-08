@@ -1510,7 +1510,7 @@ paths:
 
 # PARTE 2 — Estado real del repo FeathersForAll (contexto de lo ya construido)
 
-Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 2026-09-28). Los documentos están en `FeathersForAll/Documentos/`. Última actividad en el repo: "Tercera Semana" (S03). Lo que sigue es el contenido de esos documentos, más el estado y los pendientes respecto a las PPT (Parte 1).
+Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 2026-09-28; actualizado el 2026-10-07 con S04–S06 y el código en `code/`). Los documentos están en `FeathersForAll/Documentos/`. Última actividad en el repo: "Tercera Semana" (S03). Lo que sigue es el contenido de esos documentos, más el estado y los pendientes respecto a las PPT (Parte 1).
 
 ## Estado por sesión
 
@@ -1519,9 +1519,9 @@ Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 
 | S01 | CHARTER.md, ADR 0001, board Kanban | Hecho (Charter y ADR 0001 existen) |
 | S02 | impact-map.md, backlog.md (5 historias), 15 escenarios Gherkin, MoSCoW | Hecho |
 | S03 | C4 L1 + L2, ADR 0002, atributos de calidad (top 3) | Hecho; ADR 0002 sigue "Propuesto" |
-| S04 | 12-factor-checklist.md, ADR 0003 (estilo cloud), managed-services.md, C4 L2 actualizado | PENDIENTE |
-| S05 | api/openapi.yaml (≥5 endpoints, ≥3 schemas), .spectral.yaml, versioning-policy.md, cliente TS, ejemplos | PENDIENTE |
-| S06 | DER, event-catalog.md (10–15 eventos), bounded-contexts.md, ADR 0004, C4 L2 con motores y broker | PENDIENTE |
+| S04 | 12-factor-checklist.md, ADR 0003 (estilo cloud), managed-services.md, C4 L2 actualizado | Hecho (basado en el deck de S04 del equipo): `Documentos/12-factor-checklist.md`, `Documentos/adr/0003-cloud.md`, `Documentos/cloud/managed-services.md`, C4 L2 actualizado |
+| S05 | api/openapi.yaml (≥5 endpoints, ≥3 schemas), .spectral.yaml, versioning-policy.md, cliente TS, ejemplos | Hecho: `FeathersForAll/api/openapi.yaml` (10 endpoints, 15 schemas), `FeathersForAll/.spectral.yaml`, `FeathersForAll/api/examples/` (5 + runner), `Documentos/api/versioning-policy.md`, `FeathersForAll/packages/api-client/` |
+| S06 | DER, event-catalog.md (10–15 eventos), bounded-contexts.md, ADR 0004, C4 L2 con motores y broker | Hecho: `Documentos/data/der.{puml,png}` + `der-completo`, `data/event-catalog.md` (14 eventos), `data/bounded-contexts.md`, `adr/0004-datos-y-eventos.md`, `adr/0005-frontend-react.md`, C4 L2 actualizado, esquema en `code/backend/db/` (01 del equipo + 02 de ajustes S06) |
 
 ## Equipo (Charter y README)
 
@@ -1529,18 +1529,20 @@ Juan (Product Owner), Iván (Tech Lead, arquitectura y ADRs), Ignacio (DevSecOps
 
 ## Stack confirmado
 
-Frontend HTML + CSS + JavaScript (sin framework SPA), servido por el propio backend. Backend Node.js + Express como monolito modular. Base de datos PostgreSQL (BD local de desarrollo "laura"). Tutor IA con RAG + pgvector según el C4 L2.
+Frontend React 19 + Vite en Vercel (ADR 0005, reemplaza "HTML/CSS/JS sin framework" del ADR 0002). Backend Node.js 22 + Express 5 como monolito modular (`code/backend`, ESM, logs pino). Base de datos PostgreSQL 16 + pgvector (BD local de desarrollo "laura"), esquema en `code/backend/db/01_schema.sql`. LLM en desarrollo: Ollama local (`qwen2.5:3b`) detrás de `modules/tutor/llm-client.js`.
 
 ## Inconsistencias y decisiones abiertas (resolver antes de S04–S06)
 
-1. ADR 0002 dice modular monolith, pero el C4 L2 dibuja el "Servicio Tutor IA" como contenedor separado. El propio ADR deja abierto si el Tutor IA corre en el mismo proceso Express o como servicio aparte.
+1. (Resuelta en S04) El C4 L2 mantiene "Servicio Tutor IA" como contenedor y ahora incluye Worker/cola con SQS; el ADR 0002 (D2, D3) se alineó con eso.
 2. El README lista el ADR 0002 como "Modelo de aislamiento multi-tenant", pero el archivo es de estilo arquitectónico. El aislamiento (schema por tenant vs RLS en PostgreSQL) no está decidido; `TENANT_STRATEGY` en el ejemplo de 12-Factor asume `schema_per_tenant`. Afecta S04 (config, backing services) y S06 (DER).
 3. El README describe otra estructura (`CHARTER.md` en raíz, `docs/adr/`, `docs/compromisos-s02.md`, `scripts/bootstrap-board.sh`) que no coincide con la carpeta real `FeathersForAll/Documentos/`. Además enlaza secciones del Charter (#4 DoD, #5 política de IA) con numeración distinta a la del Charter real (DoD es la 7, política de IA la 8).
 4. El ADR 0001 está como "eleccion de iniciativa 001.md" (nombre con espacios y sin el formato `0001-...`); el ADR 0002 no tiene fecha ni está aceptado.
-5. El C4 L2 marca el worker/cola como "opcional, a validar"; falta decidir si se necesita (notificaciones, consultas largas al tutor). Esto incide en la decisión de broker de S06.
+5. (Resuelta en S04) Worker/cola incluido con AWS SQS; la elección de broker y catálogo de eventos se profundiza en S06.
 6. Métricas de atributos de calidad sin cerrar: SLA exacto (ej. 99.5% en horario escolar) y umbrales de latencia quedan pendientes.
 7. Fuera de alcance del backlog actual: panel del apoderado, importación masiva de estudiantes, múltiples intentos por evaluación.
-8. Atención de diseño para S04–S06: datos de menores (consentimiento parental), picos en periodo de pruebas (escalado horizontal), FinOps del LLM por tenant, RAG limitado al currículum MINEDUC y por tenant.
+8. (S06) La BDD 3FN inicial tenía FK que dejaban mezclar colegios, roles, preguntas y alternativas; el equipo la reescribió (`code/backend/db/01_schema.sql`, `CAMBIOS_SCHEMA.md`) y S06 le agrega `02_s06_ajustes.sql` (ver ADR 0004).
+9. (S06) Frontend real es React + Vite; documentado en ADR 0005 (Propuesto).
+10. Atención de diseño para S04–S06: datos de menores (consentimiento parental), picos en periodo de pruebas (escalado horizontal), FinOps del LLM por tenant, RAG limitado al currículum MINEDUC y por tenant.
 
 ---
 
@@ -2196,3 +2198,76 @@ Rel(api, auth, "Valida identidad", "SSO/OAuth2")
 ```
 
 Nota: los PNG `l1-context.png` y `l2-container.png` están en el repo junto a los .puml.
+
+---
+
+### [deck del equipo] S04 — De la arquitectura a la nube (FeathersForAll.pdf, 11 láminas)
+
+Decisión cloud: mantener el monolito modular y usar arquitectura cloud híbrida para el piloto (equipo de 6, MVP inicial, menor complejidad operacional, arquitectura de S03, Tutor IA preparado para futura extracción). Alternativas descartadas: microservicios (complejidad operacional) y serverless puro (no necesario para el MVP).
+
+Servicios gestionados: Vercel (frontend), Render (backend, worker y PostgreSQL con aislamiento por colegio schema/RLS), AWS SQS (tareas asíncronas), AWS Secrets Manager (secretos), Amazon CloudWatch (logs, métricas, monitoreo).
+
+Auditoría 12-Factor: Cumple = Codebase (Git), Dependencies (package.json), Port Binding (puerto configurable). Parcial = Config (variables de entorno), Backing Services, Build/Release/Run (CI/CD), Processes (backend stateless), Concurrency (escalamiento), Disposability (graceful shutdown), Dev/Prod Parity, Logs (CloudWatch), Admin Processes (migraciones automatizadas).
+
+Brechas: configuración (secretos fuera del código), despliegue (CI/CD), disponibilidad (health checks y apagado controlado), logs (centralizar), ambientes (dev/prod similares), responsables (cada acción asignada).
+
+C4 L2 actualizado: Frontend (Vercel) → Backend Node/Express (Render) → BD PostgreSQL+pgvector (Render); Servicio Tutor IA (RAG+pgvector) vía HTTP/JSON; Worker/cola (Render) vía SQS hacia LLM y Email/SMTP; secretos en AWS Secrets Manager; logs/métricas a CloudWatch; Auth institucional SSO/OAuth2.
+
+ADR 0003: decisión híbrida Vercel + Render + servicios AWS; beneficios (menor carga operacional, escalabilidad, servicios administrados, mantiene arquitectura S03, foco en producto); trade-offs (varios proveedores, costos variables por consumo, curva de aprendizaje cloud).
+
+Trazabilidad: H1–H4 = Aplicación Web → Backend → PostgreSQL (Vercel → Render → Render PostgreSQL); H5 = Aplicación Web → Backend → Servicio Tutor IA → LLM (Tutor IA → Render → SQS → LLM).
+
+Archivos en el repo: `Documentos/12-factor-checklist.md`, `Documentos/adr/0003-cloud.md`, `Documentos/cloud/managed-services.md`, `Documentos/c4/l2-container.{puml,png}`.
+
+---
+
+### [deck de apoyo, no va al repo] S05 — APIs, contratos y OpenAPI (AulaViva_S05_API.pptx, 12 láminas)
+
+Decisión de estilo: REST/HTTP JSON como API principal + asíncrono (202 Accepted + SQS) para el Tutor IA. GraphQL descartado (un solo consumidor), gRPC descartado (no hay microservicios internos), WebSocket/SSE para más adelante (avisar respuesta del tutor).
+
+Contrato `FeathersForAll/api/openapi.yaml` (OpenAPI 3.1, contract-first), servers `/v1` (prod, staging en Render y local :3000). Seguridad: Bearer JWT del SSO con `tenant_id` y `role` (docente, estudiante, admin_colegio). El tenant nunca viaja en la URL; el backend lo fija con `SET LOCAL app.tenant_id` (RLS). Recurso de otro colegio → 404.
+
+Endpoints (10):
+- H1: `POST /courses`, `GET /courses` (cursor, filtro period), `GET /courses/{courseId}`, `POST /courses/{courseId}/enrollments` (por student_email; 409 si ya matriculado).
+- H2: `POST /courses/{courseId}/assessments` (crea draft), `PATCH /assessments/{assessmentId}` (status published/closed; 422 si falta correct_option).
+- H4: `POST /assessments/{assessmentId}/submissions` (puntaje + feedback al instante; 409 si ya rindió).
+- H3: `GET /assessments/{assessmentId}/results` (promedio, % acierto por pregunta, filtro student_id; vacío sin error).
+- H5: `POST /courses/{courseId}/tutor-questions` (202 + Location, encola en SQS), `GET /tutor-questions/{questionId}` (status queued/answered/failed, grounded, sources del mismo tenant).
+
+Schemas (15): Problem (RFC 7807 + trace_id + errors[]), CourseInput, Course, CoursePage, EnrollmentInput, Enrollment, QuestionInput, AssessmentInput, Assessment, AssessmentStatusInput, SubmissionInput, SubmissionResult, AssessmentResults, TutorQuestionInput, TutorQuestion. Respuestas de error reutilizables: BadRequest, Unauthorized, Forbidden, NotFound, Conflict, ValidationError, RateLimited (429 por tenant con Retry-After y X-RateLimit-Remaining).
+
+Convenciones: recursos en plural kebab-case sin verbos, propiedades snake_case, Idempotency-Key (UUID) obligatoria en todo POST (24 h), paginación por cursor (cursor, limit, next_cursor), X-Trace-Id en respuestas 2xx.
+
+Toolchain verificado: Spectral (`.spectral.yaml`, extiende spectral:oas + 8 reglas propias) sin problemas; Prism mock (sirve paths sin `/v1` en 127.0.0.1:4010) con 5/5 ejemplos OK (`node api/examples/run-examples.mjs`); cliente TS con openapi-typescript + openapi-fetch (`packages/api-client`, typecheck OK).
+
+Versionado (`Documentos/api/versioning-policy.md`): SemVer en info.version, MAJOR = nuevo prefijo /v2. Compatible: agregar endpoint, campo opcional, query opcional, error documentado. Rompe: eliminar/renombrar, cambiar tipo, volver obligatorio, cambiar auth o identificación del tenant. Deprecación con `deprecated: true` + headers Deprecation y Sunset, plazo mínimo un semestre.
+
+Pendiente post-S05: publicar docs vivas (Swagger UI/Redoc), implementar endpoints en Express siguiendo el contrato, S06 (DER, eventos, bounded contexts, ADR 0004).
+
+---
+
+### [repo] Código en `code/` (estado al 2026-10-07)
+
+- `code/backend`: Express 5 + pino, ESM. Módulo `tutor` con chat de desarrollo `POST /v1/dev/chat` (streaming, modos tutor/pruebas) contra Ollama; `/health` con estado del LLM; errores RFC 7807 con `trace_id`; apagado graceful. Aún sin base de datos conectada. Tests con `node --test` (LLM simulado).
+- `code/frontend`: React 19 + Vite. Chat del tutor (modo Tutor y sub-modo Pruebas) y Aula virtual (Inicio, Mis cursos, Notas). Vitest + ESLint. En dev Vite reenvía `/v1` y `/health` al backend; en producción usa `VITE_API_URL`.
+- `code/backend/db/` (S06): `01_schema.sql` (equipo) + `CAMBIOS_SCHEMA.md`, `02_s06_ajustes.sql`, `98_test_s06_ajustes.sql` (23 pruebas), `queries.js` (ESM, 43 consultas). Falta subir `99_test_schema.sql` (28 pruebas del 01).
+
+---
+
+### [entregables] S06 — Datos: SQL, NoSQL y arquitecturas event-driven
+
+Bounded contexts: Identidad y tenancy (colegios, usuarios; login en dos pasos RBD → email), Gestión académica (cursos, matrículas), Evaluaciones (evaluaciones, preguntas, alternativas + vista alternativas_publicas, intentos, respuestas) y Tutor IA (apuntes, embeddings, consultas, fuentes). Plataforma: outbox_eventos, claves_idempotencia. Futuro: Seguimiento del apoderado (consume `intento.corregido`). "Estudiante" significa algo distinto en cada contexto (usuario con rol, matriculado, quien rinde, quien consulta). Context map: SSO → Identidad (ACL), Identidad → resto (Open Host: JWT + SET LOCAL app.colegio_id), Gestión académica → Evaluaciones (Customer/Supplier, FK a matrículas), Gestión académica → Tutor IA (evento), Tutor IA → LLM (ACL en llm-client.js).
+
+Esquema base del equipo (`01_schema.sql`, PostgreSQL 16 + citext + pgvector): colegio_id en todas las tablas con FKs compuestas `(x_id, colegio_id)`; rol en la FK con columnas generadas (`docente_rol`, `estudiante_rol`); intentos y consultas exigen matrícula (FK a `matriculas(curso_id, estudiante_id)`); RLS ENABLE+FORCE fail-closed con `app_colegio_id()` (variable `app.colegio_id`, SET LOCAL por transacción); roles `feathersforall_app` (sin BYPASSRLS) y `feathersforall_plataforma` (BYPASSRLS); RESTRICT entre entidades independientes + soft delete (`activo`), CASCADE solo en composición; email CITEXT único por colegio (master con índice propio); una alternativa correcta como máximo; vista `alternativas_publicas` (sin es_correcta, security_invoker); `fecha_cierre`; puntaje 0–100; `es_correcta`, `retroalimentacion` y `puntaje` como corrección CONGELADA (excepción consciente a la 3FN); `embedding vector(768)` (nomic-embed-text) con índice HNSW coseno; `updated_at` con trigger.
+
+Ajustes S06 (`02_s06_ajustes.sql`): `colegio_id DEFAULT app_colegio_id()`; `cursos.periodo` (AAAA-S1|S2, obligatorio) y `asignatura`; `preguntas.retroalimentacion` (el docente la define; se copia congelada a la respuesta); consultas al tutor asíncronas (`estado` en_cola/respondida/fallida, respuesta opcional, `con_respaldo`, `respondida_at`, CHECK de coherencia) + `consultas_fuentes` (apunte del mismo curso por FK); `outbox_eventos` (tipo `recurso.accion`, payload solo IDs, `intentos`) y `claves_idempotencia` (PK colegio+clave, operación, 24 h), ambas con RLS; función `colegio_por_rbd()` SECURITY DEFINER (dueña plataforma) para el login. Verificado: 23 pruebas en `98_test_s06_ajustes.sql`, 43 consultas de `queries.js` compilan y flujo H1→H5 completo como `feathersforall_app` bajo RLS.
+
+Eventos (14, `recurso.accion_en_pasado`, v1.0, sobre con event_id, event_type, event_version, occurred_at, colegio_id, aggregate_id, trace_id, data): colegio.creado, usuario.creado, curso.creado, estudiante.matriculado, evaluacion.creada, evaluacion.publicada, evaluacion.cerrada, intento.enviado, intento.corregido, apunte.cargado, apunte.indexado, consulta_tutor.encolada, consulta_tutor.respondida, consulta_tutor.fallida. Publicados en SQS en el MVP: usuario.creado, estudiante.matriculado, evaluacion.publicada, apunte.cargado, consulta_tutor.encolada; el resto queda en outbox. Relay en el worker con rol plataforma.
+
+ADR 0004 (Propuesto): PostgreSQL con RLS + pgvector en el mismo motor; archivos fuera de la BD (S07); SQS at-least-once con consumidores idempotentes por event_id. Patrones: Outbox sí (FOR UPDATE SKIP LOCKED), idempotencia sí, CQRS liviano (puntaje guardado + consultas agregadas); Event Sourcing, Saga y CDC no. Descartados: base vectorial dedicada, Redis, MongoDB/JSON para exámenes, Kafka/RabbitMQ, email único global. Por confirmar: dimensión del vector, escala 0–100 vs 1.0–7.0, retención de consultas al tutor, almacenamiento de archivos.
+
+ADR 0005 (Propuesto): frontend React + Vite en Vercel; reemplaza la línea de frontend del ADR 0002.
+
+C4 L2 (S06): Frontend React+Vite (Vercel) → Backend Express (Render, rol feathersforall_app, SET LOCAL app.colegio_id) → PostgreSQL 16 + pgvector (Render; RLS fail-closed, outbox, idempotencia); Worker (relay de outbox con rol plataforma y consumidor) ↔ AWS SQS; Servicio Tutor IA → embeddings; externos LLM (Ollama en dev), Email, SSO, Secrets Manager, CloudWatch.
+
+Hito parcial 1 (inicio de S07): presentar la arquitectura en 5 minutos (charter, backlog, C4, 12-Factor, OpenAPI, modelo de datos).

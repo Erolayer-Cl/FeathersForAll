@@ -3,7 +3,7 @@
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
 
-[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S05-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S06-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Charter](https://img.shields.io/badge/charter-v1.0-blue)](FeathersForAll/Documentos/Entregables/Charter.md)
 
@@ -66,6 +66,11 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 ```text
 .
 ├── readme.md
+├── models.md                           # Contexto del taller (PPT S01–S06) y estado del proyecto
+├── code/
+│   ├── backend/                        # API Node.js + Express (monolito modular)
+│   │   └── db/                         # Esquema PostgreSQL (01 + 02), consultas y pruebas (S06)
+│   └── frontend/                       # React + Vite (ADR 0005)
 └── FeathersForAll/
     ├── .spectral.yaml                  # Reglas de lint del contrato (S05)
     ├── api/
@@ -76,10 +81,7 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
     └── Documentos/
         ├── Entregables/
         │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
-        ├── adr/                        # Architecture Decision Records
-        │   ├── template.md
-        │   ├── 0001-eleccion-iniciativa.md
-        │   └── 0002-estilo-arquitectonico.md
+        ├── adr/                        # Architecture Decision Records (0001–0005)
         ├── arch/
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
@@ -87,13 +89,30 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
         ├── api/
         │   └── versioning-policy.md    # Política de versionado (S05)
         ├── cloud/
-        │   └── managed-services.md      # Servicios gestionados y trazabilidad
+        │   └── managed-services.md     # Servicios gestionados y trazabilidad (S04)
+        ├── data/                       # S06: DER, catálogo de eventos, bounded contexts
         ├── 12-factor-checklist.md      # Auditoría 12-Factor (S04)
         ├── impact-map.md
         └── backlog.md                  # 5 historias INVEST + MoSCoW
 ```
 
-Pendiente según el taller: `data/` y `adr/0004` (S06).
+### Datos (S06)
+
+Esquema en `code/backend/db/`: `01_schema.sql` (base del equipo, ver `CAMBIOS_SCHEMA.md`) + `02_s06_ajustes.sql` (tutor asíncrono, periodo, retroalimentación por pregunta, outbox, idempotencia, login por RBD). Requiere PostgreSQL 16 con las extensiones `citext` y `vector` (pgvector).
+
+```bash
+# BD local (ej. "laura")
+psql -d laura -v ON_ERROR_STOP=1 -f code/backend/db/01_schema.sql -f code/backend/db/02_s06_ajustes.sql
+
+# Pruebas en una BD de prueba vacía (con superusuario: crea roles de prueba)
+createdb feathersforall_test
+cd code/backend/db
+psql -d feathersforall_test -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 98_test_s06_ajustes.sql
+```
+
+La API se conecta con el rol `feathersforall_app` (sin BYPASSRLS) y abre cada request con `BEGIN; SET LOCAL app.colegio_id = '<uuid>';`. El relay de la outbox y el master usan `feathersforall_plataforma`. Consultas listas en `code/backend/db/queries.js`.
+
+DER: `FeathersForAll/Documentos/data/der.png` · Eventos: `data/event-catalog.md` · Contextos: `data/bounded-contexts.md`.
 
 ### API (S05, contract-first)
 
@@ -117,7 +136,8 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0001](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md) | Elección de la iniciativa del semestre: AulaViva | Aceptada | 21-08-2026 |
 | [0002](FeathersForAll/Documentos/adr/0002-estilo-arquitectonico.md) | Estilo arquitectónico: modular monolith (incluye aislamiento multi-tenant con RLS, Tutor IA como contenedor con módulo aislado y worker con cola) | Aceptada (por ratificar en reunión) | 28-09-2026 |
 | [0003](FeathersForAll/Documentos/adr/0003-cloud.md) | Decisión cloud: arquitectura híbrida Vercel + Render + AWS | Aceptada (por ratificar en reunión) | 28-09-2026 |
-| 0004 | Datos y eventos | Pendiente | S06 |
+| [0004](FeathersForAll/Documentos/adr/0004-datos-y-eventos.md) | Datos y eventos: PostgreSQL + pgvector con RLS, SQS y Outbox | Propuesta | 07-10-2026 |
+| [0005](FeathersForAll/Documentos/adr/0005-frontend-react.md) | Frontend con React + Vite (reemplaza la línea de frontend del ADR 0002) | Propuesta | 07-10-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 
