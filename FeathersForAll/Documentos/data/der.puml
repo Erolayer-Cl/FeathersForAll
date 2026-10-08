@@ -1,0 +1,118 @@
+@startuml der
+' DER del contexto principal: Evaluaciones (S06).
+' Fuente: code/backend/db/01_schema.sql + 02_s06_ajustes.sql
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #1F2D4E
+  HeaderBackgroundColor #F3E6DA
+  FontColor #1F2D4E
+  FontStyle bold
+}
+title DER — Contexto Evaluaciones (AulaViva) · todas las tablas con colegio_id + RLS
+
+entity "usuarios" as usuarios <<Identidad>> {
+  * id : uuid <<PK>>
+  --
+  colegio_id : uuid <<FK>>
+  * email : citext (único por colegio)
+  * rol : rol_usuario
+  * activo : boolean
+}
+
+entity "cursos" as cursos <<Gestión académica>> {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * docente_id : uuid <<FK>> (rol docente)
+  * nombre : varchar(150)
+  * periodo : varchar(7) (AAAA-S1|S2)
+  asignatura : varchar(80)
+  * activo : boolean
+}
+
+entity "matriculas" as matriculas <<Gestión académica>> {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * curso_id : uuid <<FK>>
+  * estudiante_id : uuid <<FK>> (rol estudiante)
+  * activo : boolean
+  UQ (curso_id, estudiante_id)
+}
+
+entity "evaluaciones" as evaluaciones {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * curso_id : uuid <<FK>>
+  * titulo : varchar(150)
+  * estado : borrador | publicada | cerrada
+  fecha_publicacion : timestamptz
+  fecha_cierre : timestamptz
+}
+
+entity "preguntas" as preguntas {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * evaluacion_id : uuid <<FK>>
+  * enunciado : text
+  * orden : smallint (UQ por evaluación)
+  retroalimentacion : text
+}
+
+entity "alternativas" as alternativas {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * pregunta_id : uuid <<FK>>
+  * texto : varchar(300)
+  * es_correcta : boolean (máx. 1 por pregunta)
+}
+
+entity "intentos_evaluacion" as intentos {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * curso_id : uuid <<FK>>
+  * evaluacion_id : uuid <<FK>>
+  * estudiante_id : uuid <<FK>>
+  fecha_envio : timestamptz
+  puntaje : numeric(5,2) (0–100)
+  UQ (evaluacion_id, estudiante_id)
+}
+
+entity "respuestas_estudiante" as respuestas {
+  * id : uuid <<PK>>
+  --
+  * colegio_id : uuid <<FK>>
+  * evaluacion_id : uuid <<FK>>
+  * intento_id : uuid <<FK>>
+  * pregunta_id : uuid <<FK>>
+  alternativa_elegida_id : uuid <<FK>>
+  es_correcta : boolean (congelada)
+  retroalimentacion : text (copia)
+}
+
+usuarios ||--o{ cursos : "dicta (rol docente)"
+usuarios ||--o{ matriculas : "estudiante"
+cursos ||--o{ matriculas : tiene
+cursos ||--o{ evaluaciones : tiene
+evaluaciones ||--|{ preguntas : contiene
+preguntas ||--|{ alternativas : ofrece
+evaluaciones ||--o{ intentos : recibe
+matriculas ||--o{ intentos : "habilita (FK curso+estudiante)"
+intentos ||--o{ respuestas : registra
+preguntas ||--o{ respuestas : responde
+alternativas |o--o{ respuestas : elegida
+
+note bottom of respuestas
+  FK compuestas: la respuesta es de la misma evaluación que el
+  intento, y la alternativa es de esa pregunta.
+  es_correcta, retroalimentacion y puntaje se guardan como
+  corrección CONGELADA al enviar (excepción a la 3FN, ADR 0004).
+end note
+@enduml

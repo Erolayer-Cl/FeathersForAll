@@ -1,0 +1,61 @@
+@startuml der-completo
+' DER completo (17 tablas + vista). Atributos en der.puml y en code/backend/db/
+hide circle
+hide members
+skinparam linetype ortho
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #1F2D4E
+}
+title DER completo — AulaViva (todas las tablas con colegio_id + RLS fail-closed)
+
+package "Identidad y tenancy" #F3E6DA {
+  entity colegios
+  entity usuarios
+}
+package "Gestión académica" #E8ECF3 {
+  entity cursos
+  entity matriculas
+}
+package "Evaluaciones" #EDF3EC {
+  entity evaluaciones
+  entity preguntas
+  entity alternativas
+  entity "alternativas_publicas\n(vista sin es_correcta)" as alternativas_publicas
+  entity intentos_evaluacion
+  entity respuestas_estudiante
+}
+package "Tutor IA" #F1ECF6 {
+  entity apuntes_curso
+  entity apuntes_embeddings
+  entity consultas_tutor_ia
+  entity consultas_fuentes
+}
+package "Plataforma" #EEEEEE {
+  entity outbox_eventos
+  entity claves_idempotencia
+}
+
+colegios ||--o{ usuarios
+colegios ||--o{ cursos
+usuarios ||--o{ cursos
+cursos ||--o{ matriculas
+usuarios ||--o{ matriculas
+cursos ||--o{ evaluaciones
+evaluaciones ||--|{ preguntas
+preguntas ||--|{ alternativas
+alternativas .. alternativas_publicas
+evaluaciones ||--o{ intentos_evaluacion
+matriculas ||--o{ intentos_evaluacion
+intentos_evaluacion ||--o{ respuestas_estudiante
+preguntas ||--o{ respuestas_estudiante
+alternativas |o--o{ respuestas_estudiante
+cursos ||--o{ apuntes_curso
+apuntes_curso ||--o{ apuntes_embeddings
+matriculas ||--o{ consultas_tutor_ia
+consultas_tutor_ia ||--o{ consultas_fuentes
+apuntes_curso ||--o{ consultas_fuentes
+colegios ||--o{ outbox_eventos
+colegios ||--o{ claves_idempotencia
+@enduml

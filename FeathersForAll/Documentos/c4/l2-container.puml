@@ -3,21 +3,22 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Diagrama de Contenedor (C4 Nivel 2) — AulaViva / FeathersForAll (con cloud, S04)
+title Diagrama de Contenedor (C4 Nivel 2) — AulaViva / FeathersForAll (datos y eventos, S06)
 
 Person(docente, "Docente", "Crea cursos/evaluaciones y revisa resultados")
 Person(estudiante, "Estudiante", "Rinde evaluaciones y consulta Tutor IA")
 Person(admin, "Admin. colegio", "Gestiona tenant, cursos y usuarios")
 
 System_Boundary(aulaviva, "FeathersForAll (Aplicación)") {
-  Container(web, "Aplicación Web (Frontend)", "HTML + CSS + JavaScript · Vercel", "Interfaz de docentes, estudiantes y administradores")
-  Container(api, "Backend monolítico (API)", "Node.js + Express · Render", "Lógica de negocio, autenticación, RBAC y validación de tenant en cada request")
-  Container(tutor, "Servicio Tutor IA", "RAG + pgvector", "Tutor por curso/tenant (hosting por confirmar, ver ADR 0003)")
-  Container(worker, "Worker / cola", "Node.js + worker · Render", "Trabajos asíncronos: consultas al LLM y notificaciones")
-  ContainerDb(db, "Base de datos", "PostgreSQL + pgvector · Render", "Cursos, evaluaciones, resultados y embeddings; tenant_id + RLS")
+  Container(web, "Aplicación Web (Frontend)", "React + Vite · Vercel", "Interfaz de docentes, estudiantes y administradores (ADR 0005)")
+  Container(api, "Backend monolítico (API)", "Node.js + Express · Render", "Módulos: Identidad, Gestión académica, Evaluaciones, Tutor IA. Rol feathersforall_app; SET LOCAL app.colegio_id por transacción")
+  Container(tutor, "Servicio Tutor IA", "RAG + pgvector", "Tutor por curso/tenant (hosting por confirmar, ADR 0003)")
+  Container(worker, "Worker", "Node.js · Render", "Relay de la outbox (rol plataforma) y consumidor de SQS: tutor IA, indexación de apuntes y notificaciones")
+  ContainerQueue(sqs, "Cola de eventos", "AWS SQS", "Eventos de dominio, entrega at-least-once")
+  ContainerDb(db, "Base de datos", "PostgreSQL 16 + pgvector · Render", "colegio_id + FKs compuestas + RLS fail-closed; embeddings vector(768) HNSW; outbox_eventos; claves_idempotencia")
 }
 
-System_Ext(llm, "Proveedor LLM", "API externa")
+System_Ext(llm, "Proveedor LLM", "API externa (Ollama en desarrollo)")
 System_Ext(email, "Email / SMTP")
 System_Ext(auth, "Auth institucional", "SSO / OAuth2")
 System_Ext(secrets, "AWS Secrets Manager", "Gestión de secretos")
@@ -28,13 +29,14 @@ Rel(estudiante, web, "Usa", "HTTPS")
 Rel(admin, web, "Usa", "HTTPS")
 
 Rel(web, api, "Llama", "HTTPS / JSON")
-Rel(api, db, "Lee/escribe", "SQL")
+Rel(api, db, "Estado + evento en outbox (misma transacción)", "SQL")
 Rel(api, tutor, "Consultas del tutor", "HTTP / JSON")
-Rel(api, worker, "Encola tareas", "AWS SQS")
-Rel(tutor, db, "Apuntes y embeddings del curso", "SQL")
+Rel(tutor, db, "Busca en embeddings del curso", "SQL / pgvector")
+Rel(worker, db, "Lee outbox pendiente (SKIP LOCKED) y actualiza consultas", "SQL")
+Rel(worker, sqs, "Publica y consume eventos", "AWS SDK")
 Rel(worker, llm, "Consulta el modelo", "HTTPS / API")
 Rel(worker, email, "Envía notificaciones", "SMTP / API")
-Rel(api, secrets, "Lee secretos (credenciales, API keys)", "AWS SDK")
+Rel(api, secrets, "Lee secretos", "AWS SDK")
 Rel(api, cw, "Logs / métricas", "CloudWatch")
 Rel(worker, cw, "Logs / métricas", "CloudWatch")
 Rel(api, auth, "Valida identidad", "SSO / OAuth2")
