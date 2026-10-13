@@ -102,7 +102,7 @@ describe('cuando el LLM no está disponible', () => {
     assert.equal((await res.json()).type, 'https://api.feathersforall.example/errors/llm-unavailable');
 
     const health = await fetch(`${ctx.url}/health`);
-    assert.deepEqual(await health.json(), { status: 'ok', llm: 'down' });
+    assert.deepEqual(await health.json(), { status: 'ok', llm: 'down', db: 'disabled', rag: 'disabled' });
   });
 });
 

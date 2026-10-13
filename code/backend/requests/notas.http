@@ -1,0 +1,134 @@
+### =============================================================================
+### Peticiones de la API de notas — extensión "REST Client" de VS Code (humao.rest-client)
+### =============================================================================
+###
+### 1. Levanta el backend con la base demo (ver README):  npm run dev
+### 2. Genera los tokens (duran 8 h):                       npm run dev:token -- --http
+### 3. Pega las 5 líneas @token_... que imprime ABAJO, reemplazando las de ejemplo.
+### 4. Haz clic en "Send Request" sobre cada petición.
+###
+### Los IDs son los de db/90_seed_demo.sql.
+
+@base = http://localhost:3000
+
+# --- Pega aquí la salida de `npm run dev:token -- --http` ---
+@token_docente = PEGAR
+@token_estudiante = PEGAR
+@token_admin = PEGAR
+@token_docente_historia = PEGAR
+@token_docente_colegio_b = PEGAR
+
+# --- Datos demo ---
+@curso_mate = c0000000-0000-0000-0000-000000000001
+@eval_fracciones = d0000000-0000-0000-0000-000000000001
+@eval_decimales = d0000000-0000-0000-0000-000000000002
+@camila = e0000000-0000-0000-0000-000000000001
+@sofia = e0000000-0000-0000-0000-000000000003
+
+
+### Estado del servidor (llm y db: up / down)
+GET {{base}}/health
+
+
+### =========================== ESTUDIANTE (Camila) ===========================
+
+### Mis notas, agrupadas por curso, con promedio ponderado
+GET {{base}}/v1/me/grades
+Authorization: Bearer {{token_estudiante}}
+
+### Mis notas de un solo curso
+GET {{base}}/v1/me/grades?course_id={{curso_mate}}
+Authorization: Bearer {{token_estudiante}}
+
+### Detalle de una evaluación entregada (respuestas + retroalimentación)
+GET {{base}}/v1/me/grades/{{eval_fracciones}}
+Authorization: Bearer {{token_estudiante}}
+
+### Mis notas vistas desde el curso (el estudiante solo puede pedir las suyas)
+GET {{base}}/v1/courses/{{curso_mate}}/students/{{camila}}/grades
+Authorization: Bearer {{token_estudiante}}
+
+
+### ============================= DOCENTE (Ana) ===============================
+
+### Libro de notas del curso: evaluaciones × estudiantes
+GET {{base}}/v1/courses/{{curso_mate}}/gradebook
+Authorization: Bearer {{token_docente}}
+
+### Resumen: promedio, mínima, máxima, aprobados, pendientes y estudiantes en riesgo (< 4.0)
+GET {{base}}/v1/courses/{{curso_mate}}/grades/summary
+Authorization: Bearer {{token_docente}}
+
+### Resumen con otro umbral de riesgo (< 5.5)
+GET {{base}}/v1/courses/{{curso_mate}}/grades/summary?threshold=5.5
+Authorization: Bearer {{token_docente}}
+
+### Notas de una estudiante del curso
+GET {{base}}/v1/courses/{{curso_mate}}/students/{{sofia}}/grades
+Authorization: Bearer {{token_docente}}
+
+### Dashboard de una evaluación: tasa de acierto por pregunta y notas
+GET {{base}}/v1/assessments/{{eval_decimales}}/results
+Authorization: Bearer {{token_docente}}
+
+### Dashboard filtrado por estudiante
+GET {{base}}/v1/assessments/{{eval_fracciones}}/results?student_id={{sofia}}
+Authorization: Bearer {{token_docente}}
+
+### Cambiar la exigencia a 50 % -> las notas se recalculan (vuelve a pedir el dashboard)
+PATCH {{base}}/v1/assessments/{{eval_fracciones}}/grading
+Authorization: Bearer {{token_docente}}
+Content-Type: application/json
+
+{ "pass_threshold": 50 }
+
+### Volver a la exigencia de 60 % y ponderación doble
+PATCH {{base}}/v1/assessments/{{eval_fracciones}}/grading
+Authorization: Bearer {{token_docente}}
+Content-Type: application/json
+
+{ "pass_threshold": 60, "weight": 2 }
+
+
+### ============================= ADMIN (Marta) ===============================
+
+### El admin del colegio ve cualquier curso de su colegio
+GET {{base}}/v1/courses/{{curso_mate}}/grades/summary
+Authorization: Bearer {{token_admin}}
+
+
+### ================== RECHAZOS (deben fallar con 4xx) ========================
+
+### 401 — sin token
+GET {{base}}/v1/me/grades
+
+### 401 — token inválido
+GET {{base}}/v1/me/grades
+Authorization: Bearer abc.def.ghi
+
+### 403 — un estudiante no puede ver el libro de notas
+GET {{base}}/v1/courses/{{curso_mate}}/gradebook
+Authorization: Bearer {{token_estudiante}}
+
+### 403 — un estudiante no puede ver las notas de otro
+GET {{base}}/v1/courses/{{curso_mate}}/students/{{sofia}}/grades
+Authorization: Bearer {{token_estudiante}}
+
+### 403 — docente de Historia pide el libro de Matemáticas (no es su curso)
+GET {{base}}/v1/courses/{{curso_mate}}/gradebook
+Authorization: Bearer {{token_docente_historia}}
+
+### 404 — docente de OTRO colegio: el RLS ni siquiera le deja ver que el curso existe
+GET {{base}}/v1/courses/{{curso_mate}}/gradebook
+Authorization: Bearer {{token_docente_colegio_b}}
+
+### 400 — UUID inválido
+GET {{base}}/v1/courses/no-es-un-uuid/gradebook
+Authorization: Bearer {{token_docente}}
+
+### 400 — exigencia fuera de rango
+PATCH {{base}}/v1/assessments/{{eval_fracciones}}/grading
+Authorization: Bearer {{token_docente}}
+Content-Type: application/json
+
+{ "pass_threshold": 120 }

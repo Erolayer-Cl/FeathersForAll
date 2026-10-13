@@ -98,7 +98,7 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 
 ### Datos (S06)
 
-Esquema en `code/backend/db/`: `01_schema.sql` (base del equipo, ver `CAMBIOS_SCHEMA.md`) + `02_s06_ajustes.sql` (tutor asíncrono, periodo, retroalimentación por pregunta, outbox, idempotencia, login por RBD). Requiere PostgreSQL 16 con las extensiones `citext` y `vector` (pgvector).
+Esquema en `code/backend/db/`: `01_schema.sql` (base del equipo, ver `CAMBIOS_SCHEMA.md`) + `02_s06_ajustes.sql` (tutor asíncrono, periodo, retroalimentación por pregunta, outbox, idempotencia, login por RBD, embeddings de 1024 para bge-m3 y permisos por rol). Requiere PostgreSQL 16 con las extensiones `citext` y `vector` (pgvector).
 
 ```bash
 # BD local (ej. "laura")
@@ -110,7 +110,7 @@ cd code/backend/db
 psql -d feathersforall_test -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 98_test_s06_ajustes.sql
 ```
 
-La API se conecta con el rol `feathersforall_app` (sin BYPASSRLS) y abre cada request con `BEGIN; SET LOCAL app.colegio_id = '<uuid>';`. El relay de la outbox y el master usan `feathersforall_plataforma`. Consultas listas en `code/backend/db/queries.js`.
+La API se conecta con el rol `feathersforall_app` (sin BYPASSRLS) y abre cada request con `BEGIN; SET LOCAL app.colegio_id = '<uuid>'; SET LOCAL app.usuario_id = '<uuid>'; SET LOCAL app.rol = '<rol>';` (datos del JWT verificado). Solo el docente del curso o el admin suben material y crean evaluaciones; el estudiante solo rinde y pregunta a su nombre. El relay de la outbox y el master usan `feathersforall_plataforma`. Consultas listas en `code/backend/db/queries.js`.
 
 DER: `FeathersForAll/Documentos/data/der.png` · Eventos: `data/event-catalog.md` · Contextos: `data/bounded-contexts.md`.
 
