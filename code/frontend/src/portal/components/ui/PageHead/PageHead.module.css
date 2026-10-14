@@ -1,0 +1,5 @@
+.head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.title { font-size: 30px; line-height: 1.15; }
+.sub { margin-top: 4px; color: var(--fp-muted); font-size: 14.5px; }
+.tools { display: flex; flex-wrap: wrap; gap: 12px; }
+@media (max-width: 860px) { .title { font-size: 24px; } }

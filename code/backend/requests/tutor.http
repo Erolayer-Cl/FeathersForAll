@@ -1,0 +1,45 @@
+### Tutor con RAG (REST Client de VS Code). Servidor: npm run dev
+# Tokens: npm run dev:token -- --http  → pega aquí @token_estudiante, @token_docente, etc.
+@base = http://localhost:3000
+@curso = c0000000-0000-0000-0000-000000000001
+@token_estudiante = PEGAR
+@token_docente = PEGAR
+
+### 1) Charla: debe conversar (X-Tutor-Turn: chat)
+POST {{base}}/v1/dev/chat
+Authorization: Bearer {{token_estudiante}}
+Content-Type: application/json
+
+{ "course_id": "{{curso}}", "messages": [{ "role": "user", "content": "hola pluma, ¿cómo estás?" }] }
+
+### 2) Materia que está en los apuntes (X-Tutor-Turn: grounded, con citas [1])
+POST {{base}}/v1/dev/chat
+Authorization: Bearer {{token_estudiante}}
+Content-Type: application/json
+
+{ "course_id": "{{curso}}", "messages": [{ "role": "user", "content": "¿cómo se suman fracciones con distinto denominador?" }] }
+
+### 3) Fuera de los apuntes: "No encuentro eso…" (X-Tutor-Turn: no-info)
+POST {{base}}/v1/dev/chat
+Authorization: Bearer {{token_estudiante}}
+Content-Type: application/json
+
+{ "course_id": "{{curso}}", "messages": [{ "role": "user", "content": "¿cuál es la capital de Francia?" }] }
+
+### 4) El estudiante NO puede subir apuntes (403)
+POST {{base}}/v1/dev/courses/{{curso}}/documents
+Authorization: Bearer {{token_estudiante}}
+Content-Type: application/json
+
+{ "name": "trampa.md", "text": "texto falso" }
+
+### 5) El docente del curso sí (201)
+POST {{base}}/v1/dev/courses/{{curso}}/documents
+Authorization: Bearer {{token_docente}}
+Content-Type: application/json
+
+{ "name": "decimales.md", "text": "Un número decimal tiene una parte entera y una parte decimal, separadas por una coma." }
+
+### 6) Apuntes del curso
+GET {{base}}/v1/dev/courses/{{curso}}/documents
+Authorization: Bearer {{token_docente}}

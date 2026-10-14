@@ -1,11 +1,22 @@
-// Consultas SQL de AulaViva / FeathersForAll (S06), sobre 01_schema.sql + 02_s06_ajustes.sql.
+// Consultas SQL de AulaViva / FeathersForAll (S06), sobre 01_schema.sql + 02_s06_ajustes.sql + 03_notas.sql.
 // Módulo ESM (el backend usa "type": "module"):  import { LOGIN } from './db/queries.js'
 //
 // Cómo se ejecutan (ver CAMBIOS_SCHEMA.md):
-//  * Rol feathersforall_app, dentro de una transacción:
-//        BEGIN; SET LOCAL app.colegio_id = '<colegio del JWT>'; ...; COMMIT;
+//  * Rol feathersforall_app, dentro de una transacción, con los datos del JWT VERIFICADO
+//    (en el backend: db.withUser(req.user, fn), ver src/platform/db.js):
+//        BEGIN;
+//        SET LOCAL app.colegio_id = '<colegio>';
+//        SET LOCAL app.usuario_id = '<usuario>';
+//        SET LOCAL app.rol        = 'docente' | 'estudiante' | 'admin_colegio';
+//        ...; COMMIT;
 //    colegio_id NO se manda en los INSERT: lo pone el DEFAULT app_colegio_id(),
 //    y RLS + FKs compuestas rechazan cualquier mezcla entre colegios.
+//    Permisos por rol (02_s06_ajustes.sql §9): material, evaluaciones y matrículas
+//    solo docente del curso o admin; usuarios solo admin; intentos, respuestas y
+//    consultas al tutor solo el propio estudiante. Un UPDATE/DELETE sin permiso
+//    no da error: afecta 0 filas -> la API debe responder 403/404.
+//  * Worker (indexar apuntes, responder al tutor): mismo rol de BD, con
+//    app.colegio_id del evento y app.rol = 'servicio' (sin app.usuario_id).
 //  * Las marcadas [plataforma] usan feathersforall_plataforma (BYPASSRLS):
 //    master, relay de la outbox y jobs de limpieza.
 
@@ -136,12 +147,14 @@ WHERE p.evaluacion_id = $1
 GROUP BY p.id
 ORDER BY p.orden`;
 
-// Solo si está publicada y no venció. curso_id se toma de la evaluación; la FK a
-// matriculas rechaza al estudiante no matriculado.
+// Solo si está publicada, no venció y la matrícula está ACTIVA. curso_id se toma
+// de la evaluación. La FK a matriculas solo exige que la matrícula exista (no mira
+// activo), por eso el JOIN: un estudiante dado de baja no puede rendir.
 export const CREAR_INTENTO = `
 INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id)
-SELECT e.curso_id, e.id, $2
+SELECT e.curso_id, e.id, m.estudiante_id
 FROM evaluaciones e
+JOIN matriculas m ON m.curso_id = e.curso_id AND m.estudiante_id = $2 AND m.activo
 WHERE e.id = $1
   AND e.estado = 'publicada'
   AND (e.fecha_cierre IS NULL OR now() < e.fecha_cierre)
@@ -149,14 +162,18 @@ RETURNING id`;
 
 // Corrección CONGELADA: copia es_correcta y la retroalimentación de la pregunta
 // al momento de responder. $3 NULL = pregunta sin responder (no es correcta).
+// No acepta respuestas si la evaluación ya no está publicada o venció.
 export const INSERTAR_RESPUESTA = `
 INSERT INTO respuestas_estudiante
     (evaluacion_id, intento_id, pregunta_id, alternativa_elegida_id, es_correcta, retroalimentacion)
 SELECT i.evaluacion_id, i.id, p.id, a.id, COALESCE(a.es_correcta, false), p.retroalimentacion
 FROM intentos_evaluacion i
+JOIN evaluaciones e ON e.id = i.evaluacion_id
 JOIN preguntas p ON p.id = $2 AND p.evaluacion_id = i.evaluacion_id
 LEFT JOIN alternativas a ON a.id = $3 AND a.pregunta_id = p.id
 WHERE i.id = $1 AND i.fecha_envio IS NULL
+  AND e.estado = 'publicada'
+  AND (e.fecha_cierre IS NULL OR now() < e.fecha_cierre)
 RETURNING id, es_correcta, retroalimentacion`;
 
 // Cierra el intento y guarda el puntaje (0–100) a partir de las respuestas congeladas.
@@ -182,6 +199,8 @@ WHERE i.estudiante_id = $1 AND i.fecha_envio IS NOT NULL
 ORDER BY i.fecha_envio DESC`;
 
 // LEFT JOIN: también muestra las preguntas sin responder.
+// Solo intentos ENVIADOS: si no, un estudiante vería qué respuestas lleva
+// correctas mientras todavía está rindiendo.
 export const DETALLE_NOTA = `
 SELECT p.orden, p.enunciado, a.texto AS respuesta_elegida,
        COALESCE(r.es_correcta, false) AS es_correcta,
@@ -190,7 +209,7 @@ FROM intentos_evaluacion i
 JOIN preguntas p ON p.evaluacion_id = i.evaluacion_id
 LEFT JOIN respuestas_estudiante r ON r.intento_id = i.id AND r.pregunta_id = p.id
 LEFT JOIN alternativas_publicas a ON a.id = r.alternativa_elegida_id
-WHERE i.estudiante_id = $1 AND i.evaluacion_id = $2
+WHERE i.estudiante_id = $1 AND i.evaluacion_id = $2 AND i.fecha_envio IS NOT NULL
 ORDER BY p.orden`;
 
 export const DASHBOARD_EVALUACION = `
@@ -200,15 +219,125 @@ JOIN usuarios u ON u.id = i.estudiante_id
 WHERE i.evaluacion_id = $1 AND i.fecha_envio IS NOT NULL
 ORDER BY i.puntaje DESC NULLS LAST, u.nombre`;
 
+// Solo cuentan intentos enviados (un intento a medias no es un resultado).
 export const ACIERTO_POR_PREGUNTA = `
 SELECT p.id AS pregunta_id, p.orden,
        count(r.id) AS respuestas,
        COALESCE(avg(CASE WHEN r.es_correcta THEN 1 ELSE 0 END), 0) AS tasa_acierto
 FROM preguntas p
-LEFT JOIN respuestas_estudiante r ON r.pregunta_id = p.id
+LEFT JOIN (respuestas_estudiante r
+           JOIN intentos_evaluacion i ON i.id = r.intento_id AND i.fecha_envio IS NOT NULL)
+       ON r.pregunta_id = p.id
 WHERE p.evaluacion_id = $1
 GROUP BY p.id, p.orden
 ORDER BY p.orden`;
+
+// --- Notas (03_notas.sql) ----------------------------------------------------------
+// La nota (1.0–7.0) sale de la vista `notas`, que la calcula desde el puntaje y la
+// exigencia de la evaluación. Promedios PONDERADOS por evaluaciones.ponderacion y
+// solo sobre evaluaciones entregadas (una evaluación no rendida no promedia).
+
+// Acceso a un curso: la API decide con esto si el usuario puede verlo.
+export const CURSO_ACCESO = `
+SELECT c.id, c.nombre, c.docente_id,
+       EXISTS (SELECT 1 FROM matriculas m
+               WHERE m.curso_id = c.id AND m.estudiante_id = $2 AND m.activo) AS matriculado
+FROM cursos c
+WHERE c.id = $1 AND c.activo`;
+
+export const EVALUACION_ACCESO = `
+SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, c.docente_id
+FROM evaluaciones e
+JOIN cursos c ON c.id = e.curso_id
+WHERE e.id = $1`;
+
+// Mis notas (estudiante), opcionalmente de un solo curso ($2 NULL = todos).
+export const NOTAS_ESTUDIANTE = `
+SELECT n.curso_id, c.nombre AS curso, n.evaluacion_id, n.evaluacion,
+       n.puntaje, n.nota, n.ponderacion, n.fecha_envio,
+       round(sum(n.nota * n.ponderacion) OVER w / sum(n.ponderacion) OVER w, 1) AS promedio_curso
+FROM notas n
+JOIN cursos c ON c.id = n.curso_id
+WHERE n.estudiante_id = $1 AND ($2::uuid IS NULL OR n.curso_id = $2)
+WINDOW w AS (PARTITION BY n.curso_id)
+ORDER BY c.nombre, n.fecha_envio`;
+
+// Columnas del libro de notas: evaluaciones ya publicadas (los borradores no tienen notas).
+export const LIBRO_NOTAS_EVALUACIONES = `
+SELECT id, titulo, estado, exigencia, ponderacion, fecha_publicacion
+FROM evaluaciones
+WHERE curso_id = $1 AND estado <> 'borrador'
+ORDER BY fecha_publicacion, titulo`;
+
+// Filas del libro de notas: una por (estudiante activo, nota). LEFT JOIN para que
+// aparezca también quien todavía no tiene notas.
+export const LIBRO_NOTAS_ESTUDIANTES = `
+SELECT u.id AS estudiante_id, u.nombre, n.evaluacion_id, n.puntaje, n.nota,
+       round(sum(n.nota * n.ponderacion) OVER w / NULLIF(sum(n.ponderacion) OVER w, 0), 1) AS promedio
+FROM matriculas m
+JOIN usuarios u ON u.id = m.estudiante_id
+LEFT JOIN notas n ON n.curso_id = m.curso_id AND n.estudiante_id = m.estudiante_id
+WHERE m.curso_id = $1 AND m.activo
+WINDOW w AS (PARTITION BY u.id)
+ORDER BY u.nombre, u.id`;
+
+// Estadísticas por evaluación: entregas, promedio, mínima, máxima, aprobados (>= 4.0).
+export const RESUMEN_NOTAS_CURSO = `
+SELECT e.id AS evaluacion_id, e.titulo, e.estado,
+       count(n.intento_id)                       AS entregas,
+       round(avg(n.nota), 1)                     AS promedio,
+       min(n.nota)                               AS nota_minima,
+       max(n.nota)                               AS nota_maxima,
+       count(*) FILTER (WHERE n.nota >= 4.0)     AS aprobados,
+       count(*) FILTER (WHERE n.nota <  4.0)     AS reprobados
+FROM evaluaciones e
+LEFT JOIN notas n ON n.evaluacion_id = e.id
+WHERE e.curso_id = $1 AND e.estado <> 'borrador'
+GROUP BY e.id
+ORDER BY e.fecha_publicacion, e.titulo`;
+
+export const MATRICULADOS_ACTIVOS = `
+SELECT count(*) AS total FROM matriculas WHERE curso_id = $1 AND activo`;
+
+// Estudiantes activos con promedio ponderado bajo el umbral ($2, normalmente 4.0).
+export const ESTUDIANTES_EN_RIESGO = `
+SELECT u.id AS estudiante_id, u.nombre,
+       round(sum(n.nota * n.ponderacion) / sum(n.ponderacion), 1) AS promedio,
+       count(*) AS evaluaciones_rendidas
+FROM notas n
+JOIN matriculas m ON m.curso_id = n.curso_id AND m.estudiante_id = n.estudiante_id AND m.activo
+JOIN usuarios u ON u.id = n.estudiante_id
+WHERE n.curso_id = $1
+GROUP BY u.id, u.nombre
+HAVING round(sum(n.nota * n.ponderacion) / sum(n.ponderacion), 1) < $2
+ORDER BY promedio, u.nombre`;
+
+// Dashboard de una evaluación (contrato S05: getAssessmentResults).
+export const RESULTADOS_EVALUACION_RESUMEN = `
+SELECT count(*) AS entregas, round(avg(puntaje), 2) AS puntaje_promedio, round(avg(nota), 1) AS nota_promedio
+FROM notas
+WHERE evaluacion_id = $1`;
+
+// $2 NULL = todos los estudiantes; si no, solo ese.
+export const RESULTADOS_EVALUACION_ESTUDIANTES = `
+SELECT n.estudiante_id, u.nombre, n.puntaje, n.nota, n.fecha_envio
+FROM notas n
+JOIN usuarios u ON u.id = n.estudiante_id
+WHERE n.evaluacion_id = $1 AND ($2::uuid IS NULL OR n.estudiante_id = $2)
+ORDER BY u.nombre`;
+
+// Nota de UN estudiante en UNA evaluación (cabecera del detalle).
+export const NOTA_ESTUDIANTE_EVALUACION = `
+SELECT evaluacion_id, evaluacion, puntaje, nota, exigencia, ponderacion, fecha_envio
+FROM notas
+WHERE estudiante_id = $1 AND evaluacion_id = $2`;
+
+// Cambiar exigencia o ponderación: las notas se recalculan solas (la vista las deriva).
+export const ACTUALIZAR_CALIFICACION = `
+UPDATE evaluaciones
+SET exigencia = COALESCE($2, exigencia), ponderacion = COALESCE($3, ponderacion)
+WHERE id = $1
+RETURNING id, titulo, exigencia, ponderacion`;
 
 // --- Tutor IA (H5) -------------------------------------------------------------------
 
@@ -223,7 +352,7 @@ FROM apuntes_curso
 WHERE curso_id = $1
 ORDER BY created_at DESC`;
 
-// $5 = embedding como texto '[0.1, 0.2, ...]' (768 valores, nomic-embed-text).
+// [servicio] $5 = embedding como texto '[0.1, 0.2, ...]' (1024 valores, bge-m3).
 export const INSERTAR_EMBEDDING = `
 INSERT INTO apuntes_embeddings (curso_id, apunte_id, chunk_indice, chunk_texto, embedding)
 VALUES ($1, $2, $3, $4, $5::vector)
@@ -239,9 +368,12 @@ ORDER BY embedding <=> $2::vector
 LIMIT $3`;
 
 // Paso 1 (API, una transacción): consulta en cola + evento en la outbox -> 202.
+// Igual que CREAR_INTENTO: solo con matrícula activa (si no, 0 filas -> 403).
 export const ENCOLAR_CONSULTA_TUTOR = `
 INSERT INTO consultas_tutor_ia (curso_id, estudiante_id, pregunta)
-VALUES ($1, $2, $3)
+SELECT m.curso_id, m.estudiante_id, $3
+FROM matriculas m
+WHERE m.curso_id = $1 AND m.estudiante_id = $2 AND m.activo
 RETURNING id, estado, created_at`;
 
 export const INSERTAR_OUTBOX = `
@@ -249,7 +381,7 @@ INSERT INTO outbox_eventos (tipo, version, agregado_id, payload, trace_id)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id`;
 
-// Paso 2 (worker, con SET LOCAL app.colegio_id del evento).
+// Paso 2 [servicio] (worker, con SET LOCAL app.colegio_id del evento y app.rol = 'servicio').
 export const RESPONDER_CONSULTA_TUTOR = `
 UPDATE consultas_tutor_ia
 SET estado = 'respondida', respuesta = $2, con_respaldo = $3, respondida_at = now()

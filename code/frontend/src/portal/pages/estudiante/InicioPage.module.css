@@ -1,0 +1,22 @@
+.hello { font-size: 28px; }
+.sub { margin-top: 2px; color: var(--fp-muted); font-size: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+.promo { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 28px 32px; border-radius: var(--fp-radius-lg); background: var(--fp-success-soft); }
+.promo::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; border-radius: var(--fp-radius-lg) 0 0 var(--fp-radius-lg); background: var(--fp-success); }
+.promo h2 { margin: 4px 0 6px; font-size: 24px; }
+.eyebrow { color: var(--fp-success-ink); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.promoAction { display: grid; justify-items: start; gap: 14px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.two h2 { font-size: 18px; }
+.rows { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 14px; border-radius: 16px; background: var(--fp-field); font-size: 13px; }
+.grow { flex: 1; min-width: 0; }
+.detail { display: block; overflow: hidden; color: var(--fp-muted); text-overflow: ellipsis; white-space: nowrap; }
+.when { color: var(--fp-muted); font-size: 12px; white-space: nowrap; }
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; }
+.success { background: var(--fp-success); }
+.accent { background: var(--fp-accent); }
+.warning { background: var(--fp-warning); }
+.count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; margin-left: 8px; border-radius: 99px; background: var(--fp-warning-soft); color: var(--fp-warning-ink); font-family: var(--fp-font); font-size: 11px; font-weight: 700; vertical-align: middle; }
+@media (max-width: 980px) { .two { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .promo { padding: 22px 20px; } }

@@ -1,0 +1,51 @@
+/* Reset mínimo, limitado al portal (no usa selectores globales). */
+.fp-root {
+  min-height: 100%;
+  background: var(--fp-bg);
+  color: var(--fp-ink);
+  font-family: var(--fp-font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.fp-root *,
+.fp-root *::before,
+.fp-root *::after {
+  box-sizing: border-box;
+}
+.fp-root :is(h1, h2, h3, p) {
+  margin: 0;
+}
+.fp-root :is(h1, h2, h3) {
+  font-family: var(--fp-font-heading);
+  font-weight: 400;
+  text-wrap: balance;
+}
+.fp-root :is(button, input, select) {
+  font: inherit;
+  color: inherit;
+}
+.fp-root button {
+  cursor: pointer;
+}
+.fp-root a {
+  text-decoration: none;
+}
+.fp-root a:not([class]) {
+  color: var(--fp-brand-text);
+}
+.fp-root :focus-visible {
+  outline: 2px solid var(--fp-accent);
+  outline-offset: 2px;
+}
+.fp-root[data-fp-contrast="high"] a:not([class]) {
+  text-decoration: underline;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-root *,
+  .fp-root *::before,
+  .fp-root *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

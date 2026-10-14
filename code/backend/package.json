@@ -2,7 +2,7 @@
   "name": "@feathersforall/backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Backend de FeathersForAll (monolito modular Express). Paso 1: chat de desarrollo con LLM local (Ollama).",
+  "description": "Backend de FeathersForAll (monolito modular Express): tutor con RAG (Ollama + pgvector) y notas sobre PostgreSQL.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,10 +10,15 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "ingest": "node --env-file-if-exists=.env scripts/ingest.js",
+    "rag:search": "node --env-file-if-exists=.env scripts/search.js",
+    "db:setup": "node --env-file-if-exists=.env scripts/db-setup.js",
+    "dev:token": "node --env-file-if-exists=.env scripts/dev-token.js"
   },
   "dependencies": {
     "express": "^5.1.0",
+    "pg": "^8.23.1",
     "pino": "^9.7.0"
   }
 }

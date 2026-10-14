@@ -2,13 +2,15 @@
 
 Revisión del esquema base de FeathersForAll. El objetivo principal: que la **base de datos** garantice el aislamiento entre colegios y la integridad de las evaluaciones, en vez de depender de que la API nunca se equivoque.
 
-Todas las reglas están verificadas en `99_test_schema.sql` (28 pruebas, PostgreSQL 16 + pgvector):
+Las reglas se verifican con `test_integridad.sql` (casos que deben fallar, revisión visual) y `98_test_s06_ajustes.sql` (23 pruebas automáticas), sobre PostgreSQL 16 + pgvector:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 99_test_schema.sql
+psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 03_notas.sql -f 98_test_s06_ajustes.sql
 ```
 
 > Ajustes posteriores de S06 (tutor asíncrono, periodo del curso, retroalimentación por pregunta, outbox, idempotencia y búsqueda del colegio para el login): ver `02_s06_ajustes.sql` y sus pruebas en `98_test_s06_ajustes.sql`.
+>
+> Notas en escala 1.0–7.0 (exigencia, ponderación, vista `notas`): ver `03_notas.sql` y la sección **Notas** al final de este archivo.
 
 ---
 
@@ -79,6 +81,28 @@ psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 99_test_schema.sql
 
 ## Decisiones a confirmar con el equipo
 
-- Dimensión `vector(768)`: depende del modelo de embeddings que usen.
+- ~~Dimensión `vector(768)`~~ → resuelto en `02_s06_ajustes.sql` §8: `vector(1024)` (bge-m3, el modelo del RAG).
 - Escala de puntaje 0–100: ajustar si usan 1.0–7.0.
 - Plazo de retención de `consultas_tutor_ia`.
+
+---
+
+## Notas (`03_notas.sql`)
+
+| # | Cambio | Por qué |
+|---|--------|---------|
+| 28 | `evaluaciones.exigencia` (default 60 %) y `evaluaciones.ponderacion` (default 1) | La nota chilena depende de la exigencia; el promedio del curso necesita pesos. |
+| 29 | Función `nota_desde_puntaje(puntaje, exigencia)` → 1.0–7.0, redondeada a un decimal | Escala lineal por tramos: bajo la exigencia va de 1.0 a 4.0, sobre ella de 4.0 a 7.0. |
+| 30 | Vista `notas` (`security_invoker`) con una fila por intento **enviado** | La nota se **calcula**, no se guarda: si el docente cambia la exigencia, todas las notas se recalculan solas. |
+| 31 | Índice parcial `idx_intentos_notas` (solo intentos enviados) | Libro de notas y promedios por curso/estudiante sin recorrer la tabla. |
+
+## Errores corregidos en `queries.js` (verificados contra PostgreSQL)
+
+| Consulta | Problema | Corrección |
+|----------|----------|------------|
+| `CREAR_INTENTO`, `ENCOLAR_CONSULTA_TUTOR` | La FK a `matriculas` solo exige que la matrícula **exista**: un estudiante dado de baja (`activo = false`) podía seguir rindiendo y usando el tutor. | `JOIN matriculas ... AND m.activo`. |
+| `INSERTAR_RESPUESTA` | Aceptaba respuestas con la evaluación cerrada o vencida (`fecha_cierre`). | Exige `estado = 'publicada'` y `now() < fecha_cierre`. |
+| `DETALLE_NOTA` | Con un intento **en curso**, el estudiante veía qué respuestas llevaba correctas. | Solo intentos con `fecha_envio`. |
+| `ACIERTO_POR_PREGUNTA` | Contaba respuestas de intentos sin enviar, distorsionando la tasa de acierto. | Solo intentos enviados. |
+
+Además, `test_integridad.sql` estaba desactualizado (usaba `app.tenant_id`, la vista `v_puntajes` que no existe, y esperaba que `DELETE FROM colegios` funcionara aunque es `RESTRICT`): se reescribió con las reglas actuales.

@@ -1,0 +1,88 @@
+/* Tokens del portal (Figma "01 - Design System"), con tema claro y oscuro.
+   Todo está prefijado con --fp- y limitado a .fp-root: no pisa los tokens --color-* de la app del chat. */
+.fp-root {
+  color-scheme: light;
+
+  /* Marca y acento (el acento lo puede cambiar el usuario; ver preferences/preferences.js) */
+  --fp-brand: #1e3a8a;
+  --fp-accent: #3b82f6;
+  --fp-brand-text: var(--fp-brand);
+  --fp-side: var(--fp-brand);
+  --fp-on-brand: #ffffff;
+
+  /* Superficies y texto */
+  --fp-bg: #f8fafc;
+  --fp-surface: #ffffff;
+  --fp-field: #f6f8fb;
+  --fp-ink: #0f172a;
+  --fp-muted: #64748b;
+  --fp-line: #e5eaf2;
+  --fp-track: #e6ebf3;
+  --fp-placeholder: #6b7a90;
+  --fp-inverse: var(--fp-ink);
+  --fp-on-inverse: #ffffff;
+
+  /* Estados */
+  --fp-success: #10b981;
+  --fp-warning: #f59e0b;
+  --fp-danger: #ef4444;
+  --fp-success-soft: #e8f6f0;
+  --fp-warning-soft: #fef3e2;
+  --fp-danger-soft: #fde8e8;
+  --fp-success-ink: #047857;
+  --fp-warning-ink: #b45309;
+  --fp-danger-ink: #b91c1c;
+
+  /* Tintes del acento (derivados, así siguen al color elegido) */
+  --fp-accent-soft: color-mix(in srgb, var(--fp-accent) 11%, var(--fp-surface));
+  --fp-accent-mid: color-mix(in srgb, var(--fp-accent) 20%, var(--fp-surface));
+  --fp-accent-strong: color-mix(in srgb, var(--fp-accent) 34%, var(--fp-surface));
+
+  /* Tipografía (las preferencias de tipografía las reemplazan) */
+  --fp-font: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fp-font-heading: "Caprasimo", "Figtree", system-ui, sans-serif;
+
+  /* Formas, sombras y movimiento */
+  --fp-radius-sm: 8px;
+  --fp-radius-md: 16px;
+  --fp-radius-lg: 28px;
+  --fp-radius-pill: 999px;
+  --fp-shadow-sm: 0 1px 3px rgb(30 58 138 / 0.1);
+  --fp-shadow-md: 0 4px 16px rgb(30 58 138 / 0.12);
+  --fp-shadow-lg: 0 14px 40px rgb(15 23 42 / 0.28);
+  --fp-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fp-duration: 0.3s;
+
+  /* Densidad (la preferencia de densidad cambia estos dos) */
+  --fp-gap: 22px;
+  --fp-card-pad: 24px 28px;
+}
+
+.fp-root[data-fp-theme="dark"] {
+  color-scheme: dark;
+  --fp-bg: #0b1220;
+  --fp-surface: #131c30;
+  --fp-field: #1b2742;
+  --fp-ink: #e8edf7;
+  --fp-muted: #a3b0c6;
+  --fp-line: #26334d;
+  --fp-track: #2a3857;
+  --fp-placeholder: #8593ab;
+  --fp-inverse: #e8edf7;
+  --fp-on-inverse: #0b1220;
+  --fp-success-soft: #11312a;
+  --fp-warning-soft: #3a2a10;
+  --fp-danger-soft: #3d1b20;
+  --fp-success-ink: #6ee7b7;
+  --fp-warning-ink: #fcd34d;
+  --fp-danger-ink: #fca5a5;
+  --fp-brand: color-mix(in srgb, var(--fp-accent) 78%, #000);
+  --fp-brand-text: color-mix(in srgb, var(--fp-accent) 55%, #fff);
+  --fp-side: color-mix(in srgb, var(--fp-accent) 22%, #0a1020);
+  --fp-accent-soft: color-mix(in srgb, var(--fp-accent) 18%, var(--fp-surface));
+  --fp-accent-mid: color-mix(in srgb, var(--fp-accent) 24%, var(--fp-surface));
+  --fp-accent-strong: color-mix(in srgb, var(--fp-accent) 36%, var(--fp-surface));
+  --fp-shadow-sm: 0 1px 3px rgb(0 0 0 / 0.45);
+  --fp-shadow-md: 0 6px 20px rgb(0 0 0 / 0.5);
+  --fp-shadow-lg: 0 14px 40px rgb(0 0 0 / 0.6);
+}

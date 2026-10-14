@@ -14,10 +14,12 @@ export class LlmUnavailableError extends Error {
  * @param {string} opts.model     Modelo, p. ej. qwen2.5:3b
  * @param {number} opts.timeoutMs Máximo de espera sin recibir datos (se reinicia con cada fragmento)
  * @param {number} [opts.temperature] Creatividad del modelo (0–1); más bajo = respuestas más enfocadas
+ * @param {number} [opts.numCtx]     Ventana de contexto en tokens (el RAG agrega apuntes al prompt)
  * @param {typeof fetch} [opts.fetchImpl]
  */
-export function createOllamaClient({ endpoint, model, timeoutMs, temperature, fetchImpl = fetch }) {
+export function createOllamaClient({ endpoint, model, timeoutMs, temperature, numCtx, fetchImpl = fetch }) {
   const baseUrl = endpoint.replace(/\/+$/, '');
+  const hasOptions = temperature !== undefined || numCtx !== undefined;
 
   return {
     model,
@@ -56,7 +58,7 @@ export function createOllamaClient({ endpoint, model, timeoutMs, temperature, fe
               model,
               messages,
               stream: true,
-              ...(temperature !== undefined && { options: { temperature } }),
+              ...(hasOptions && { options: { ...(temperature !== undefined && { temperature }), ...(numCtx !== undefined && { num_ctx: numCtx }) } }),
             }),
             signal: controller.signal,
           });

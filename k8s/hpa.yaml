@@ -1,0 +1,30 @@
+# Escala la API entre 2 y 6 réplicas manteniendo la CPU promedio cerca del 65 % de lo pedido (requests).
+# Requiere metrics-server (k8s/README.md, paso 1). Escalar por latencia (p95) necesita Prometheus +
+# prometheus-adapter: queda para la S11 (observabilidad).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ffa-api
+  labels:
+    app.kubernetes.io/name: ffa-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ffa-api
+  minReplicas: 2          # nunca una sola réplica: un reinicio no deja el servicio caído
+  maxReplicas: 6          # techo de costo (y de conexiones a PostgreSQL: 6 × pool 10 = 60)
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 65 }
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - { type: Pods, value: 2, periodSeconds: 30 }
+    scaleDown:
+      stabilizationWindowSeconds: 120      # evita subir y bajar en ciclos cortos
+      policies:
+        - { type: Pods, value: 1, periodSeconds: 60 }

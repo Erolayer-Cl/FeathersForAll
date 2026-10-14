@@ -1,12 +1,12 @@
-# models.md — Taller de Ingeniería de Software (S01–S06)
+# models.md — Taller de Ingeniería de Software (S01–S07)
 
 Conversión de las PPT de la carpeta AULAVIVA a Markdown, para usar como contexto al construir AulaViva (FeathersForAll). Cada sesión = un módulo del taller; cada mini-lab define un entregable en el repo.
 
 **Iniciativa nuestra: AulaViva** — plataforma SaaS multi-tenant con tutor IA (MVP: multi-tenancy real 1 colegio = 1 tenant, cursos/docentes/estudiantes con RBAC, evaluaciones auto-corregidas, tutor IA con RAG por curso, panel del apoderado). Restricciones: aislamiento por tenant, datos de menores, picos estacionales, RAG con currículum MINEDUC, FinOps del LLM por tenant.
 
-**Estructura:** Parte 1 = contenido de las PPT S01–S06. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
+**Estructura:** Parte 1 = contenido de las PPT S01–S07. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
 
-**Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`.
+**Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`, `Dockerfile`, `k8s/*.yaml`, `terraform/main.tf`, ADR de plataforma K8s (en el repo: 0006).
 
 ---
 
@@ -1508,6 +1508,205 @@ paths:
 
 ---
 
+# S07 — Contenedores, Kubernetes e Infraestructura como Código
+
+## Slide 1
+- Sesión 07 · 2h 30 min
+- Contenedores,
+- Kubernetes e IaC.
+- Empaquetar, orquestar y provisionar. De un Dockerfile multi-stage a un clúster de Kubernetes descrito en Terraform: la base sobre la que se apoyan CI/CD, DevSecOps y observabilidad.
+- BLOQUE B · AUTOMATIZACIÓN Y DEVSECOPS
+- Pregrado · Ingeniería de Software Avanzada
+- MÓDULO
+- 07
+- de 18 sesiones
+- BLOQUE
+- Automatización
+- y DevSecOps
+
+## Slide 2
+- Agenda
+- Qué haremos hoy
+- 01
+- Warm-up · Del monolito al contenedor
+- Por qué contenedores resolvieron el "en mi máquina funciona". · 20 min
+- 02
+- Docker en profundidad
+- Imágenes, capas, multi-stage, distroless, buenas prácticas. · 30 min
+- 03
+- Kubernetes esencial
+- Pod, Deployment, Service, Ingress, ConfigMap/Secret, HPA. · 30 min
+- 04
+- Helm vs. Kustomize
+- Cuándo templetizar y cuándo overlays declarativos. · 20 min
+- 05
+- IaC con Terraform
+- Providers, state, workspaces. Comparación con Pulumi/CFN. · 20 min
+- 06
+- Mini-lab + retro
+- Dockerfile + K8s manifests + Terraform en tu iniciativa. · 30 min
+- DURACIÓN TOTAL · 2 h 30 min · incluye 10 min de descanso y 10 min de retrospectiva
+
+## Slide 3
+- Objetivos de la sesión
+- Al terminar, tu equipo será capaz de…
+- OBJETIVO 01 · EMPAQUETAR
+- Construir imágenes Docker reproducibles y seguras
+- Aplicar multi-stage builds, capas mínimas y bases distroless. Justificar el uso de .dockerignore, USER no root y tags inmutables.
+- OBJETIVO 02 · ORQUESTAR
+- Desplegar en Kubernetes con manifiestos declarativos
+- Modelar el servicio con Pod, Deployment, Service, Ingress, ConfigMap y Secret. Escalar con HPA en función de métricas de latencia y CPU.
+- OBJETIVO 03 · PROVISIONAR
+- Describir la infraestructura como código
+- Crear módulos Terraform reutilizables, gestionar state remoto con locking y comparar con Pulumi y CloudFormation en trade-offs de equipo.
+
+## Slide 4
+- Contenido 01 · Docker
+- Imágenes, capas y builds multi-stage
+- Conceptos claves
+- Imagen: plantilla inmutable de capas OCI. Cada instrucción del Dockerfile crea una capa cacheable.
+- Multi-stage: separa build (SDK completo) de runtime (imagen mínima). Reduce superficie de ataque y tamaño 5–10×.
+- Distroless / Alpine: sin shell ni package manager en runtime. Menos CVE.
+- Buenas prácticas: orden por frecuencia de cambio, USER no-root, tag inmutable por digest, HEALTHCHECK.
+- Cosas que NO hacer
+- Etiquetar como :latest en producción.
+- Instalar curl, vim u otras herramientas de debug en runtime.
+- Copiar secretos con ENV o COPY: usar --secret de BuildKit.
+- DOCKERFILE MULTI-STAGE · PYTHON/FASTAPI
+- Resultado esperado: imagen final < 80 MB, sin shell, ejecutando como usuario nonroot.
+```dockerfile
+# --- build stage ---
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
+
+# --- runtime stage ---
+FROM gcr.io/distroless/python3-debian12
+WORKDIR /app
+COPY --from=build /install /usr/local
+COPY src/ ./src/
+USER nonroot
+EXPOSE 8080
+ENTRYPOINT ["python", "-m", "src.main"]
+```
+
+## Slide 5
+- Contenido 02 · Kubernetes + IaC
+- Objetos K8s y decisiones de IaC
+- OBJETOS FUNDAMENTALES
+
+| OBJETO | PROPÓSITO | CUÁNDO LO USAS |
+|---|---|---|
+| Pod | Unidad mínima de despliegue: 1+ contenedores que comparten red y volúmenes. | Nunca directo en prod. |
+| Deployment | Rollout declarativo, ReplicaSet, historial, rollback. | Servicios stateless. |
+| Service | IP estable + load balancing interno (ClusterIP / NodePort / LB). | Exponer un Deployment. |
+| Ingress | Ruteo HTTP L7 + TLS + hosts virtuales. | Exponer al mundo. |
+| ConfigMap / Secret | Configuración y credenciales inyectadas como env o volumen. | Separar config del binario. |
+| HPA | Escala réplicas por CPU, memoria o métricas custom (Prometheus). | Cargas variables. |
+
+- IAC · TERRAFORM VS PULUMI VS CFN
+
+| HERRAMIENTA | LENGUAJE |
+|---|---|
+| Terraform · multi-cloud, HCL declarativo, ecosistema enorme. | HCL |
+| Pulumi · IaC en lenguaje real, tests unitarios, refactor fácil. | TS/Py/Go |
+| CloudFormation · nativo AWS, drift detection, sin proveedor externo. | YAML |
+
+- State management
+- Backend remoto (S3+DynamoDB, GCS, Terraform Cloud). Locking obligatorio. Nunca versionar .tfstate con secretos en git.
+- Regla: un state por ambiente (dev/stg/prod) + un state por dominio de cambio.
+
+## Slide 6
+- Caso de uso · CrediScore (FinTech)
+- Empaquetar y desplegar el servicio de scoring
+- DEPLOYMENT + SERVICE + HPA
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scoring-api
+  labels: { app: scoring, iniciativa: crediscore }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: scoring } }
+  template:
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/crediscore/scoring@sha256:abc...
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
+          envFrom:
+            - configMapRef: { name: scoring-config }
+            - secretRef: { name: scoring-secrets }
+          readinessProbe: { httpGet: { path: /ready, port: 8080 } }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+spec:
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+```
+- DECISIONES DE INGENIERÍA
+- Cómo cumplimos las restricciones de CrediScore
+- Latencia p95 < 60 s: readiness probe estricta + HPA por CPU y latencia custom.
+- Idempotencia: header Idempotency-Key propagado; réplicas stateless.
+- Trazabilidad CMF: logs estructurados con trace_id hacia bucket inmutable (WORM).
+- Imagen firmada: tag por digest (@sha256:...), nunca :latest.
+- TERRAFORM — INFRA BASE
+- Módulos vpc/, eks/, rds-postgres/. State remoto en S3 con lock en DynamoDB. Un workspace por ambiente.
+
+## Slide 7
+- Mini-lab de la sesión · 30 min
+- Empaqueta y despliega tu servicio principal
+- Docker Desktop y kubectl instalados.
+- Un cluster local (kind, minikube o k3d).
+- Terraform ≥ 1.6 y provider kubernetes.
+- Escribir Dockerfile multi-stage (build + distroless) para el servicio principal de tu iniciativa.
+- Publicar la imagen en GHCR con tag por digest.
+- Crear k8s/deployment.yaml, service.yaml, ingress.yaml, configmap.yaml, hpa.yaml.
+- Aplicar con kubectl apply -k k8s/ (Kustomize).
+- Levantar terraform/main.tf con namespace + secret placeholder.
+- Verificar kubectl get pods, kubectl top y probar HPA con carga sintética.
+- Prerrequisitos
+- Pasos
+- Pull Request al repo del equipo con:
+- Dockerfile multi-stage funcional.
+- k8s/*.yaml — al menos Deployment, Service, Ingress, ConfigMap, HPA.
+- terraform/main.tf con provider, backend remoto y namespace.
+- docs/adr/0004-plataforma-k8s.md — decisión de distro K8s y IaC.
+- Screenshot de kubectl get all -n <equipo> en el README.
+- Etiqueta la imagen por digest, no por :latest. Justifica la elección de base image en el PR.
+- Entregable
+- RÚBRICA · 100 PUNTOS
+
+| Dockerfile multi-stage y distroless | 20 |
+|---|---|
+| Manifiestos K8s completos y válidos | 25 |
+| Terraform aplicable sin errores | 20 |
+| HPA configurado y probado | 15 |
+| ADR 0004 argumentada | 15 |
+| Puntualidad de la entrega | 5 |
+
+- Deadline: antes del inicio de la S08.
+
+## Slide 8
+- Cierre y próximos pasos
+- Nos vemos
+- en la S08.
+- Compromisos hasta la próxima clase
+- Entregar el Dockerfile + K8s manifests + Terraform vía PR.
+- Verificar que la imagen final pesa < 200 MB y corre como no-root.
+- Documentar la elección de base image y distro K8s en el ADR 0004.
+- Instalar la extensión Kubernetes de VS Code para el próximo laboratorio.
+- CI/CD y GitOps
+- De kubectl apply manual a un pipeline con quality gates y GitOps (Argo CD / Flux). Todo cambio, un commit.
+
+---
+
 # PARTE 2 — Estado real del repo FeathersForAll (contexto de lo ya construido)
 
 Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 2026-09-28; actualizado el 2026-10-07 con S04–S06 y el código en `code/`). Los documentos están en `FeathersForAll/Documentos/`. Última actividad en el repo: "Tercera Semana" (S03). Lo que sigue es el contenido de esos documentos, más el estado y los pendientes respecto a las PPT (Parte 1).
@@ -2250,7 +2449,7 @@ Pendiente post-S05: publicar docs vivas (Swagger UI/Redoc), implementar endpoint
 
 - `code/backend`: Express 5 + pino, ESM. Módulo `tutor` con chat de desarrollo `POST /v1/dev/chat` (streaming, modos tutor/pruebas) contra Ollama; `/health` con estado del LLM; errores RFC 7807 con `trace_id`; apagado graceful. Aún sin base de datos conectada. Tests con `node --test` (LLM simulado).
 - `code/frontend`: React 19 + Vite. Chat del tutor (modo Tutor y sub-modo Pruebas) y Aula virtual (Inicio, Mis cursos, Notas). Vitest + ESLint. En dev Vite reenvía `/v1` y `/health` al backend; en producción usa `VITE_API_URL`.
-- `code/backend/db/` (S06): `01_schema.sql` (equipo) + `CAMBIOS_SCHEMA.md`, `02_s06_ajustes.sql`, `98_test_s06_ajustes.sql` (23 pruebas), `queries.js` (ESM, 43 consultas). Falta subir `99_test_schema.sql` (28 pruebas del 01).
+- `code/backend/db/` (S06): `01_schema.sql` (equipo) + `CAMBIOS_SCHEMA.md`, `02_s06_ajustes.sql`, `98_test_s06_ajustes.sql` (52 pruebas), `queries.js` (ESM, 43 consultas). Falta subir `99_test_schema.sql` (28 pruebas del 01).
 
 ---
 
@@ -2258,9 +2457,9 @@ Pendiente post-S05: publicar docs vivas (Swagger UI/Redoc), implementar endpoint
 
 Bounded contexts: Identidad y tenancy (colegios, usuarios; login en dos pasos RBD → email), Gestión académica (cursos, matrículas), Evaluaciones (evaluaciones, preguntas, alternativas + vista alternativas_publicas, intentos, respuestas) y Tutor IA (apuntes, embeddings, consultas, fuentes). Plataforma: outbox_eventos, claves_idempotencia. Futuro: Seguimiento del apoderado (consume `intento.corregido`). "Estudiante" significa algo distinto en cada contexto (usuario con rol, matriculado, quien rinde, quien consulta). Context map: SSO → Identidad (ACL), Identidad → resto (Open Host: JWT + SET LOCAL app.colegio_id), Gestión académica → Evaluaciones (Customer/Supplier, FK a matrículas), Gestión académica → Tutor IA (evento), Tutor IA → LLM (ACL en llm-client.js).
 
-Esquema base del equipo (`01_schema.sql`, PostgreSQL 16 + citext + pgvector): colegio_id en todas las tablas con FKs compuestas `(x_id, colegio_id)`; rol en la FK con columnas generadas (`docente_rol`, `estudiante_rol`); intentos y consultas exigen matrícula (FK a `matriculas(curso_id, estudiante_id)`); RLS ENABLE+FORCE fail-closed con `app_colegio_id()` (variable `app.colegio_id`, SET LOCAL por transacción); roles `feathersforall_app` (sin BYPASSRLS) y `feathersforall_plataforma` (BYPASSRLS); RESTRICT entre entidades independientes + soft delete (`activo`), CASCADE solo en composición; email CITEXT único por colegio (master con índice propio); una alternativa correcta como máximo; vista `alternativas_publicas` (sin es_correcta, security_invoker); `fecha_cierre`; puntaje 0–100; `es_correcta`, `retroalimentacion` y `puntaje` como corrección CONGELADA (excepción consciente a la 3FN); `embedding vector(768)` (nomic-embed-text) con índice HNSW coseno; `updated_at` con trigger.
+Esquema base del equipo (`01_schema.sql`, PostgreSQL 16 + citext + pgvector): colegio_id en todas las tablas con FKs compuestas `(x_id, colegio_id)`; rol en la FK con columnas generadas (`docente_rol`, `estudiante_rol`); intentos y consultas exigen matrícula (FK a `matriculas(curso_id, estudiante_id)`); RLS ENABLE+FORCE fail-closed con `app_colegio_id()` (variable `app.colegio_id`, SET LOCAL por transacción); roles `feathersforall_app` (sin BYPASSRLS) y `feathersforall_plataforma` (BYPASSRLS); RESTRICT entre entidades independientes + soft delete (`activo`), CASCADE solo en composición; email CITEXT único por colegio (master con índice propio); una alternativa correcta como máximo; vista `alternativas_publicas` (sin es_correcta, security_invoker); `fecha_cierre`; puntaje 0–100; `es_correcta`, `retroalimentacion` y `puntaje` como corrección CONGELADA (excepción consciente a la 3FN); `embedding vector(768)` en el 01 (pasa a 1024 en el 02) con índice HNSW coseno; `updated_at` con trigger.
 
-Ajustes S06 (`02_s06_ajustes.sql`): `colegio_id DEFAULT app_colegio_id()`; `cursos.periodo` (AAAA-S1|S2, obligatorio) y `asignatura`; `preguntas.retroalimentacion` (el docente la define; se copia congelada a la respuesta); consultas al tutor asíncronas (`estado` en_cola/respondida/fallida, respuesta opcional, `con_respaldo`, `respondida_at`, CHECK de coherencia) + `consultas_fuentes` (apunte del mismo curso por FK); `outbox_eventos` (tipo `recurso.accion`, payload solo IDs, `intentos`) y `claves_idempotencia` (PK colegio+clave, operación, 24 h), ambas con RLS; función `colegio_por_rbd()` SECURITY DEFINER (dueña plataforma) para el login. Verificado: 23 pruebas en `98_test_s06_ajustes.sql`, 43 consultas de `queries.js` compilan y flujo H1→H5 completo como `feathersforall_app` bajo RLS.
+Ajustes S06 (`02_s06_ajustes.sql`): `colegio_id DEFAULT app_colegio_id()`; `cursos.periodo` (AAAA-S1|S2, obligatorio) y `asignatura`; `preguntas.retroalimentacion` (el docente la define; se copia congelada a la respuesta); consultas al tutor asíncronas (`estado` en_cola/respondida/fallida, respuesta opcional, `con_respaldo`, `respondida_at`, CHECK de coherencia) + `consultas_fuentes` (apunte del mismo curso por FK); `outbox_eventos` (tipo `recurso.accion`, payload solo IDs, `intentos`) y `claves_idempotencia` (PK colegio+clave, operación, 24 h), ambas con RLS; función `colegio_por_rbd()` SECURITY DEFINER (dueña plataforma) para el login; `embedding vector(1024)` (bge-m3); permisos por rol con RLS RESTRICTIVE (API fija `app.usuario_id` y `app.rol` del JWT; material, evaluaciones y matrículas solo docente del curso o admin; usuarios solo admin; intentos, respuestas y consultas solo el propio estudiante; worker con `app.rol = 'servicio'`; `subido_por` y `creado_por`). Verificado: 52 pruebas en `98_test_s06_ajustes.sql`, 43 consultas de `queries.js` compilan y flujo H1→H5 completo como `feathersforall_app` bajo RLS.
 
 Eventos (14, `recurso.accion_en_pasado`, v1.0, sobre con event_id, event_type, event_version, occurred_at, colegio_id, aggregate_id, trace_id, data): colegio.creado, usuario.creado, curso.creado, estudiante.matriculado, evaluacion.creada, evaluacion.publicada, evaluacion.cerrada, intento.enviado, intento.corregido, apunte.cargado, apunte.indexado, consulta_tutor.encolada, consulta_tutor.respondida, consulta_tutor.fallida. Publicados en SQS en el MVP: usuario.creado, estudiante.matriculado, evaluacion.publicada, apunte.cargado, consulta_tutor.encolada; el resto queda en outbox. Relay en el worker con rol plataforma.
 
@@ -2271,3 +2470,58 @@ ADR 0005 (Propuesto): frontend React + Vite en Vercel; reemplaza la línea de fr
 C4 L2 (S06): Frontend React+Vite (Vercel) → Backend Express (Render, rol feathersforall_app, SET LOCAL app.colegio_id) → PostgreSQL 16 + pgvector (Render; RLS fail-closed, outbox, idempotencia); Worker (relay de outbox con rol plataforma y consumidor) ↔ AWS SQS; Servicio Tutor IA → embeddings; externos LLM (Ollama en dev), Email, SSO, Secrets Manager, CloudWatch.
 
 Hito parcial 1 (inicio de S07): presentar la arquitectura en 5 minutos (charter, backlog, C4, 12-Factor, OpenAPI, modelo de datos).
+
+---
+
+## Estado 2026-10-10: notas + RAG unificados (probado localmente, aún NO en GitHub)
+
+Backend en `code/backend` = main + paquete de notas (amigo) + RAG adaptado:
+- BD: `01_schema.sql` (equipo) + `02_s06_ajustes.sql` (roles §9, `vector(1024)` §8) + `03_notas.sql` (notas 1.0–7.0, exigencia 60 %, vista `notas`) + `90_seed_demo.sql` (colegios A/B, Ana docente Matemáticas `c0000000-…-001`, Luis docente Historia, Marta admin, 4 estudiantes, Pedro docente colegio B). Crear: `crear_bdd.sql` (psql) o `npm run db:setup -- --demo` (sin psql). Se descartó el `01_schema.sql` antiguo del paquete RAG.
+- `db.withUser(user, fn)` fija `app.colegio_id`, `app.usuario_id` y `app.rol` (necesario para los permisos por rol).
+- RAG (`src/modules/tutor/rag/`): apuntes en `apuntes_curso` + `apuntes_embeddings` (pgvector HNSW coseno, bge-m3 1024). Sin `DATABASE_URL` usa un JSON (solo desarrollo).
+- Tutor (`POST /v1/dev/chat`), turnos (`X-Tutor-Turn`): `chat` (charla detectada con reglas fijas `isSmallTalk`: el LLM conversa sin contenidos) · `grounded` (solo apuntes, citas [n]) · `no-info` ("No encuentro eso…", sin LLM) · `no-notes` (curso sin apuntes, sin LLM). Con JWT: colegio del token y 404 si el usuario no participa en el curso. Logs sin texto de preguntas.
+- Subir apuntes (`/v1/dev/courses/{id}/documents`): JWT; estudiante 403; la base rechaza a quien no sea docente del curso/admin. `npm run ingest` actúa como el docente del curso.
+- Pruebas: `npm test` 132/132 con `TEST_DATABASE_URL` (85 sin BD); `98_test_s06_ajustes.sql` y `test_integridad.sql` OK. Falta probar con Ollama real (`requests/tutor.http`).
+
+---
+
+### [entregables] S07 — Contenedores, Kubernetes e IaC (rama `tech-lead/s07-contenedores`)
+
+Estado previo del repo (2026-10-14): `main` con S01–S06; rama `feature/rag-tutor` (RAG + notas, Cristofer) sin mergear; nada de Docker, K8s ni Terraform.
+
+- Imágenes:
+  - `code/backend/Dockerfile`: stages `deps` (npm ci --omit=dev) → `test` (npm test) → runtime `gcr.io/distroless/nodejs22-debian12:nonroot`, con `NODE_ENV=production`, `PORT=8080`, `CMD ["src/server.js"]` y sin HEALTHCHECK (sondas K8s).
+  - `code/frontend/Dockerfile`: Vite → `nginxinc/nginx-unprivileged:1.27-alpine` (uid 101, :8080, `nginx.conf` con SPA y `/livez`).
+  - Ambas con `.dockerignore`; hadolint OK.
+- Backend:
+  - `/livez` (proceso) y `/readyz` (503 si la BD no responde; el LLM no cuenta).
+  - Flags `ENABLE_DEV_ROUTES` y `CHAT_REQUIRE_AUTH` (por defecto según `NODE_ENV`; el lab local los fuerza a true/false).
+  - `npm test`: 134/134 con BD.
+- `k8s/` (Kustomize, namespace `feathersforall`), validado con kubeconform:
+  - `ffa-api`: Deployment sin `replicas` (las maneja el HPA), RollingUpdate maxUnavailable 0, nonroot 65532, readOnlyRootFilesystem, drop ALL, seccomp RuntimeDefault, recursos 100m/128Mi → 500m/256Mi, startup/readiness/liveness.
+  - `ffa-web`: 2 réplicas, `/tmp` emptyDir.
+  - Services ClusterIP; Ingress nginx (`/v1`, `/health` → api; `/` → web; proxy-buffering off para el streaming; body 2m).
+  - ConfigMap (Ollama y BD en el PC vía `host.docker.internal`); HPA autoscaling/v2 CPU 65 % 2–6; PDB minAvailable 1.
+  - Imágenes por digest GHCR `ghcr.io/erolayer-cl/feathersforall-{api,web}`.
+  - `cluster/kind.yaml` (puertos 8088/8443, ingress-ready); `tools/carga.yaml` (busybox contra /health); `tools/publicar-imagenes.ps1` (build + push + digest en kustomization).
+- `terraform/`:
+  - provider kubernetes ~> 2.35; backend `pg` (`PG_CONN_STR`, schema `feathersforall_tfstate`, advisory lock); workspace por ambiente (`envs/dev.tfvars`).
+  - Módulo `modules/app-namespace`: namespace con Pod Security `restricted`, ResourceQuota, LimitRange y Secret `ffa-api-secrets` (`TF_VAR_database_url`, `TF_VAR_jwt_secret`).
+  - `tofu fmt` OK. `terraform validate` queda pendiente en el PC: aquí no hubo acceso al registry.
+- Portal por rol (zip del equipo, 2026-10-14): `code/frontend/portal.html` + `src/portal/` (aislado: CSS en `.fp-root`/`--fp-*`, rutas por hash `#/portal/<id>`, sin dependencias nuevas).
+  - Hechas 7 de 34 pantallas (Login ×3, Estudiante · Inicio, Configuración ×3); el resto es marcador.
+  - Usa datos mock; pendiente conectar a la API y reutilizar `features/chat` en `est-tutor`.
+  - `vite.config.js` construye las dos entradas (`main` y `portal`); NGINX sirve `/portal.html`.
+  - Prototipo navegable de referencia: `FeathersForAll/Documentos/diseno/prototipo-portal.html`.
+  - Frontend: 30 pruebas, lint y build OK.
+- ADR 0006 (Propuesto):
+  - kind (vs minikube/k3d/Docker Desktop), Kustomize (vs Helm), Terraform (vs Pulumi/CFN), state pg → S3 + lock en AWS.
+  - Lo stateful fuera del clúster (BD administrada, Ollama en el host). Complementa el ADR 0003; no lo reemplaza.
+- Pendiente en el PC del equipo (no se pudo aquí: registries bloqueados):
+  - `docker build` real y tamaño de imagen.
+  - push a GHCR + digest.
+  - `kind` + `terraform apply` + `kubectl apply -k`.
+  - captura `kubectl get all` → `FeathersForAll/Documentos/infra/kubectl-get-all.png`.
+  - prueba de HPA con `k8s/tools/carga.yaml`.
+- Deadline: antes de la S08 (CI/CD y GitOps: Argo CD / Flux). Para la S08: instalar la extensión Kubernetes de VS Code.
+
