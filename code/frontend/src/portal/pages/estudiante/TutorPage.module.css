@@ -1,0 +1,62 @@
+/* Tutor IA: todo con tokens --fp-*, así sigue el tema, el acento, la densidad y las esquinas elegidas. */
+.chat { display: flex; flex-direction: column; gap: 16px; padding: 18px 22px 20px; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--fp-radius-pill); background: var(--fp-field); }
+.chat .tab { padding: 8px 18px; border: 0; border-radius: var(--fp-radius-pill); background: transparent; color: var(--fp-muted); font-size: 14px; font-weight: 700; transition: background var(--fp-duration) var(--fp-ease), color 0.2s ease; }
+.chat .tab:hover { color: var(--fp-brand-text); }
+.chat .tabOn, .chat .tabOn:hover { background: var(--fp-brand); color: var(--fp-on-brand); }
+.chat .newChat { display: inline-flex; align-items: center; gap: 6px; color: var(--fp-brand-text); }
+.chat .newChat:disabled { opacity: 0.45; cursor: default; filter: none; }
+
+/* Pantalla de inicio (sin mensajes) */
+.empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 12px 28px; text-align: center; }
+.empty h2 { margin-top: 10px; font-size: 26px; }
+.empty p { max-width: 46ch; color: var(--fp-muted); font-size: 14.5px; }
+.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.chat .suggestion { padding: 10px 18px; border: 1px solid var(--fp-line); border-radius: var(--fp-radius-pill); background: var(--fp-surface); color: var(--fp-brand-text); font-size: 13.5px; font-weight: 600; transition: background 0.2s ease, transform 0.2s var(--fp-ease); }
+.chat .suggestion:hover:not(:disabled) { background: var(--fp-accent-soft); transform: translateY(-1px); }
+.suggestion:disabled { opacity: 0.5; cursor: default; }
+
+/* Mensajes */
+.list { display: flex; flex-direction: column; gap: 18px; height: min(58vh, 560px); min-height: 280px; overflow-y: auto; padding: 6px 4px 6px 0; overscroll-behavior: contain; }
+.userRow { display: flex; justify-content: flex-end; }
+.userBubble { max-width: min(78%, 560px); padding: 11px 18px; border-radius: 22px 22px 6px 22px; background: var(--fp-brand); color: var(--fp-on-brand); font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aiRow { display: flex; align-items: flex-start; gap: 10px; }
+.avatar { flex: none; }
+.aiCol { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; max-width: min(84%, 640px); }
+.aiBubble { padding: 11px 18px; border-radius: 22px 22px 22px 6px; background: var(--fp-field); color: var(--fp-ink); font-size: 14.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.errorBubble { background: var(--fp-danger-soft); color: var(--fp-danger-ink); font-weight: 600; }
+.chat .action { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 0; border-radius: var(--fp-radius-pill); background: transparent; color: var(--fp-muted); font-size: 12.5px; font-weight: 600; }
+.chat .action:hover:not(:disabled) { background: var(--fp-accent-soft); color: var(--fp-brand-text); }
+.action:disabled { opacity: 0.5; cursor: default; }
+
+/* «Escribiendo…» */
+.typing { display: inline-flex; gap: 5px; padding: 15px 18px; }
+.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--fp-muted); animation: bounce 1.2s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
+
+/* Barra para escribir */
+.composer { display: flex; align-items: flex-end; gap: 10px; padding: 8px 8px 8px 20px; border: 1px solid var(--fp-line); border-radius: 26px; background: var(--fp-field); transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.composer:focus-within { border-color: var(--fp-accent); box-shadow: 0 0 0 3px var(--fp-accent-soft); }
+.input { flex: 1; font: inherit; color: inherit; min-width: 0; max-height: 130px; padding: 9px 0; border: 0; outline: none; background: transparent; resize: none; font-size: 15px; line-height: 1.45; }
+.chat .input:focus-visible { outline: none; } /* el aro de foco lo dibuja .composer:focus-within */
+.input::placeholder { color: var(--fp-placeholder); }
+.chat .send { display: inline-grid; flex: none; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: var(--fp-brand); color: var(--fp-on-brand); transition: filter 0.2s ease, transform 0.2s var(--fp-ease), opacity 0.2s ease; }
+.send:hover:not(:disabled) { filter: brightness(1.12); }
+.send:active:not(:disabled) { transform: scale(0.94); }
+.send:disabled { opacity: 0.4; cursor: default; }
+.chat .stop { background: var(--fp-inverse); color: var(--fp-on-inverse); }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .chat { padding: 14px 14px 16px; }
+  .tabs { width: 100%; }
+  .chat .tab { flex: 1; padding-inline: 8px; }
+  .newChat { margin-left: auto; }
+  .userBubble { max-width: 88%; }
+  .aiCol { max-width: calc(100% - 46px); }
+  .list { height: min(52vh, 460px); }
+}

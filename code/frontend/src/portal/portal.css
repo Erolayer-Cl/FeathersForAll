@@ -1,0 +1,4 @@
+/* Único CSS global del portal. Lo importa PortalApp.jsx (nunca main.jsx), así la app del chat no lo carga. */
+@import "./styles/tokens.css";
+@import "./styles/preferences.css";
+@import "./styles/base.css";

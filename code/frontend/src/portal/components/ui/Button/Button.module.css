@@ -1,0 +1,19 @@
+.button {
+  display: inline-block;
+  padding: 11px 24px;
+  border: 1px solid transparent;
+  border-radius: var(--fp-radius-pill);
+  font-family: var(--fp-font-heading);
+  font-size: 14px;
+  text-align: center;
+  transition: filter 0.2s ease, transform 0.2s var(--fp-ease);
+}
+.button:hover { filter: brightness(1.12); }
+.button:active { transform: scale(0.97); }
+.sm { padding: 8px 18px; font-size: 13px; }
+.block { display: block; width: 100%; }
+.primary { background: var(--fp-brand); color: var(--fp-on-brand); }
+.accent { background: var(--fp-accent); color: #fff; }
+.ghost { background: var(--fp-surface); color: var(--fp-brand-text); border-color: var(--fp-brand-text); }
+.soft { background: var(--fp-accent-soft); color: var(--fp-brand-text); }
+.warn { background: var(--fp-warning-soft); color: var(--fp-warning-ink); }

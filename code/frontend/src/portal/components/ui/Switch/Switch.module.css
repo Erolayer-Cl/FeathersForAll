@@ -1,0 +1,4 @@
+.switch { position: relative; flex: none; width: 58px; height: 30px; padding: 0; border: 0; border-radius: 99px; background: var(--fp-track); transition: background 0.15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: var(--fp-success); }
+.switch[aria-checked="true"]::after { transform: translateX(28px); }

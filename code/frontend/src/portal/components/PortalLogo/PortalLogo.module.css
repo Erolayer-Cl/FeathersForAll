@@ -1,0 +1,16 @@
+.logo {
+  display: flex;
+  flex: none;
+  width: var(--fp-logo-size);
+  height: var(--fp-logo-size);
+  overflow: hidden;
+  border-radius: var(--fp-radius-pill);
+  background: var(--fp-brand);
+}
+.feather {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  mask: url("../../../assets/pluma.svg") center / contain no-repeat;
+}
