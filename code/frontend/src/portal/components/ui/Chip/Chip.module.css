@@ -1,0 +1,14 @@
+.chip {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.success { background: var(--fp-success-soft); color: var(--fp-success-ink); }
+.warning { background: var(--fp-warning-soft); color: var(--fp-warning-ink); }
+.danger { background: var(--fp-danger-soft); color: var(--fp-danger-ink); }
+.accent { background: var(--fp-accent-soft); color: var(--fp-brand-text); }
+.neutral { background: var(--fp-track); color: var(--fp-muted); }
+.solid { background: var(--fp-surface); }

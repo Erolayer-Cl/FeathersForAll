@@ -1,0 +1,26 @@
+# IP estable y balanceo interno entre réplicas. ClusterIP: solo el Ingress los expone hacia afuera.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ffa-api
+  labels:
+    app.kubernetes.io/name: ffa-api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ffa-api
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ffa-web
+  labels:
+    app.kubernetes.io/name: ffa-web
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ffa-web
+  ports:
+    - { name: http, port: 80, targetPort: http }

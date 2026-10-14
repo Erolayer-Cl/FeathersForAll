@@ -1,0 +1,10 @@
+# Durante mantenciones del clúster (drain de un nodo) siempre queda al menos 1 réplica de la API.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ffa-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ffa-api

@@ -1,0 +1,14 @@
+.grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 18px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
+.row b { display: block; font-size: 14px; }
+.row span { display: block; color: var(--fp-muted); font-size: 12.5px; }
+.line { margin: 8px 0; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.choice { flex: 1 1 auto; min-height: 42px; padding: 8px 14px; border: 1px solid var(--fp-line); border-radius: var(--fp-radius-pill); background: var(--fp-field); font-size: 13.5px; font-weight: 600; }
+.choice[aria-pressed="true"] { border-color: var(--fp-brand); background: var(--fp-brand); color: var(--fp-on-brand); }
+.account { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.account b { font-size: 14px; }
+.account span { margin-bottom: 8px; color: var(--fp-muted); font-size: 12.5px; }
+.logout { margin-top: 50px; }
+@media (max-width: 980px) { .grid { grid-template-columns: minmax(0, 1fr); } }

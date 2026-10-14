@@ -1,0 +1,47 @@
+/* Efectos de las preferencias de personalización. PortalFrame pone estos atributos en .fp-root. */
+
+.fp-root[data-fp-font="legible"] {
+  --fp-font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fp-font-heading: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.fp-root[data-fp-font="sistema"] {
+  --fp-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fp-font-heading: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.fp-root:is([data-fp-font="legible"], [data-fp-font="sistema"]) :is(h1, h2, h3) {
+  font-weight: 700;
+}
+
+.fp-root[data-fp-radius="soft"] {
+  --fp-radius-sm: 6px;
+  --fp-radius-md: 10px;
+  --fp-radius-lg: 18px;
+  --fp-radius-pill: 12px;
+}
+.fp-root[data-fp-radius="sharp"] {
+  --fp-radius-sm: 2px;
+  --fp-radius-md: 4px;
+  --fp-radius-lg: 6px;
+  --fp-radius-pill: 4px;
+}
+
+/* Alto contraste: el texto secundario y los bordes se acercan al color de la tinta */
+.fp-root[data-fp-contrast="high"] {
+  --fp-muted: color-mix(in srgb, var(--fp-ink) 88%, var(--fp-bg));
+  --fp-line: color-mix(in srgb, var(--fp-ink) 48%, var(--fp-bg));
+  --fp-placeholder: color-mix(in srgb, var(--fp-ink) 70%, var(--fp-bg));
+}
+
+/* Movimiento reducido (además de respetar prefers-reduced-motion del sistema) */
+.fp-root[data-fp-motion="reduce"] *,
+.fp-root[data-fp-motion="reduce"] *::before,
+.fp-root[data-fp-motion="reduce"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+.fp-root[data-fp-density="compact"] { --fp-gap: 14px; --fp-card-pad: 16px 20px; }
+.fp-root[data-fp-density="comfortable"] { --fp-gap: 32px; --fp-card-pad: 32px 34px; }

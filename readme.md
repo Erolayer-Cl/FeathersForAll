@@ -3,7 +3,7 @@
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
 
-[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S06-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S07-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Charter](https://img.shields.io/badge/charter-v1.0-blue)](FeathersForAll/Documentos/Entregables/Charter.md)
 
@@ -66,11 +66,13 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 ```text
 .
 ├── readme.md
-├── models.md                           # Contexto del taller (PPT S01–S06) y estado del proyecto
+├── models.md                           # Contexto del taller (PPT S01–S07) y estado del proyecto
 ├── code/
-│   ├── backend/                        # API Node.js + Express (monolito modular)
-│   │   └── db/                         # Esquema PostgreSQL (01 + 02), consultas y pruebas (S06)
-│   └── frontend/                       # React + Vite (ADR 0005)
+│   ├── backend/                        # API Node.js + Express (monolito modular) + Dockerfile (S07)
+│   │   └── db/                         # Esquema PostgreSQL (01 + 02 + 03), consultas y pruebas (S06)
+│   └── frontend/                       # React + Vite (ADR 0005): chat + portal por rol (portal.html) + Dockerfile (S07)
+├── k8s/                                # Manifiestos Kubernetes con Kustomize + clúster kind (S07)
+├── terraform/                          # IaC: namespace, cuota y Secret del equipo (S07)
 └── FeathersForAll/
     ├── .spectral.yaml                  # Reglas de lint del contrato (S05)
     ├── api/
@@ -81,7 +83,7 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
     └── Documentos/
         ├── Entregables/
         │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
-        ├── adr/                        # Architecture Decision Records (0001–0005)
+        ├── adr/                        # Architecture Decision Records (0001–0006)
         ├── arch/
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
@@ -91,10 +93,36 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
         ├── cloud/
         │   └── managed-services.md     # Servicios gestionados y trazabilidad (S04)
         ├── data/                       # S06: DER, catálogo de eventos, bounded contexts
+        ├── diseno/
+        │   └── prototipo-portal.html   # Prototipo navegable de las 34 pantallas del portal (referencia)
         ├── 12-factor-checklist.md      # Auditoría 12-Factor (S04)
         ├── impact-map.md
         └── backlog.md                  # 5 historias INVEST + MoSCoW
 ```
+
+### Contenedores, Kubernetes e IaC (S07)
+
+| Pieza | Dónde | Resumen |
+|---|---|---|
+| Imagen de la API | `code/backend/Dockerfile` | Multi-stage: `deps` → `test` (corre `npm test`) → runtime **distroless** `nodejs22-debian12:nonroot`. Sin shell, sin root, < 200 MB |
+| Imagen del frontend | `code/frontend/Dockerfile` | Build con Vite → `nginx-unprivileged` (uid 101, puerto 8080) |
+| Manifiestos | `k8s/` | Kustomize: Deployment, Service, Ingress, ConfigMap, HPA (2–6 réplicas, CPU 65 %), PDB. Imágenes por **digest** |
+| Infraestructura | `terraform/` | Namespace con Pod Security `restricted`, ResourceQuota, LimitRange y Secret. State remoto con locking (backend `pg`), un workspace por ambiente |
+| Decisión | [ADR 0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | kind + Kustomize + Terraform; base images distroless / nginx-unprivileged |
+
+```powershell
+kind create cluster --config k8s/cluster/kind.yaml      # + ingress-nginx y metrics-server (k8s/README.md)
+cd terraform; terraform init; terraform workspace select -or-create dev; terraform apply -var-file=envs/dev.tfvars; cd ..
+.\k8s\tools\publicar-imagenes.ps1                        # build + push a GHCR + digest en kustomization.yaml
+kubectl apply -k k8s/
+kubectl get all -n feathersforall                        # → http://localhost:8088
+```
+
+Paso a paso completo (con la prueba del HPA): [`k8s/README.md`](k8s/README.md).
+
+**Evidencia — `kubectl get all -n feathersforall`:**
+
+![kubectl get all -n feathersforall](FeathersForAll/Documentos/infra/kubectl-get-all.png)
 
 ### Datos (S06)
 
@@ -138,6 +166,7 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0003](FeathersForAll/Documentos/adr/0003-cloud.md) | Decisión cloud: arquitectura híbrida Vercel + Render + AWS | Aceptada (por ratificar en reunión) | 28-09-2026 |
 | [0004](FeathersForAll/Documentos/adr/0004-datos-y-eventos.md) | Datos y eventos: PostgreSQL + pgvector con RLS, SQS y Outbox | Propuesta | 07-10-2026 |
 | [0005](FeathersForAll/Documentos/adr/0005-frontend-react.md) | Frontend con React + Vite (reemplaza la línea de frontend del ADR 0002) | Propuesta | 07-10-2026 |
+| [0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | Contenedores, Kubernetes e IaC: distroless, kind, Kustomize y Terraform | Propuesta | 14-10-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 

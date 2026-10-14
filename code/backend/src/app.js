@@ -35,6 +35,15 @@ export function createApp({
   }
   app.use(express.json({ limit: '100kb' }));
 
+  // Sondas de Kubernetes (S07). Livez: el proceso responde (sin dependencias, para no reiniciar
+  // pods por culpa de Ollama o la BD). Readyz: puede atender (la BD responde, si está configurada).
+  // El LLM no cuenta: si Ollama cae, el chat ya responde 503 RFC 7807 y el resto de la API sigue.
+  app.get('/livez', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/readyz', async (_req, res) => {
+    const dbUp = db ? await db.ping() : true;
+    res.status(dbUp ? 200 : 503).json({ status: dbUp ? 'ready' : 'not-ready', db: db ? (dbUp ? 'up' : 'down') : 'disabled' });
+  });
+
   app.get('/health', async (_req, res) => {
     const [llmUp, dbUp] = await Promise.all([llm.ping(), db?.ping()]);
     res.json({

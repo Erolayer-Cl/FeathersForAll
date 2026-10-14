@@ -8,6 +8,12 @@ const backend = process.env.BACKEND_URL ?? 'http://localhost:3000';
 
 export default defineConfig({
   plugins: [react()],
+  // Dos entradas: la app del chat (index.html) y el portal por rol (portal.html), ambas en el build (S07: imagen web).
+  build: {
+    rollupOptions: {
+      input: { main: 'index.html', portal: 'portal.html' },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

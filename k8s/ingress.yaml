@@ -1,0 +1,30 @@
+# Ruteo HTTP L7: /v1 y /health → API, todo lo demás → frontend. Un solo origen: sin CORS.
+# Controlador: ingress-nginx (k8s/README.md, paso 1). TLS: en el clúster local no; en un ambiente real
+# se agrega `tls:` con un certificado de cert-manager.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: feathersforall
+  annotations:
+    # El chat responde en streaming: sin buffer, el texto llega a medida que el LLM lo genera.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    # Apuntes de hasta 2 MB (límite propio de /v1/dev/courses/{id}/documents).
+    nginx.ingress.kubernetes.io/proxy-body-size: "2m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service: { name: ffa-api, port: { name: http } }
+          - path: /health
+            pathType: Exact
+            backend:
+              service: { name: ffa-api, port: { name: http } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: ffa-web, port: { name: http } }

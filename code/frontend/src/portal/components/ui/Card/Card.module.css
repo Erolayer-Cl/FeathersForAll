@@ -1,0 +1,7 @@
+.card {
+  padding: var(--fp-card-pad, 24px 28px);
+  border-radius: var(--fp-radius-lg);
+  background: var(--fp-surface);
+  box-shadow: var(--fp-shadow-sm);
+}
+.tight { padding: 18px 24px; }

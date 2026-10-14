@@ -1,0 +1,3 @@
+.title { font-size: 20px; }
+.text { margin-top: 8px; color: var(--fp-muted); max-width: 62ch; }
+.text code { padding: 1px 6px; border-radius: 6px; background: var(--fp-field); color: var(--fp-ink); font-size: 13px; }

@@ -261,6 +261,9 @@ describe('base de datos caída', () => {
       assert.equal(res.status, 503);
       assert.equal((await res.json()).type, 'https://api.feathersforall.example/errors/db-unavailable');
       assert.equal((await (await fetch(`${base}/health`)).json()).db, 'down');
+      // Kubernetes saca el pod del Service si la BD no responde (readiness), pero no lo reinicia (liveness).
+      assert.equal((await fetch(`${base}/readyz`)).status, 503);
+      assert.equal((await fetch(`${base}/livez`)).status, 200);
     } finally {
       server.close();
       await db.end();

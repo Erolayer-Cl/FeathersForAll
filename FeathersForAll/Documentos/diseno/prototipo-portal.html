@@ -1,0 +1,1209 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>FeathersForAll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Tokens de color del Figma "01 - Design System". El tema oscuro y los colores de acento se aplican sobre estos mismos tokens (ver bloque Personalización). */
+:root{
+  --blue:#1E3A8A; --blue-act:#3B82F6; --green:#10B981; --orange:#F59E0B; --red:#EF4444;
+  --bg:#F8FAFC; --card:#FFFFFF; --ink:#0F172A; --muted:#64748B; --line:#E5EAF2;
+  --field:#F6F8FB; --green-soft:#E8F6F0; --blue-soft:#EAF1FF; --orange-soft:#FEF3E2; --red-soft:#FDE8E8;
+  --green-ink:#047857; --orange-ink:#B45309; --red-ink:#B91C1C;
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font-heading:'Caprasimo','Figtree',system-ui,sans-serif;
+  --surf:#FFFFFF; --track:#E6EBF3; --thead:#EEF3FA; --zebra:#F8FAFD; --thread:#F1F6FE; --okbg:#E8F6EC; --okline:#BFE6CC; --noline:#F6D9A4; --okchip:#D6F5E6; --toggle:#CBD5E1; --ph:#6B7A90;
+  --inv:var(--ink); --inv-ink:#FFFFFF; --blue-tx:var(--blue); --side:var(--blue);
+  --blue-100:#EAF1FF; --blue-200:#DCE8FF; --blue-300:#BFD3FB;
+  --radius-sm:8px; --radius-md:16px; --radius-lg:28px; --radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(30,58,138,.10); --shadow-md:0 4px 16px rgba(30,58,138,.12); --shadow-lg:0 14px 40px rgba(15,23,42,.28);
+  --ease:cubic-bezier(.2,.8,.2,1); --dur:.3s;
+  --pluma:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjMyMCAwIDc2OCA3NjgiPgogIDwhLS0gUGx1bWEgZGUgRmVhdGhlcnNGb3JBbGwuIEV4dHJhw61kYSBkZSBQbHVtYS5zdmcgKGhhbmRvZmYgZGUgQ2xhdWRlIERlc2lnbik6IHRyYXpvIGJsYW5jbyArIHJlY29ydGVzIHRyYW5zcGFyZW50ZXMuIC0tPgogIDxtYXNrIGlkPSJwbHVtYS1yZWNvcnRlcyIgbWFza1VuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeD0iMCIgeT0iMCIgd2lkdGg9IjE0MDgiIGhlaWdodD0iNzY4Ij4KICAgIDxwYXRoIGZpbGw9IiNmZmYiIGQ9Ik02MjkuMDkwMDg4LDUxNy4wMDIwNzUgQzYyNS4zNTU4MzUsNTE2Ljg1NTI4NiA2MjIuMTA0OTgwLDUxNi43MDgzNzQgNjE4LjIyMTc0MSw1MTYuNTMyOTU5IEM2MDguNTE4MzExLDUzMi4zMzM2MTggNTk4LjQ1NjA1NSw1NDguNzc1MjY5IDU4OC4zMzE3ODcsNTY1LjE3ODU4OSBDNTgzLjk0MTI4NCw1NzIuMjkyMDUzIDU3OS45NDk5NTEsNTc5Ljc0NjIxNiA1NzQuNzc0MTcwLDU4Ni4yNDY4ODcgQzU3MS40MzU0MjUsNTkwLjQ0MDE4NiA1NjYuMzkyMTUxLDU5My4zNDc0NzMgNTYxLjkwODg3NSw1OTYuNTQ1MjI3IEM1NDcuNDQ0MTUzLDYwNi44NjIzNjYgNTMyLjg1NjU2Nyw2MTcuMDA3MTQxIDUxOC4zNzIyNTMsNjI3LjI5Njk5NyBDNTA4LjYxNjczMCw2MzQuMjI3NTM5IDQ5OS4wMDE0MzQsNjQxLjM1NjMyMyA0ODkuMTk5NDMyLDY0OC4yMTk0MjEgQzQ4Ny44MzY5NzUsNjQ5LjE3MzQwMSA0ODUuMjIzMTQ1LDY0OS45NjcwNDEgNDg0LjE1NzEzNSw2NDkuMjk2MDgyIEM0ODIuODkwNjU2LDY0OC40OTg5NjIgNDgxLjg4NTU5MCw2NDUuOTE1MTAwIDQ4Mi4xMzQzNjksNjQ0LjMxODYwNCBDNDgzLjIyNTEyOCw2MzcuMzE5Mjc1IDQ4NC42MjMzNTIsNjMwLjM1Mjk2NiA0ODYuMjUzNDc5LDYyMy40NTU3NTAgQzQ5MC4wNjI5MjcsNjA3LjMzNzY0NiA0OTQuMDU4MzE5LDU5MS4yNjMyNDUgNDk4LjAwMTM3Myw1NzUuMTc2ODE5IEM1MDAuMTQ1MDIwLDU2Ni40MzEyMTMgNTAyLjQ0MTQwNiw1NTcuNzIxNjgwIDUwNC40Nzc1NzAsNTQ4Ljk1MTUzOCBDNTA2Ljg4NTU1OSw1MzguNTc5ODM0IDUxNC4wMzMzODYsNTMwLjg2ODQ2OSA1MTkuNDYzODA2LDUyMi4yNTMyMzUgQzUyNi41MTk4OTcsNTExLjA1ODc0NiA1MzQuNDI5ODcxLDUwMC40MDQ2OTQgNTQxLjg4MjIwMiw0ODkuNDU2NjY1IEM1NDQuODY1Nzg0LDQ4NS4wNzM1NzggNTQ3LjE3NTQ3Niw0ODAuMTU3MjU3IDU1MC41ODQ0MTIsNDc2LjE1OTM5MyBDNTUzLjk4MzAzMiw0NzIuMTczNTUzIDU1NC4yNDA0NzksNDY4LjMwOTg0NSA1NTIuOTY1ODgxLDQ2My42NDM3MzggQzU0OC44NzY1MjYsNDQ4LjY3Mzg4OSA1NDYuOTYxNzMxLDQzMy4zNDExNTYgNTQ4LjE1MDI2OSw0MTcuOTE0NzM0IEM1NDkuMzY2MjcyLDQwMi4xMzI0NzcgNTUyLjc5NDkyMiwzODYuODEyMDQyIDU1OS44MjM0ODYsMzcyLjI5MTQxMiBDNTY2LjQ2ODU2NywzNTguNTYzMDgwIDU3NC41ODI0NTgsMzQ1Ljg5NDA0MyA1ODMuNzYzMTIzLDMzMy44MTk4ODUgQzU4NC4wOTY2MTksMzMzLjM4MTMxNyA1ODQuNzY5MTY1LDMzMy4yMDA1NjIgNTg1Ljk2Mjk1MiwzMzIuNTAyMzUwIEM1ODYuMDIzNTYwLDM1NS41NjUyNzcgNTk4LjAzMzUwOCwzNzMuOTQ1NzcwIDYwNy4wNTMyMjMsMzk0Ljg0MjA0MSBDNjA2LjE5MjA3OCwzODQuODE0NzU4IDYwNS45NjgxNDAsMzc2LjAzMjI4OCA2MDQuNjAxNzQ2LDM2Ny40MzEyNzQgQzYwMC4xMjE0NjAsMzM5LjIyODUxNiA2MDMuMjY0NDY1LDMxMi44NDg3MjQgNjIyLjM2NzMxMCwyOTAuMjM0MTkyIEM2MzEuMDc5MjI0LDI3OS45MjA4MzcgNjQwLjM4ODI0NSwyNzAuMTExODc3IDY0OS40Mjg4OTQsMjYwLjA3NjI5NCBDNjU1LjU5NTM5OCwyNTMuMjMxMTQwIDY2MS43Mjk3MzYsMjQ2LjM1NjE3MSA2NjcuOTY4OTMzLDIzOS41Nzc4MzUgQzY2OS4wODA0NDQsMjM4LjM3MDIzOSA2NzAuNjM0ODg4LDIzNy41NzAzMTIgNjczLjQxNzM1OCwyMzUuNTMzNDE3IEM2NzAuODIwOTg0LDI1Ny4yNTgxNDggNjc4LjA4OTIzMywyNzUuNjU3MDc0IDY4NC4xMTAwNDYsMjk0LjQ3OTU4NCBDNjg0LjQwNTgyMywyOTAuMjYwMTAxIDY4NC44MjM2MDgsMjg2LjA0NDY0NyA2ODQuOTY0MTcyLDI4MS44MjAwMDcgQzY4NS4xMTM2NDcsMjc3LjMyNDk4MiA2ODUuMDUyNDI5LDI3Mi44MjA1ODcgNjg0Ljk5MjkyMCwyNjguMzIxNDQyIEM2ODQuNzczMzc2LDI1MS43MTYwNjQgNjg3LjA2NTk3OSwyMzUuNDMwNzQwIDY5NC40MDg4NzUsMjIwLjUxMzU2NSBDNjk5LjUxMzg1NSwyMTAuMTQyNzQ2IDcwNi42NjI2NTksMjAwLjg2MjA3NiA3MTUuOTUwNDM5LDE5My41MzMyNjQgQzcyNC4zODg2MTEsMTg2Ljg3NDg3OCA3MzIuNTM1MDk1LDE3OS44Mjg2NzQgNzQxLjE4MzQxMSwxNzMuNDYwMjA1IEM3NDguMzE0MzkyLDE2OC4yMDkwMzAgNzU1Ljk5MTUxNiwxNjMuNjk5MzU2IDc2NC4zNTA5NTIsMTU5LjExNzc5OCBDNzUyLjUwNjI4NywxODAuMDc2MzA5IDc1OC4wODAzMjIsMjAxLjQ2NjU4MyA3NjAuNzgwNzYyLDIyNC4wMjU1MTMgQzc2NS4wNTkwMjEsMjA4Ljk2NjU2OCA3NjguNzE4MTQwLDE5NS4xNjg4ODQgNzcyLjkxMDU4MywxODEuNTM1MjAyIEM3ODAuMDM4MTQ3LDE1OC4zNTczMDAgNzk2LjExMDEwNywxNDMuMjYwMzc2IDgxOC4zMTYyODQsMTM1LjIyODEwNCBDODMzLjUyMzc0MywxMjkuNzI3MzQxIDg0OS4zNzY3NzAsMTI1LjgxMTg3NCA4NjUuMTc2NTc1LDEyMi4yMjQxNzQgQzg3NC41MDM0MTgsMTIwLjEwNjMxNiA4ODQuMjc3NDA1LDExOS44NzE5MjUgODkzLjg3MjU1OSwxMTkuMDUwNjA2IEM5MDAuNjAzMDI3LDExOC40NzQ0ODcgOTA3LjM2ODM0NywxMTguMjQ4NTM1IDkxNC4xMjM0MTMsMTE4LjAzNDEzNCBDOTE4Ljk2ODMyMywxMTcuODgwMzYzIDkyMy44MjIwMjEsMTE4LjAwNDIxMSA5MjkuMDAwNTQ5LDExOC4wMDQyMTEgQzkyOS4wMDA1NDksMTM0LjIyNTg3NiA5MzAuMTc2MjcwLDE0OS4xNjczMTMgOTI4LjcyODYzOCwxNjMuODUwMDgyIEM5MjYuNDgxODEyLDE4Ni42MzgyMjkgOTIzLjEwNjUwNiwyMDkuMzQ0MTYyIDkxNS4xMDcxMTcsMjMxLjEwNDgyOCBDOTA4LjcwOTc3OCwyNDguNTA3MzI0IDg5OS4yMTA4NzYsMjYzLjY1ODYwMCA4ODMuOTYzMjU3LDI3NC4yOTk3NzQgQzg3Mi4yOTYxNDMsMjgyLjQ0MjEzOSA4NTguODEzMjMyLDI4Ny4xMzUzNDUgODQ0Ljg2Njk0MywyODkuOTMxNDI3IEM4MzEuMTAzODgyLDI5Mi42OTA3MzUgODE3LjIyMzc1NSwyOTQuODY2MDg5IDgwMy40MjI3OTEsMjk3LjUyNzE5MSBDODMwLjk4MzA5MywzMDAuNjY4NDU3IDg1OC41OTg5OTksMzA1LjYyOTIxMSA4ODUuNTE3ODgzLDI5My41NzQxNTggQzg4NS44MDEwMjUsMjkzLjkyNTYyOSA4ODYuMDg0MTY3LDI5NC4yNzcxMDAgODg2LjM2NzMxMCwyOTQuNjI4NTcxIEM4ODQuMDAxMDM4LDI5OC44MzA1MDUgODgxLjg3MTU4MiwzMDMuMTg4MTEwIDg3OS4yMjg1MTYsMzA3LjIwODA2OSBDODY1Ljk2NjY3NSwzMjcuMzc4NDE4IDg1Mi43MTUxNDksMzQ3LjU2NDYzNiA4MzYuNzMzODg3LDM2NS43NjU5MDAgQzgyMi40MTg4ODQsMzgyLjA2OTM2NiA4MDguMDk4MjY3LDM5OC4zNjgwMTEgNzkzLjgxOTY0MSw0MTQuNzAzMzA4IEM3ODAuODc0MTQ2LDQyOS41MTM0NTggNzY0LjE3MjA1OCw0MzguMTI2NDY1IDc0NS42ODgxMTAsNDQzLjYwNzMwMCBDNzQwLjkwNTQ1Nyw0NDUuMDI1NDIxIDczNS43ODgzMzAsNDQ1LjU0NzIxMSA3MzAuNzgyODM3LDQ0NS45Mjg5MjUgQzcyMi44ODQ3MDUsNDQ2LjUzMTE4OSA3MTQuOTQyMjYxLDQ0Ni41MzA0MjYgNzA3LjAzNDcyOSw0NDcuMDM2ODM1IEM2OTguNTIwOTk2LDQ0Ny41ODIwMzEgNjkwLjAyNTgxOCw0NDguNDE3NTExIDY4MS40OTkyNjgsNDQ5LjM2NTkzNiBDNzA0LjQxMzgxOCw0NTUuMDU1MDU0IDcyNy4wOTUzMzcsNDYyLjE2MDQzMSA3NTEuMjkyNzI1LDQ1OS42NjQxODUgQzc1MC4wMjczNDQsNDY1LjExMDU2NSA3MzAuOTMxNzYzLDQ4My4yMDM0NjEgNzE3Ljc1Njk1OCw0OTIuMDUyNzY1IEM3MDQuODY2MjExLDUwMC43MTEyNDMgNjkxLjAyMDM4Niw1MDYuOTc3OTM2IDY3Ni4wMTM2MTEsNTExLjE2MjMyMyBDNjYwLjc0NzEzMSw1MTUuNDE5MTI4IDY0NS4yOTIxNzUsNTE2Ljk2MTQyNiA2MjkuMDkwMDg4LDUxNy4wMDIwNzUgTTgwNC4wODAwNzgsMzc3Ljk5NDk2NSBDNzkxLjgxNzgxMCwzODAuNjEzNjE3IDc3OS40MTU3MTAsMzgxLjQ3MTM3NSA3NjYuOTAwOTQwLDM4MS4wMDc1OTkgQzc1Ni45ODMwOTMsMzgwLjY0MDA3NiA3NDcuMDYzMDQ5LDM4MC4wNjQyNzAgNzM3LjE0MzkyMSwzODAuMDYxNzM3IEM3MjIuMjIwNzY0LDM4MC4wNTc4OTIgNzA3LjgzNDkwMCwzODIuNzU0NjY5IDY5NC40NjYyNDgsMzg5LjgxNjg5NSBDNjkzLjAxOTk1OCwzOTAuNTgwOTYzIDY5MS4yMjQ5MTUsMzkwLjY4NDc4NCA2ODguNzk0NDk1LDM5MS4yOTUwNDQgQzY5MS4wMDczMjQsMzg4LjQ5NjMwNyA2OTIuMzYzMzQyLDM4Ni40MzU0ODYgNjk0LjA1NTE3NiwzODQuNzAyNTQ1IEM3MDAuNjYwNDAwLDM3Ny45MzY5MjAgNzA1LjQ4NTE2OCwzNjkuNDgzMTI0IDcxNi4xMjIxOTIsMzY3LjA2NDE3OCBDNzI4Ljk3NTA5OCwzNjQuMTQxMzg4IDc0MS44NzcwNzUsMzYzLjE5NjQxMSA3NTQuNzgyMjg4LDM2NC4yMDUwNzggQzc2OS45Nzk5ODAsMzY1LjM5Mjk0NCA3ODUuMDE4NjE2LDM2NS42OTk3MDcgNzk5Ljk1NTY4OCwzNjIuNTE5NTMxIEM4MTcuMjI4NTc3LDM1OC44NDIwNzIgODMwLjg0OTc5MiwzNDkuNDU3Mjc1IDg0MS4yMzc2NzEsMzM1LjI2MzU4MCBDODQ1LjY5MDQ5MSwzMjkuMTc5MjkxIDg1MC4xNDA2ODYsMzIzLjA5MzIwMSA4NTQuNjEwNTM1LDMxNi45ODI2NjYgQzg0OC45Mzc5MjcsMzE2Ljk4MjY2NiA4NDMuOTg5MTM2LDMxNy4zMTAxNTAgODM5LjA5NzI5MCwzMTYuOTIxMDgyIEM4MjQuNTYzMjkzLDMxNS43NjUyMjggODEwLjA3NTAxMiwzMTMuODM0NzQ3IDc5NS41MjQ0NzUsMzEzLjE0NTUwOCBDNzgyLjM2NzI0OSwzMTIuNTIyMTg2IDc2OS4wNDY2OTIsMzEyLjAwNjc0NCA3NTUuODUxNzQ2LDMxNi40OTYxMjQgQzc1Ny40MzA2NjQsMzEzLjYwMzg4MiA3NTkuNjk2NTk0LDMxMS40NjA5NjggNzYxLjQ3Mjk2MSwzMDguOTY5MDg2IEM3NzEuMzkxOTY4LDI5NS4wNTQ3MTggNzg1LjExNzMxMCwyODYuOTMxMTIyIDgwMS40MTg4ODQsMjgzLjA2NDg4MCBDODE5LjQyNDY4MywyNzguNzk0NDAzIDgzNy41OTk0ODcsMjc1LjIzNDQ2NyA4NTUuNTk1MDkzLDI3MC45MjQxOTQgQzg2NS42Mjk4ODMsMjY4LjUyMDcyMSA4NzQuNjQwMzgxLDI2My41NjEwMzUgODgyLjA0OTMxNiwyNTYuMzUwODkxIEM4OTcuMTEwNTk2LDI0MS42OTM5NTQgOTAyLjE4MjMxMiwyMjIuMTY1NDk3IDkwNi44NTUwNDIsMjAyLjY5NzcyMyBDOTA5LjA0NTM0OSwxOTMuNTcyMTU5IDkwOS44MTA4NTIsMTg0LjA5MjY2NyA5MTEuMDI0NzgwLDE3NC43NDc5NDAgQzkxMi4zNjkwODAsMTY0LjM5OTAxNyA5MTMuNDg3ODU0LDE1NC4wMjA4MTMgOTE0Ljg3MDExNywxNDIuMjQ4MDAxIEM5MTEuODUyMTczLDE0NC41MjEyODYgOTA5Ljk3OTQzMSwxNDUuNzEwMjY2IDkwOC4zNjY0NTUsMTQ3LjE4MzU5NCBDODk5LjU5Njg2MywxNTUuMTk0MTIyIDg5MC44NjYzMzMsMTYzLjI0NzkyNSA4ODIuMTY5MzEyLDE3MS4zMzczNzIgQzg2Ny4yOTUwNDQsMTg1LjE3MjUxNiA4NTIuMjU2OTU4LDE5OC44Mzk2MzAgODM3LjY1NjQzMywyMTIuOTU4NzEwIEM4MjIuNDczNTExLDIyNy42NDEwOTggODA3LjY2MzYzNSwyNDIuNzEyMjUwIDc5Mi44MTE1ODQsMjU3LjczMzAzMiBDNzgxLjk2MDQ0OSwyNjguNzA3NDg5IDc3MS4xOTE1ODksMjc5Ljc2ODM3MiA3NjAuNTkxNjE0LDI5MC45ODQ5ODUgQzc0Ny41NTQ4MTAsMzA0Ljc4MDE1MSA3MzQuNjk3Mzg4LDMxOC43NDU2MDUgNzIxLjgzMTg0OCwzMzIuNzAxNTA4IEM3MTYuMDM4NTEzLDMzOC45ODU4NDAgNzEwLjIzNzczMiwzNDUuMjc4MDQ2IDcwNC43NDc3NDIsMzUxLjgyNDQ5MyBDNjkxLjk1ODgwMSwzNjcuMDc0NTI0IDY3OS4yMDI3NTksMzgyLjM1NzQ4MyA2NjYuNzIzOTk5LDM5Ny44NjA5NjIgQzY1NS42MjE1MjEsNDExLjY1NDU0MSA2NDQuNjMyMzI0LDQyNS41NTczNzMgNjM0LjEwNDYxNCw0MzkuNzkwMzQ0IEM2MjMuODM4OTI4LDQ1My42NjkwOTggNjE0LjAyMjA5NSw0NjcuODkyODIyIDYwNC4zNjM4MzEsNDgyLjIwNTA3OCBDNTg4LjMxNTczNSw1MDUuOTg2NDIwIDU3Mi41MDUyNDksNTI5LjkyODgzMyA1NTYuNzA2MTc3LDU1My44NzY5NTMgQzU1My4zNTI5MDUsNTU4Ljk1OTkwMCA1NTQuODUyNzgzLDU2NS4wNTM0MDYgNTU5LjY5NDE1Myw1NjcuOTE4NTc5IEM1NjMuNzE1MjEwLDU3MC4yOTgyNzkgNTY4LjU0NDYxNyw1NjguNjcyNjA3IDU3MS43MzEzODQsNTYzLjYyNDE0NiBDNTc0LjEyOTgyMiw1NTkuODI0NTI0IDU3Ni4xOTI4NzEsNTU1LjgxNDgxOSA1NzguNTM0NjA3LDU1MS45Nzc1MzkgQzU4OC41ODkyOTQsNTM1LjUwMTE2MCA1OTguODE4MTE1LDUxOS4xMjg3ODQgNjA4LjY1MTYxMSw1MDIuNTIyMDM0IEM2MTAuMjc2MDYyLDQ5OS43Nzg3MTcgNjEyLjA3MDQzNSw1MDAuMDUyNjczIDYxNC4zMjI2OTMsNTAwLjAzNjEwMiBDNjI4Ljc5NjkzNiw0OTkuOTI5NjI2IDY0My40MTA4ODksNTAwLjk4OTI4OCA2NTcuNjk5NDYzLDQ5OS4zMDEwODYgQzY2OC40ODg0MDMsNDk4LjAyNjM2NyA2NzkuMDI3OTU0LDQ5My42ODI4MzEgNjg5LjM3MTAzMyw0ODkuODcwNzg5IEM2OTkuMTc1ODQyLDQ4Ni4yNTcwODAgNzA4LjU0MTE5OSw0ODEuNDk2Mzk5IDcxNS44NDcwNDYsNDczLjUwODI0MCBDNjg4LjYzMDE4OCw0NjguMDczNDg2IDY2Mi40MjY2MzYsNDU2Ljk4ODE5MCA2MzMuNzYyODE3LDQ2NC40NTEyMzMgQzYzNS41ODQ5MDAsNDU4LjE3MzA5NiA2NDYuNDQ3NDQ5LDQ0NS42OTkzMTAgNjUxLjczODgzMSw0NDMuMDE4MDM2IEM2NjQuMTk1Njc5LDQzNi43MDU5MDIgNjc3LjczMzgyNiw0MzQuNTE1MzgxIDY5MS4zNjkzODUsNDMzLjA3OTk1NiBDNzA0LjQxNjM4Miw0MzEuNzA2NTQzIDcxNy41MTg2MTYsNDMwLjU4MzgzMiA3MzAuNjIzOTYyLDQzMC4xMTM3NzAgQzc0NC4wMzk0MjksNDI5LjYzMjYyOSA3NTUuNTk1Mjc2LDQyNC40MjU5MzQgNzY2LjcyMDUyMCw0MTcuNzM2NTExIEM3NzkuMzMyMDkyLDQxMC4xNTM0MTIgNzg4LjA5NTIxNSwzOTguMzkzMDA1IDc5OC4yMzg1ODYsMzg4LjE0OTkwMiBDODAxLjA3NjY2MCwzODUuMjgzOTY2IDgwMy4yNzk2NjMsMzgxLjc4OTEyNCA4MDYuMjIxMTMwLDM3OC4xOTg4NTMgQzgwNi4zNTYyNjIsMzc3Ljg2MzYxNyA4MDYuNDkxMzk0LDM3Ny41MjgzNTEgODA2LjYyNjUyNiwzNzcuMTkzMTQ2IEM4MDYuMDU5NjMxLDM3Ny40MzU2NjkgODA1LjQ5MjY3NiwzNzcuNjc4MTkyIDgwNC4wODAwNzgsMzc3Ljk5NDk2NSBNNjY3LjUzMjIyNywyOTQuMDIyOTgwIEM2NjUuMTMyODEyLDI4Ni4xNTk3OTAgNjYyLjczMzQ1OSwyNzguMjk2NjAwIDY2MC4xNzk0NDMsMjY5LjkyNjg4MCBDNjUyLjQwODY5MSwyNzguODQyMjI0IDY0NC44MzgxOTYsMjg3LjY2MTY4MiA2MzcuMTIxMDk0LDI5Ni4zNTA4OTEgQzYyNC45MzYxNTcsMzEwLjA3MDgwMSA2MTguMDM1MDM0LDMyNS45Mzc1MDAgNjE4LjEwNTEwMywzNDQuMzgxOTI3IEM2MTguMTM0Mjc3LDM1Mi4wNjIxMDMgNjE5LjU4MTQ4MiwzNTkuNzI2MTY2IDYxOS45NDM2MDQsMzY3LjQxODMwNCBDNjIwLjQ5Njc2NSwzNzkuMTY3MDIzIDYyMC45NzE3NDEsMzkwLjkzNzUwMCA2MjAuODI2MzU1LDQwMi42OTA2NDMgQzYyMC43Nzk1NDEsNDA2LjQ4MDU2MCA2MTkuMzA4MjI4LDQxMC42MTYyMTEgNjE3LjM2NDg2OCw0MTMuOTM1OTEzIEM2MTQuMjc3NDY2LDQxOS4yMDk5NjEgNjEwLjI2NjYwMiw0MjMuOTQ2NTk0IDYwNi42MDIzNTYsNDI4Ljg3Nzg2OSBDNjA1LjQ2MjI4MCw0MzAuNDEyMTcwIDYwNC4xNzk2ODgsNDMxLjg0MDU3NiA2MDIuMzA4MDQ0LDQzNC4xMTEyNjcgQzYwMS40Mzc4NjYsNDA4LjkzOTM2MiA1ODcuMjQxNjM4LDM5MC4yMDg4OTMgNTc4LjQyNjMzMSwzNjkuMTE2MjExIEM1NjkuMjMyOTcxLDM4Ni45MDMyMjkgNTYzLjMwNTQyMCw0MDUuMTg0NDQ4IDU2NC4wMjU4NzksNDI1LjE1NTQ1NyBDNTY0LjE5NzM4OCw0MjkuOTExNzc0IDU2NC4zMjI2OTMsNDM0LjcxMjY0NiA1NjUuMDczMTIwLDQzOS4zOTYzMDEgQzU2Ni42NTQ3MjQsNDQ5LjI2NzAyOSA1NjguNzg1MTU2LDQ1OS4wNTAxNzEgNTcwLjM0MjIyNCw0NjguOTI0MTY0IEM1NzAuNzA2NDIxLDQ3MS4yMzQwMDkgNTcwLjQyMDY1NCw0NzQuMjUyNTAyIDU2OS4xODQxNDMsNDc2LjExNTMyNiBDNTU2LjA4MDAxNyw0OTUuODU1ODY1IDU0Mi43MzI3ODgsNTE1LjQzNTE4MSA1MjkuNDI3OTc5LDUzNS4wNDIyOTcgQzUyNi42NzEwMjEsNTM5LjEwNTE2NCA1MjYuODQ5MDYwLDU0NS44MzA2ODggNTI5Ljg3ODQxOCw1NDguMzc3MjU4IEM1MzMuMTg1NjA4LDU1MS4xNTc0MTAgNTM5LjMxMTQwMSw1NTAuMzg3NjM0IDU0My4wMTg2NzcsNTQ2LjQwMjUyNyBDNTQ0Ljk4MjcyNyw1NDQuMjkxMTM4IDU0Ni41NTQ0NDMsNTQxLjc4NjMxNiA1NDguMTMxNDA5LDUzOS4zNDgwMjIgQzU1Ni41MjIwMzQsNTI2LjM3NDIwNyA1NjQuNzMyNjA1LDUxMy4yODIxNjYgNTczLjI0NjUyMSw1MDAuMzkwMTk4IEM1ODIuODQ2MDA4LDQ4NS44NTQ2NDUgNTkyLjUxMzQ4OSw0NzEuMzU2NTA2IDYwMi41MDU1NTQsNDU3LjA5MDE3OSBDNjEwLjM5NTYzMCw0NDUuODI1MTA0IDYxOC42ODI4MDAsNDM0LjgyOTE2MyA2MjcuMDQyOTA4LDQyMy45MDQ0ODAgQzYzOS4wODMzMTMsNDA4LjE3MDYyNCA2NTEuMTQyMDkwLDM5Mi40NDIwNDcgNjYzLjU4NjkxNCwzNzcuMDI5MzI3IEM2NzMuMTQzMTI3LDM2NS4xOTQxMjIgNjgzLjE4NTczMCwzNTMuNzQyODU5IDY5My4yMzEzODQsMzQyLjMxMzY5MCBDNzA2LjkwOTg1MSwzMjYuNzUxMzEyIDcyMC43MTY1NTMsMzExLjI5OTUzMCA3MzQuNjI1MTgzLDI5NS45NDI0NzQgQzc0Mi45MTA0NjEsMjg2Ljc5NDM0MiA3NTEuMjc1NTc0LDI3Ny42OTgxNTEgNzU5Ljk5MDU0MCwyNjguOTYzNTAxIEM3ODIuMTE3MzcxLDI0Ni43ODY2OTcgODA0LjMwNTY2NCwyMjQuNjY2MjkwIDgyNi43Njk3MTQsMjAyLjgzMjMyMSBDODQzLjYxOTgxMiwxODYuNDU0ODgwIDg2MC45MzE5NDYsMTcwLjU1MjY3MyA4NzguMDU0MzgyLDE1NC40NTU4ODcgQzg3OS4zNTk0MzYsMTUzLjIyODkyOCA4ODAuODQzMjYyLDE1Mi4xOTI3ODAgODgyLjE1NjMxMSwxNTAuOTczNTExIEM4ODcuNzEwMTQ0LDE0NS44MTYxNjIgODkzLjIzMDY1MiwxNDAuNjIzMDc3IDg5OC43NjMzNjcsMTM1LjQ0MzAzOSBDODg2Ljc1NzI2MywxMzUuNzA0MDcxIDg3NS4wMDY3MTQsMTM1Ljk3ODA0MyA4NjMuNzA2MTc3LDEzOC4zNzQzNzQgQzg0OS43ODg5NDAsMTQxLjMyNTU3NyA4MzYuMDI0MjMxLDE0NS40MTgxOTggODIyLjYwNDc5NywxNTAuMTc2ODk1IEM4MDkuMTg3NTAwLDE1NC45MzQ3ODQgNzk4LjI1NjUzMSwxNjMuMDk4MzczIDc5MS42Mjc2ODYsMTc2LjU3NTY1MyBDNzg2LjAwNjI4NywxODguMDA0Mjg4IDc4My4xMjY4MzEsMjAwLjExMDQ3NCA3NzkuODM3NjQ2LDIxMi4yMzUyNjAgQzc3Ny4yNTQ0NTYsMjIxLjc1Nzg0MyA3NzQuMzMxMjM4LDIzMS40Njc3ODkgNzY5LjY0MDI1OSwyNDAuMDQ1MDI5IEM3NjYuMjYxNTM2LDI0Ni4yMjI5NjEgNzU5LjY4MTMzNSwyNTAuNjMxOTQzIDc1NC42MTczNzEsMjU1LjkxNDQ5MCBDNzUyLjM0MTk4MCwyNTguMjg4MTE2IDc1MC4yODE4NjAsMjYwLjg2ODE2NCA3NDguMTUzMTM3LDI2My4zMjEwNDUgQzc0Ny4zOTg4MDQsMjUxLjA5Mjk0MSA3NDcuMDA2MjI2LDIzOS40MTcxNjAgNzQ1Ljg3MTMzOCwyMjcuODEzOTgwIEM3NDQuNzE4MjAxLDIxNi4wMjQ2NzMgNzQyLjgzMzMxMywyMDQuMzA2OTQ2IDc0MS4xNDk5NjMsMTkxLjY2NTE5MiBDNzMzLjc5MjExNCwxOTguMjQ1ODE5IDcyNS43NjE4NDEsMjA0LjEwMzM2MyA3MTkuNDY1ODgxLDIxMS40NDc2MDEgQzcxMy42NzkwNzcsMjE4LjE5Nzg2MSA3MDguMzM4ODA2LDIyNi4wMzU3NjcgNzA1LjM0ODg3NywyMzQuMzE0NDA3IEM3MDAuODEyODA1LDI0Ni44NzM5NjIgNzAwLjE4NjUyMywyNjAuNDE1MTYxIDY5OS45MDg4MTMsMjczLjg1MDk4MyBDNjk5LjY4MTQ1OCwyODQuODUyOTY2IDY5OS4xMDk0MzYsMjk1Ljg5MTY5MyA2OTcuODA3OTgzLDMwNi44MDg5NjAgQzY5Ny4xNjE3NDMsMzEyLjIyOTAwNCA2OTUuNDY1NTE1LDMxOC4wMDQwODkgNjkyLjU3NzA4NywzMjIuNTYyMDQyIEM2ODguNDE2NTA0LDMyOS4xMjc1MzMgNjgyLjc2MzczMywzMzQuNzUzMjk2IDY3Ny42NjQ2MTIsMzQwLjcwODk4NCBDNjc3LjE2MjQxNSwzNDEuMjk1NTMyIDY3Ni4wODIwOTIsMzQxLjM4NzExNSA2NzUuMjcwMDIwLDM0MS43MDg0MDUgQzY3NS4xNzI2MDcsMzQwLjkwNTU3OSA2NzUuMDQ5NzQ0LDM0MC4xMDQ4ODkgNjc0Ljk4MTgxMiwzMzkuMjk5NTkxIEM2NzQuMzM1MDgzLDMzMS42NDEyMDUgNjc0LjExOTY5MCwzMjMuOTE2MDc3IDY3Mi45MzYzNDAsMzE2LjM0MjAxMCBDNjcxLjc5ODc2NywzMDkuMDYwODIyIDY2OS42NjE5MjYsMzAxLjkzNTczMCA2NjcuNTMyMjI3LDI5NC4wMjI5ODAgTTUxNS45NjgxNDAsNTY4LjIzNzEyMiBDNTEyLjk0MDY3NCw1NzkuMzMwNjg4IDUwOS45MTMyNjksNTkwLjQyNDMxNiA1MDYuOTc1NjE2LDYwMS4xODg5NjUgQzUxMC41ODgzMTgsNjAzLjgzNzI4MCA1MTMuNzI2ODY4LDYwNi4zNzE4ODcgNTE3LjEzNzI2OCw2MDguNDYzMjU3IEM1MTcuOTI3MzA3LDYwOC45NDc3NTQgNTE5Ljg1MzA4OCw2MDguMjI5NDkyIDUyMC44OTg4MDQsNjA3LjUzMDA5MCBDNTI0LjUxNjYwMiw2MDUuMTEwNDc0IDUyNy45ODcxMjIsNjAyLjQ2OTIzOCA1MzEuNDk0NjI5LDU5OS44ODYzNTMgQzUzOS42OTQ5NDYsNTkzLjg0NzY1NiA1NDcuODg0MTU1LDU4Ny43OTM4ODQgNTU2LjM5MDAxNSw1ODEuNTE1OTMwIEM1NDcuNTI5OTY4LDU3OC40MjIzMDIgNTQzLjI0NjA5NCw1NzEuODM2NzMxIDU0MC4yODQ3MjksNTYzLjc3NTMzMCBDNTMxLjg1NTcxMyw1NjUuMjkzNTE4IDUyNC42OTc3NTQsNTYyLjM5ODAxMCA1MTguMzg0NzY2LDU1Ny4xNjk1NTYgQzUxNy41MzE0OTQsNTYwLjgyNzU3NiA1MTYuNzY1NTAzLDU2NC4xMTE1MTEgNTE1Ljk2ODE0MCw1NjguMjM3MTIyIHoiLz4KICAgIDxwYXRoIGZpbGw9IiMwMDAiIGQ9Ik04MDUuNzczOTI2LDM3OC41ODI3MzMgQzgwMy4yNzk2NjMsMzgxLjc4OTEyNCA4MDEuMDc2NjYwLDM4NS4yODM5NjYgNzk4LjIzODU4NiwzODguMTQ5OTAyIEM3ODguMDk1MjE1LDM5OC4zOTMwMDUgNzc5LjMzMjA5Miw0MTAuMTUzNDEyIDc2Ni43MjA1MjAsNDE3LjczNjUxMSBDNzU1LjU5NTI3Niw0MjQuNDI1OTM0IDc0NC4wMzk0MjksNDI5LjYzMjYyOSA3MzAuNjIzOTYyLDQzMC4xMTM3NzAgQzcxNy41MTg2MTYsNDMwLjU4MzgzMiA3MDQuNDE2MzgyLDQzMS43MDY1NDMgNjkxLjM2OTM4NSw0MzMuMDc5OTU2IEM2NzcuNzMzODI2LDQzNC41MTUzODEgNjY0LjE5NTY3OSw0MzYuNzA1OTAyIDY1MS43Mzg4MzEsNDQzLjAxODAzNiBDNjQ2LjQ0NzQ0OSw0NDUuNjk5MzEwIDYzNS41ODQ5MDAsNDU4LjE3MzA5NiA2MzMuNzYyODE3LDQ2NC40NTEyMzMgQzY2Mi40MjY2MzYsNDU2Ljk4ODE5MCA2ODguNjMwMTg4LDQ2OC4wNzM0ODYgNzE1Ljg0NzA0Niw0NzMuNTA4MjQwIEM3MDguNTQxMTk5LDQ4MS40OTYzOTkgNjk5LjE3NTg0Miw0ODYuMjU3MDgwIDY4OS4zNzEwMzMsNDg5Ljg3MDc4OSBDNjc5LjAyNzk1NCw0OTMuNjgyODMxIDY2OC40ODg0MDMsNDk4LjAyNjM2NyA2NTcuNjk5NDYzLDQ5OS4zMDEwODYgQzY0My40MTA4ODksNTAwLjk4OTI4OCA2MjguNzk2OTM2LDQ5OS45Mjk2MjYgNjE0LjMyMjY5Myw1MDAuMDM2MTAyIEM2MTIuMDcwNDM1LDUwMC4wNTI2NzMgNjEwLjI3NjA2Miw0OTkuNzc4NzE3IDYwOC42NTE2MTEsNTAyLjUyMjAzNCBDNTk4LjgxODExNSw1MTkuMTI4Nzg0IDU4OC41ODkyOTQsNTM1LjUwMTE2MCA1NzguNTM0NjA3LDU1MS45Nzc1MzkgQzU3Ni4xOTI4NzEsNTU1LjgxNDgxOSA1NzQuMTI5ODIyLDU1OS44MjQ1MjQgNTcxLjczMTM4NCw1NjMuNjI0MTQ2IEM1NjguNTQ0NjE3LDU2OC42NzI2MDcgNTYzLjcxNTIxMCw1NzAuMjk4Mjc5IDU1OS42OTQxNTMsNTY3LjkxODU3OSBDNTU0Ljg1Mjc4Myw1NjUuMDUzNDA2IDU1My4zNTI5MDUsNTU4Ljk1OTkwMCA1NTYuNzA2MTc3LDU1My44NzY5NTMgQzU3Mi41MDUyNDksNTI5LjkyODgzMyA1ODguMzE1NzM1LDUwNS45ODY0MjAgNjA0LjM2MzgzMSw0ODIuMjA1MDc4IEM2MTQuMDIyMDk1LDQ2Ny44OTI4MjIgNjIzLjgzODkyOCw0NTMuNjY5MDk4IDYzNC4xMDQ2MTQsNDM5Ljc5MDM0NCBDNjQ0LjYzMjMyNCw0MjUuNTU3MzczIDY1NS42MjE1MjEsNDExLjY1NDU0MSA2NjYuNzIzOTk5LDM5Ny44NjA5NjIgQzY3OS4yMDI3NTksMzgyLjM1NzQ4MyA2OTEuOTU4ODAxLDM2Ny4wNzQ1MjQgNzA0Ljc0Nzc0MiwzNTEuODI0NDkzIEM3MTAuMjM3NzMyLDM0NS4yNzgwNDYgNzE2LjAzODUxMywzMzguOTg1ODQwIDcyMS44MzE4NDgsMzMyLjcwMTUwOCBDNzM0LjY5NzM4OCwzMTguNzQ1NjA1IDc0Ny41NTQ4MTAsMzA0Ljc4MDE1MSA3NjAuNTkxNjE0LDI5MC45ODQ5ODUgQzc3MS4xOTE1ODksMjc5Ljc2ODM3MiA3ODEuOTYwNDQ5LDI2OC43MDc0ODkgNzkyLjgxMTU4NCwyNTcuNzMzMDMyIEM4MDcuNjYzNjM1LDI0Mi43MTIyNTAgODIyLjQ3MzUxMSwyMjcuNjQxMDk4IDgzNy42NTY0MzMsMjEyLjk1ODcxMCBDODUyLjI1Njk1OCwxOTguODM5NjMwIDg2Ny4yOTUwNDQsMTg1LjE3MjUxNiA4ODIuMTY5MzEyLDE3MS4zMzczNzIgQzg5MC44NjYzMzMsMTYzLjI0NzkyNSA4OTkuNTk2ODYzLDE1NS4xOTQxMjIgOTA4LjM2NjQ1NSwxNDcuMTgzNTk0IEM5MDkuOTc5NDMxLDE0NS43MTAyNjYgOTExLjg1MjE3MywxNDQuNTIxMjg2IDkxNC44NzAxMTcsMTQyLjI0ODAwMSBDOTEzLjQ4Nzg1NCwxNTQuMDIwODEzIDkxMi4zNjkwODAsMTY0LjM5OTAxNyA5MTEuMDI0NzgwLDE3NC43NDc5NDAgQzkwOS44MTA4NTIsMTg0LjA5MjY2NyA5MDkuMDQ1MzQ5LDE5My41NzIxNTkgOTA2Ljg1NTA0MiwyMDIuNjk3NzIzIEM5MDIuMTgyMzEyLDIyMi4xNjU0OTcgODk3LjExMDU5NiwyNDEuNjkzOTU0IDg4Mi4wNDkzMTYsMjU2LjM1MDg5MSBDODc0LjY0MDM4MSwyNjMuNTYxMDM1IDg2NS42Mjk4ODMsMjY4LjUyMDcyMSA4NTUuNTk1MDkzLDI3MC45MjQxOTQgQzgzNy41OTk0ODcsMjc1LjIzNDQ2NyA4MTkuNDI0NjgzLDI3OC43OTQ0MDMgODAxLjQxODg4NCwyODMuMDY0ODgwIEM3ODUuMTE3MzEwLDI4Ni45MzExMjIgNzcxLjM5MTk2OCwyOTUuMDU0NzE4IDc2MS40NzI5NjEsMzA4Ljk2OTA4NiBDNzU5LjY5NjU5NCwzMTEuNDYwOTY4IDc1Ny40MzA2NjQsMzEzLjYwMzg4MiA3NTUuODUxNzQ2LDMxNi40OTYxMjQgQzc2OS4wNDY2OTIsMzEyLjAwNjc0NCA3ODIuMzY3MjQ5LDMxMi41MjIxODYgNzk1LjUyNDQ3NSwzMTMuMTQ1NTA4IEM4MTAuMDc1MDEyLDMxMy44MzQ3NDcgODI0LjU2MzI5MywzMTUuNzY1MjI4IDgzOS4wOTcyOTAsMzE2LjkyMTA4MiBDODQzLjk4OTEzNiwzMTcuMzEwMTUwIDg0OC45Mzc5MjcsMzE2Ljk4MjY2NiA4NTQuNjEwNTM1LDMxNi45ODI2NjYgQzg1MC4xNDA2ODYsMzIzLjA5MzIwMSA4NDUuNjkwNDkxLDMyOS4xNzkyOTEgODQxLjIzNzY3MSwzMzUuMjYzNTgwIEM4MzAuODQ5NzkyLDM0OS40NTcyNzUgODE3LjIyODU3NywzNTguODQyMDcyIDc5OS45NTU2ODgsMzYyLjUxOTUzMSBDNzg1LjAxODYxNiwzNjUuNjk5NzA3IDc2OS45Nzk5ODAsMzY1LjM5Mjk0NCA3NTQuNzgyMjg4LDM2NC4yMDUwNzggQzc0MS44NzcwNzUsMzYzLjE5NjQxMSA3MjguOTc1MDk4LDM2NC4xNDEzODggNzE2LjEyMjE5MiwzNjcuMDY0MTc4IEM3MDUuNDg1MTY4LDM2OS40ODMxMjQgNzAwLjY2MDQwMCwzNzcuOTM2OTIwIDY5NC4wNTUxNzYsMzg0LjcwMjU0NSBDNjkyLjM2MzM0MiwzODYuNDM1NDg2IDY5MS4wMDczMjQsMzg4LjQ5NjMwNyA2ODguNzk0NDk1LDM5MS4yOTUwNDQgQzY5MS4yMjQ5MTUsMzkwLjY4NDc4NCA2OTMuMDE5OTU4LDM5MC41ODA5NjMgNjk0LjQ2NjI0OCwzODkuODE2ODk1IEM3MDcuODM0OTAwLDM4Mi43NTQ2NjkgNzIyLjIyMDc2NCwzODAuMDU3ODkyIDczNy4xNDM5MjEsMzgwLjA2MTczNyBDNzQ3LjA2MzA0OSwzODAuMDY0MjcwIDc1Ni45ODMwOTMsMzgwLjY0MDA3NiA3NjYuOTAwOTQwLDM4MS4wMDc1OTkgQzc3OS40MTU3MTAsMzgxLjQ3MTM3NSA3OTEuODE3ODEwLDM4MC42MTM2MTcgODA0LjcwNzcwMywzNzguMTMyNjI5IEM4MDUuNDgxNTA2LDM3OC4zNzQ0NTEgODA1LjYyNzc0NywzNzguNDc4NTc3IDgwNS43NzM5MjYsMzc4LjU4MjczMyB6Ii8+PHBhdGggZmlsbD0iIzAwMCIgZD0iTTY2Ny43NDgxNjksMjk0LjM4MjUwNyBDNjY5LjY2MTkyNiwzMDEuOTM1NzMwIDY3MS43OTg3NjcsMzA5LjA2MDgyMiA2NzIuOTM2MzQwLDMxNi4zNDIwMTAgQzY3NC4xMTk2OTAsMzIzLjkxNjA3NyA2NzQuMzM1MDgzLDMzMS42NDEyMDUgNjc0Ljk4MTgxMiwzMzkuMjk5NTkxIEM2NzUuMDQ5NzQ0LDM0MC4xMDQ4ODkgNjc1LjE3MjYwNywzNDAuOTA1NTc5IDY3NS4yNzAwMjAsMzQxLjcwODQwNSBDNjc2LjA4MjA5MiwzNDEuMzg3MTE1IDY3Ny4xNjI0MTUsMzQxLjI5NTUzMiA2NzcuNjY0NjEyLDM0MC43MDg5ODQgQzY4Mi43NjM3MzMsMzM0Ljc1MzI5NiA2ODguNDE2NTA0LDMyOS4xMjc1MzMgNjkyLjU3NzA4NywzMjIuNTYyMDQyIEM2OTUuNDY1NTE1LDMxOC4wMDQwODkgNjk3LjE2MTc0MywzMTIuMjI5MDA0IDY5Ny44MDc5ODMsMzA2LjgwODk2MCBDNjk5LjEwOTQzNiwyOTUuODkxNjkzIDY5OS42ODE0NTgsMjg0Ljg1Mjk2NiA2OTkuOTA4ODEzLDI3My44NTA5ODMgQzcwMC4xODY1MjMsMjYwLjQxNTE2MSA3MDAuODEyODA1LDI0Ni44NzM5NjIgNzA1LjM0ODg3NywyMzQuMzE0NDA3IEM3MDguMzM4ODA2LDIyNi4wMzU3NjcgNzEzLjY3OTA3NywyMTguMTk3ODYxIDcxOS40NjU4ODEsMjExLjQ0NzYwMSBDNzI1Ljc2MTg0MSwyMDQuMTAzMzYzIDczMy43OTIxMTQsMTk4LjI0NTgxOSA3NDEuMTQ5OTYzLDE5MS42NjUxOTIgQzc0Mi44MzMzMTMsMjA0LjMwNjk0NiA3NDQuNzE4MjAxLDIxNi4wMjQ2NzMgNzQ1Ljg3MTMzOCwyMjcuODEzOTgwIEM3NDcuMDA2MjI2LDIzOS40MTcxNjAgNzQ3LjM5ODgwNCwyNTEuMDkyOTQxIDc0OC4xNTMxMzcsMjYzLjMyMTA0NSBDNzUwLjI4MTg2MCwyNjAuODY4MTY0IDc1Mi4zNDE5ODAsMjU4LjI4ODExNiA3NTQuNjE3MzcxLDI1NS45MTQ0OTAgQzc1OS42ODEzMzUsMjUwLjYzMTk0MyA3NjYuMjYxNTM2LDI0Ni4yMjI5NjEgNzY5LjY0MDI1OSwyNDAuMDQ1MDI5IEM3NzQuMzMxMjM4LDIzMS40Njc3ODkgNzc3LjI1NDQ1NiwyMjEuNzU3ODQzIDc3OS44Mzc2NDYsMjEyLjIzNTI2MCBDNzgzLjEyNjgzMSwyMDAuMTEwNDc0IDc4Ni4wMDYyODcsMTg4LjAwNDI4OCA3OTEuNjI3Njg2LDE3Ni41NzU2NTMgQzc5OC4yNTY1MzEsMTYzLjA5ODM3MyA4MDkuMTg3NTAwLDE1NC45MzQ3ODQgODIyLjYwNDc5NywxNTAuMTc2ODk1IEM4MzYuMDI0MjMxLDE0NS40MTgxOTggODQ5Ljc4ODk0MCwxNDEuMzI1NTc3IDg2My43MDYxNzcsMTM4LjM3NDM3NCBDODc1LjAwNjcxNCwxMzUuOTc4MDQzIDg4Ni43NTcyNjMsMTM1LjcwNDA3MSA4OTguNzYzMzY3LDEzNS40NDMwMzkgQzg5My4yMzA2NTIsMTQwLjYyMzA3NyA4ODcuNzEwMTQ0LDE0NS44MTYxNjIgODgyLjE1NjMxMSwxNTAuOTczNTExIEM4ODAuODQzMjYyLDE1Mi4xOTI3ODAgODc5LjM1OTQzNiwxNTMuMjI4OTI4IDg3OC4wNTQzODIsMTU0LjQ1NTg4NyBDODYwLjkzMTk0NiwxNzAuNTUyNjczIDg0My42MTk4MTIsMTg2LjQ1NDg4MCA4MjYuNzY5NzE0LDIwMi44MzIzMjEgQzgwNC4zMDU2NjQsMjI0LjY2NjI5MCA3ODIuMTE3MzcxLDI0Ni43ODY2OTcgNzU5Ljk5MDU0MCwyNjguOTYzNTAxIEM3NTEuMjc1NTc0LDI3Ny42OTgxNTEgNzQyLjkxMDQ2MSwyODYuNzk0MzQyIDczNC42MjUxODMsMjk1Ljk0MjQ3NCBDNzIwLjcxNjU1MywzMTEuMjk5NTMwIDcwNi45MDk4NTEsMzI2Ljc1MTMxMiA2OTMuMjMxMzg0LDM0Mi4zMTM2OTAgQzY4My4xODU3MzAsMzUzLjc0Mjg1OSA2NzMuMTQzMTI3LDM2NS4xOTQxMjIgNjYzLjU4NjkxNCwzNzcuMDI5MzI3IEM2NTEuMTQyMDkwLDM5Mi40NDIwNDcgNjM5LjA4MzMxMyw0MDguMTcwNjI0IDYyNy4wNDI5MDgsNDIzLjkwNDQ4MCBDNjE4LjY4MjgwMCw0MzQuODI5MTYzIDYxMC4zOTU2MzAsNDQ1LjgyNTEwNCA2MDIuNTA1NTU0LDQ1Ny4wOTAxNzkgQzU5Mi41MTM0ODksNDcxLjM1NjUwNiA1ODIuODQ2MDA4LDQ4NS44NTQ2NDUgNTczLjI0NjUyMSw1MDAuMzkwMTk4IEM1NjQuNzMyNjA1LDUxMy4yODIxNjYgNTU2LjUyMjAzNCw1MjYuMzc0MjA3IDU0OC4xMzE0MDksNTM5LjM0ODAyMiBDNTQ2LjU1NDQ0Myw1NDEuNzg2MzE2IDU0NC45ODI3MjcsNTQ0LjI5MTEzOCA1NDMuMDE4Njc3LDU0Ni40MDI1MjcgQzUzOS4zMTE0MDEsNTUwLjM4NzYzNCA1MzMuMTg1NjA4LDU1MS4xNTc0MTAgNTI5Ljg3ODQxOCw1NDguMzc3MjU4IEM1MjYuODQ5MDYwLDU0NS44MzA2ODggNTI2LjY3MTAyMSw1MzkuMTA1MTY0IDUyOS40Mjc5NzksNTM1LjA0MjI5NyBDNTQyLjczMjc4OCw1MTUuNDM1MTgxIDU1Ni4wODAwMTcsNDk1Ljg1NTg2NSA1NjkuMTg0MTQzLDQ3Ni4xMTUzMjYgQzU3MC40MjA2NTQsNDc0LjI1MjUwMiA1NzAuNzA2NDIxLDQ3MS4yMzQwMDkgNTcwLjM0MjIyNCw0NjguOTI0MTY0IEM1NjguNzg1MTU2LDQ1OS4wNTAxNzEgNTY2LjY1NDcyNCw0NDkuMjY3MDI5IDU2NS4wNzMxMjAsNDM5LjM5NjMwMSBDNTY0LjMyMjY5Myw0MzQuNzEyNjQ2IDU2NC4xOTczODgsNDI5LjkxMTc3NCA1NjQuMDI1ODc5LDQyNS4xNTU0NTcgQzU2My4zMDU0MjAsNDA1LjE4NDQ0OCA1NjkuMjMyOTcxLDM4Ni45MDMyMjkgNTc4LjQyNjMzMSwzNjkuMTE2MjExIEM1ODcuMjQxNjM4LDM5MC4yMDg4OTMgNjAxLjQzNzg2Niw0MDguOTM5MzYyIDYwMi4zMDgwNDQsNDM0LjExMTI2NyBDNjA0LjE3OTY4OCw0MzEuODQwNTc2IDYwNS40NjIyODAsNDMwLjQxMjE3MCA2MDYuNjAyMzU2LDQyOC44Nzc4NjkgQzYxMC4yNjY2MDIsNDIzLjk0NjU5NCA2MTQuMjc3NDY2LDQxOS4yMDk5NjEgNjE3LjM2NDg2OCw0MTMuOTM1OTEzIEM2MTkuMzA4MjI4LDQxMC42MTYyMTEgNjIwLjc3OTU0MSw0MDYuNDgwNTYwIDYyMC44MjYzNTUsNDAyLjY5MDY0MyBDNjIwLjk3MTc0MSwzOTAuOTM3NTAwIDYyMC40OTY3NjUsMzc5LjE2NzAyMyA2MTkuOTQzNjA0LDM2Ny40MTgzMDQgQzYxOS41ODE0ODIsMzU5LjcyNjE2NiA2MTguMTM0Mjc3LDM1Mi4wNjIxMDMgNjE4LjEwNTEwMywzNDQuMzgxOTI3IEM2MTguMDM1MDM0LDMyNS45Mzc1MDAgNjI0LjkzNjE1NywzMTAuMDcwODAxIDYzNy4xMjEwOTQsMjk2LjM1MDg5MSBDNjQ0LjgzODE5NiwyODcuNjYxNjgyIDY1Mi40MDg2OTEsMjc4Ljg0MjIyNCA2NjAuMTc5NDQzLDI2OS45MjY4ODAgQzY2Mi43MzM0NTksMjc4LjI5NjYwMCA2NjUuMTMyODEyLDI4Ni4xNTk3OTAgNjY3Ljc0ODE2OSwyOTQuMzgyNTA3IHoiLz48cGF0aCBmaWxsPSIjMDAwIiBkPSJNNTE1Ljk4MzgyNiw1NjcuODE2Mjg0IEM1MTYuNzY1NTAzLDU2NC4xMTE1MTEgNTE3LjUzMTQ5NCw1NjAuODI3NTc2IDUxOC4zODQ3NjYsNTU3LjE2OTU1NiBDNTI0LjY5Nzc1NCw1NjIuMzk4MDEwIDUzMS44NTU3MTMsNTY1LjI5MzUxOCA1NDAuMjg0NzI5LDU2My43NzUzMzAgQzU0My4yNDYwOTQsNTcxLjgzNjczMSA1NDcuNTI5OTY4LDU3OC40MjIzMDIgNTU2LjM5MDAxNSw1ODEuNTE1OTMwIEM1NDcuODg0MTU1LDU4Ny43OTM4ODQgNTM5LjY5NDk0Niw1OTMuODQ3NjU2IDUzMS40OTQ2MjksNTk5Ljg4NjM1MyBDNTI3Ljk4NzEyMiw2MDIuNDY5MjM4IDUyNC41MTY2MDIsNjA1LjExMDQ3NCA1MjAuODk4ODA0LDYwNy41MzAwOTAgQzUxOS44NTMwODgsNjA4LjIyOTQ5MiA1MTcuOTI3MzA3LDYwOC45NDc3NTQgNTE3LjEzNzI2OCw2MDguNDYzMjU3IEM1MTMuNzI2ODY4LDYwNi4zNzE4ODcgNTEwLjU4ODMxOCw2MDMuODM3MjgwIDUwNi45NzU2MTYsNjAxLjE4ODk2NSBDNTA5LjkxMzI2OSw1OTAuNDI0MzE2IDUxMi45NDA2NzQsNTc5LjMzMDY4OCA1MTUuOTgzODI2LDU2Ny44MTYyODQgeiIvPjxwYXRoIGZpbGw9IiMwMDAiIGQ9Ik04MDUuMTMwNDkzLDM3OC4wOTU0OTAgQzgwNS40OTI2NzYsMzc3LjY3ODE5MiA4MDYuMDU5NjMxLDM3Ny40MzU2NjkgODA2LjYyNjUyNiwzNzcuMTkzMTE1IEM4MDYuNDkxMzk0LDM3Ny41MjgzNTEgODA2LjM1NjI2MiwzNzcuODYzNjE3IDgwNS45OTc1NTksMzc4LjM5MDgwOCBDODA1LjYyNzc0NywzNzguNDc4NTc3IDgwNS40ODE1MDYsMzc4LjM3NDQ1MSA4MDUuMTMwNDkzLDM3OC4wOTU0OTAgeiIvPgogIDwvbWFzaz4KICA8cmVjdCB4PSIzMjAiIHk9IjAiIHdpZHRoPSI3NjgiIGhlaWdodD0iNzY4IiBmaWxsPSIjZmZmIiBtYXNrPSJ1cmwoI3BsdW1hLXJlY29ydGVzKSIvPgo8L3N2Zz4K");
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue-act);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+h1,h2,h3{text-wrap:balance}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- shell: cabecera con logo + menú lateral que se minimiza ---------- */
+.app{--sbw:272px;min-height:100vh}
+.sidebar{position:fixed;inset:0 auto 0 0;z-index:30;width:var(--sbw);display:flex;flex-direction:column;gap:10px;padding:14px 14px 18px;background:var(--side);color:#fff;border-radius:0 var(--radius-lg) var(--radius-lg) 0;box-shadow:var(--shadow-lg);transition:transform var(--dur) var(--ease),visibility 0s}
+.app[data-collapsed="true"] .sidebar{transform:translateX(calc(-100% - 48px));visibility:hidden;transition:transform var(--dur) var(--ease),visibility 0s linear var(--dur)}
+.stage{margin-left:var(--sbw);min-width:0;transition:margin-left var(--dur) var(--ease)}
+.app[data-collapsed="true"] .stage{margin-left:0}
+.backdrop{position:fixed;inset:0;z-index:25;background:rgb(15 23 42/.5);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.sb-head{display:none;align-items:center;gap:12px}
+.sb-title{font-family:var(--font-heading);font-size:20px}
+.sb-user{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:6px 0 8px;border-radius:var(--radius-lg);background:rgba(255,255,255,.1)}
+.sb-av{width:42px;height:42px;flex:none;border-radius:50%;background:var(--blue-act);display:grid;place-items:center;font-family:var(--font-heading);font-size:18px}
+.sb-user b{display:block;font-size:15px}
+.sb-user small{display:block;font-size:12px;opacity:.82;line-height:1.3}
+.sb-nav{display:flex;flex-direction:column;gap:4px}
+.sidebar .spacer{flex:1}
+.nav{display:flex;align-items:center;gap:13px;padding:12px 18px;border-radius:var(--radius-pill);font-size:16px;font-weight:700;color:#fff;transition:background .2s ease,transform .2s var(--ease)}
+.nav:hover{background:rgba(255,255,255,.12)}
+.nav:active{transform:scale(.98)}
+.nav.on{background:var(--blue-act)}
+.ic{flex:none}
+.sidebar :focus-visible{outline-color:#fff}
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;padding:0;border:0;border-radius:var(--radius-pill);background:transparent;color:var(--blue-tx);transition:background .2s ease,transform .2s var(--ease)}
+.iconbtn:hover{background:color-mix(in srgb,var(--blue) 10%,transparent)}
+.iconbtn:active{transform:scale(.92)}
+.iconbtn.light{color:#fff}
+.iconbtn.light:hover{background:rgba(255,255,255,.14)}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;padding:12px 40px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.brand-col{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+.brand-name{font-family:var(--font-heading);font-size:20px;color:var(--blue-tx);white-space:nowrap}
+.mode-label{font-size:13px;font-weight:600;color:var(--blue-act);white-space:nowrap}
+.roleswitch{margin-left:auto;display:flex;gap:2px;padding:4px;border-radius:var(--radius-pill);background:var(--blue-100)}
+.rs{padding:7px 16px;border-radius:var(--radius-pill);font-size:14px;font-weight:700;color:var(--muted);white-space:nowrap;transition:background var(--dur) var(--ease),color .2s ease}
+.rs:hover{color:var(--ink)}
+.rs.on{background:var(--blue);color:#fff}
+.logo{display:flex;flex:none;width:var(--s,52px);height:var(--s,52px);overflow:hidden;border-radius:var(--radius-pill);background:var(--blue)}
+.logo i{display:block;width:100%;height:100%;background:#fff;-webkit-mask:var(--pluma) center/contain no-repeat;mask:var(--pluma) center/contain no-repeat}
+.content{padding:8px 40px 80px;min-width:0}
+.wrap{max-width:1120px;margin-inline:auto;display:flex;flex-direction:column;gap:22px}
+
+/* ---------- blocks ---------- */
+.card{background:var(--card);border-radius:22px;padding:24px 28px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card.tight{padding:18px 22px}
+.hello h1{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:14.5px;margin-top:2px}
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.pagehead h1{font-size:30px;font-weight:700;letter-spacing:-.015em}
+.pagehead .sub{margin-top:4px}
+.tools{display:flex;gap:12px;flex-wrap:wrap}
+.field,.select{background:var(--field);border:1px solid transparent;border-radius:12px;padding:11px 16px;min-width:0;font-size:13.5px}
+.field{width:240px;max-width:100%}
+.field::placeholder{color:var(--ph)}
+.field:focus{border-color:var(--blue-act);outline:none;background:var(--surf)}
+.select{appearance:none;-webkit-appearance:none;padding-right:34px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 55%,calc(100% - 13px) 55%;background-size:5px 5px;background-repeat:no-repeat;cursor:pointer}
+.btn{background:var(--blue);color:#fff;border:0;border-radius:12px;padding:11px 20px;font-weight:600;font-size:13.5px;display:inline-block;text-align:center}
+.btn:hover{filter:brightness(1.12)}
+.btn.sm{padding:8px 16px;font-size:12.5px;border-radius:10px}
+.btn.blue2{background:var(--blue-act)}
+.btn.orange{background:var(--orange);color:#1f1300}
+.btn.ghost{background:var(--surf);color:var(--blue-tx);border:1px solid var(--blue-tx)}
+.btn.soft{background:var(--blue-soft);color:var(--blue-tx)}
+.btn.danger{background:var(--red-soft);color:var(--red-ink)}
+.btn.warn{background:var(--orange-soft);color:var(--orange-ink)}
+.btn.block{display:block;width:100%}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}
+.kpi{background:var(--card);border-radius:18px;padding:20px 22px 20px 26px;position:relative;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.kpi::before{content:"";position:absolute;left:0;top:18px;bottom:18px;width:4px;border-radius:0 4px 4px 0;background:var(--c,var(--blue))}
+.kl{color:var(--muted);font-size:13px}
+.kv{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:2px 0;font-variant-numeric:tabular-nums}
+.ks{font-size:12.5px;color:var(--muted)}
+.ks.g{color:var(--green)} .ks.o{color:var(--orange)}
+
+.promo{background:var(--green-soft);border-radius:22px;padding:28px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;position:relative}
+.promo::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--green);border-radius:22px 0 0 22px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
+.eyebrow.o{color:var(--orange)} .eyebrow.b{color:var(--blue-tx)}
+.promo h2{font-size:24px;margin:4px 0 6px}
+.chip{display:inline-block;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;background:var(--green-soft);color:var(--green-ink)}
+.chip.o{background:var(--orange-soft);color:var(--orange-ink)} .chip.r{background:var(--red-soft);color:var(--red-ink)}
+.chip.b{background:var(--blue-soft);color:var(--blue-tx)} .chip.n{background:var(--track);color:var(--muted)} .chip.g{background:var(--okchip);color:var(--green-ink)}
+.chip.w{background:var(--surf)}
+
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.split{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:20px;align-items:start}
+.card h2{font-size:18px;font-weight:700}
+.card .sub{font-size:13px}
+.rows{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.row{display:flex;align-items:center;gap:12px;background:var(--field);border-radius:10px;padding:10px 14px;font-size:13px;min-width:0}
+.row b{font-weight:600;white-space:nowrap}
+.row .grow{flex:1;min-width:0;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .when{color:var(--muted);font-size:12px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--green)}
+.dot.b{background:var(--blue)} .dot.o{background:var(--orange)} .dot.r{background:var(--red)}
+.count{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:99px;background:var(--orange-soft);color:var(--orange-ink);font-size:11px;font-weight:700;margin-left:8px;vertical-align:middle}
+
+/* course cards */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}
+.course{background:var(--card);border-radius:22px;padding:22px 24px 24px;border-top:5px solid var(--c,var(--blue));box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.course h3{font-size:21px;font-weight:700}
+.course .meta{color:var(--muted);font-size:13px;margin:6px 0}
+.progress{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-top:14px}
+.progress b{color:var(--ink)}
+.track{height:7px;background:var(--track);border-radius:9px;overflow:hidden;margin-top:6px}
+.track i{display:block;height:100%;border-radius:9px;background:var(--c,var(--blue))}
+.course .btn{margin-top:16px}
+
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:0;background:transparent;color:var(--muted);padding:10px 18px;border-radius:12px;font-weight:500;font-size:13.5px}
+.tab.on{background:var(--blue);color:#fff;font-weight:600}
+.tabs.line .tab{border-radius:0;padding:8px 2px;margin-right:16px;border-bottom:2px solid transparent}
+.tabs.line .tab.on{background:none;color:var(--ink);border-bottom-color:var(--blue-tx)}
+.crumbs{font-size:13px;color:var(--muted)} .crumbs a:hover{color:var(--blue-tx)}
+.back{font-size:13px;color:var(--blue-act);font-weight:500}
+
+/* units */
+.unit{display:flex;align-items:center;gap:16px;background:var(--card);border-radius:18px;padding:20px 24px}
+.unit .ic{width:22px;text-align:center;font-weight:700;color:var(--blue-tx)}
+.unit .t{flex:1;min-width:0} .unit .t b{display:block}
+.unit .t span{color:var(--muted);font-size:13px}
+.st-g{color:var(--green-ink);font-weight:600;font-size:12.5px} .st-o{color:var(--orange);font-weight:600;font-size:12.5px} .st-n{color:var(--muted);font-weight:600;font-size:12.5px}
+.lesson-formula{background:var(--field);border-radius:14px;padding:22px;text-align:center;color:var(--blue-tx);font-size:24px;font-weight:700;margin:16px 0}
+.lesson-formula small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.example{background:var(--green-soft);border-radius:14px;padding:20px 22px}
+.example b.f{display:block;font-size:19px;margin:6px 0}
+
+/* tables */
+.tscroll{overflow-x:auto;border-radius:16px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+th{background:var(--thead);color:var(--blue-tx);font-weight:500;padding:12px 16px;text-align:center;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:15px 16px;text-align:center;border-bottom:1px solid var(--line);background:var(--surf);white-space:nowrap}
+tbody tr:nth-child(even) td{background:var(--zebra)}
+td:first-child{font-weight:600}
+.plain th{background:none;color:var(--muted);font-weight:500;text-align:left;padding:10px 12px}
+.plain td{text-align:left;background:transparent!important;font-weight:400}
+.plain td:first-child{font-weight:600}
+.plain tbody tr:nth-child(even) td{background:transparent}
+.link{color:var(--blue-act);font-weight:600;font-size:13px;background:none;border:0;padding:0}
+
+/* bars */
+.bars{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.bar{display:grid;grid-template-columns:96px minmax(0,1fr) 40px;align-items:center;gap:14px;font-size:12.5px;color:var(--muted)}
+.bar .track{margin:0;height:8px}
+.bar b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.bar.wide{grid-template-columns:minmax(0,1fr) 54px;row-gap:6px}
+.bar.wide .lab{grid-column:1/-1;color:var(--ink);font-weight:600}
+.bar.wide .track{grid-column:1}
+.bar.wide b{grid-column:2}
+.barcard{background:var(--surf);border-radius:14px;padding:12px 18px}
+
+/* settings */
+.kv2{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px 16px;margin-top:16px;font-size:13px}
+.kv2 span{color:var(--muted)} .kv2 b{font-weight:500}
+.toggle{width:58px;height:30px;border-radius:99px;background:var(--toggle);border:0;position:relative;flex:none;transition:background .15s}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .15s}
+.toggle[aria-checked="true"]{background:var(--green)}
+.toggle[aria-checked="true"]::after{transform:translateX(28px)}
+.setrow{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:16px}
+.setrow b{display:block;font-size:14px}
+.setrow span{color:var(--muted);font-size:12.5px}
+
+/* forms */
+.form label{display:block;font-weight:600;font-size:12.5px;margin:16px 0 6px}
+.form .field,.form .select{width:100%;border:1px solid var(--line);background:var(--field)}
+.form .half{width:220px;max-width:100%}
+.form .actions{display:flex;justify-content:space-between;margin-top:36px;gap:12px}
+.form h2{font-size:22px}
+
+/* avatar / detail */
+.avatar{width:72px;height:72px;border-radius:50%;background:var(--blue-act);color:#fff;font-size:22px;font-weight:700;display:grid;place-items:center;flex:none}
+.profile{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+.acts{display:flex;flex-direction:column;gap:10px;margin-top:14px;max-width:300px}
+.acts .btn{text-align:left;font-size:12.5px;padding:11px 16px}
+.timeline{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.timeline div{display:flex;gap:12px;align-items:flex-start;font-size:13px}
+.timeline small{display:block;color:var(--muted);font-size:11.5px}
+.timeline .dot{margin-top:6px}
+
+/* filter pills */
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{border:1px solid var(--line);background:var(--field);border-radius:10px;padding:8px 18px;font-size:12.5px;color:var(--muted)}
+.pill.on{background:var(--blue-act);color:#fff;border-color:var(--blue-act);font-weight:600}
+
+/* tutor */
+.tutor-top{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+.tutor-top h1{font-size:28px;font-weight:700}
+.seg{display:inline-flex;background:var(--field);border-radius:12px;padding:4px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:8px 14px;font-size:12.5px;font-weight:500;color:var(--muted)}
+.seg button.on{background:var(--surf);color:var(--blue-tx);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.curso-sel{display:flex;flex-direction:column;gap:2px;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.curso-sel .select{background-color:var(--blue-soft);border:1px solid var(--line);font-size:14px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink)}
+.tutor-grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:20px;align-items:start}
+.chatcard{display:flex;flex-direction:column;gap:14px;min-width:0}
+.chathead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.chathead .who{display:flex;gap:12px;align-items:center}
+.who .avatar{width:38px;height:38px;font-size:15px}
+.who b{font-size:17px;display:block}
+.who span{font-size:12.5px;color:var(--muted)}
+.thread{background:var(--thread);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px;height:420px;overflow-y:auto}
+.thread.empty{align-items:center;justify-content:center;text-align:center;background:var(--blue-soft)}
+.thread.empty h2{font-size:24px}
+.msg{max-width:84%;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.5;background:var(--surf);border:1px solid var(--line)}
+.msg.me{align-self:flex-end;background:var(--blue-act);color:#fff;border-color:var(--blue-act)}
+.msg .src{display:inline-block;background:var(--blue-soft);color:var(--blue-tx);font-size:11.5px;font-weight:600;border-radius:8px;padding:6px 12px;margin-top:12px}
+.msg .fb{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.msg .fb button{background:var(--surf);border:1px solid var(--line);border-radius:9px;padding:5px 14px;font-size:12px;color:var(--blue-tx);font-weight:500}
+.msg .fb button.on{background:var(--blue-soft);border-color:var(--blue-act)}
+.typing{align-self:flex-start;background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:12px 16px;display:flex;gap:5px}
+.typing i{width:7px;height:7px;border-radius:50%;background:#94A3B8;animation:blink 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+.suggest{display:flex;gap:10px;flex-wrap:wrap}
+.suggest button{background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:12.5px;font-weight:500;color:var(--blue-tx)}
+.suggest button:hover{border-color:var(--blue-act)}
+.thread.empty .suggest button{background:var(--surf);border:0}
+.composer{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:16px;padding:10px 12px 10px 18px}
+.composer input{flex:1;min-width:0;border:0;background:transparent;font-size:14px;padding:8px 0}
+.composer input:focus{outline:none}
+.composer:focus-within{border-color:var(--blue-act)}
+.send{width:48px;height:44px;border-radius:12px;border:0;background:var(--blue-act);color:#fff;font-size:18px;flex:none}
+.send.orange{background:var(--orange);color:#1f1300}
+.aside h2{font-size:21px}
+.mini{margin-top:18px}
+.mini h4{margin:0 0 8px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mini .it{display:flex;justify-content:space-between;align-items:center;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13px;margin-bottom:8px;color:var(--muted);width:100%;text-align:left}
+.mini .it.on{background:var(--blue-soft);color:var(--blue-tx);border-color:var(--blue-soft)}
+.mini .it.sel{background:var(--surf);color:var(--ink);font-weight:500}
+.pbox{background:var(--blue-soft);border-radius:14px;padding:14px 16px;margin-top:16px}
+.pbox .pr{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pbox .pr b{font-size:20px;color:var(--blue-tx);letter-spacing:0}
+.pbox .track{background:var(--surf)}
+.pbox .track i{background:var(--blue-act)}
+/* guided */
+.goal{display:flex;gap:14px;align-items:center;background:var(--blue-soft);border-radius:14px;padding:16px 18px;flex-wrap:wrap}
+.goal .tick{width:42px;height:42px;border-radius:50%;background:var(--blue-act);color:#fff;display:grid;place-items:center;font-size:18px;flex:none}
+.goal .tx{flex:1;min-width:200px}
+.goal small{color:var(--muted)}
+.goal .eyebrow{color:var(--blue-act)}
+.opts{display:flex;gap:10px;flex-wrap:wrap}
+.opt{flex:1;min-width:90px;border:1px solid var(--line);background:var(--surf);border-radius:10px;padding:12px;font-weight:600;font-size:13px;color:var(--ink)}
+.opt.on{background:var(--blue-act);color:#fff;border-color:var(--blue-act)}
+.msg.ok{background:var(--okbg);border-color:var(--okline);max-width:100%}
+.msg.no{background:var(--orange-soft);border-color:var(--noline);max-width:100%}
+.msg.ok .lab{color:var(--green-ink)} .msg.no .lab{color:var(--orange-ink)}
+.msg .lab{font-size:11px;font-weight:700;display:block;margin-bottom:4px}
+.msg.tutor{background:var(--blue-100);border-color:var(--blue-100)}
+.step{display:flex;gap:12px;align-items:center;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:8px;font-size:13px}
+.step .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;background:#64748B;flex:none}
+.step.done{background:var(--okbg);border-color:var(--okbg)}.step.done .n{background:var(--green)}
+.step.cur{background:var(--blue-soft);border-color:var(--blue-soft)}.step.cur .n{background:var(--blue-act)}
+.step small{display:block;font-size:11px;color:var(--muted)}
+.step.done small{color:var(--green-ink)} .step.cur small{color:var(--blue-act)}
+.cc{display:flex;gap:10px;align-items:center;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:12.5px;font-weight:500}
+.cc i{width:12px;height:12px;border-radius:50%;background:var(--green);flex:none}
+.cc.off{color:var(--muted);background:var(--field)}.cc.off i{background:var(--track)}
+
+/* login */
+.login{min-height:100vh;background:var(--bg)}
+.login .hero{background:var(--side);color:#fff;text-align:center;padding:72px 24px 200px;border-radius:0 0 40px 40px}
+.login .hero h1{font-size:34px;font-weight:700}
+.login .hero h2{font-size:24px;margin:14px 0 8px;font-weight:600}
+.login .hero p{opacity:.9;font-size:15px}
+.login .box{background:var(--surf);border-radius:28px;max-width:1100px;margin:-130px auto 0;padding:44px 56px 30px;box-shadow:0 8px 40px rgba(15,23,42,.08);width:calc(100% - 32px)}
+.login .box h2{font-size:30px;font-weight:700}
+.login .box .sub{margin-bottom:26px}
+.fld{display:block;background:var(--field);border-radius:12px;padding:10px 18px;margin-bottom:16px;border:1px solid transparent}
+.fld:focus-within{border-color:var(--blue-act);background:var(--surf)}
+.fld span{display:block;font-weight:600;font-size:13px}
+.fld input{display:block;width:100%;border:0;background:transparent;padding:2px 0;font-size:13.5px}
+.fld input:focus{outline:none}
+.fld input::placeholder{color:var(--ph)}
+.loginrow{display:flex;justify-content:space-between;align-items:center;margin:2px 0 18px;font-size:13px;gap:12px;flex-wrap:wrap}
+.loginrow label{display:flex;gap:8px;align-items:center}
+.loginrow a{color:var(--blue-tx);font-weight:600;font-size:12.5px}
+.loginbtn{display:block;width:100%;background:var(--blue);color:#fff;border:0;border-radius:12px;padding:16px;font-size:16px;font-weight:600}
+.loginbtn:hover{filter:brightness(1.12)}
+.roles{display:flex;gap:14px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+.roles a{background:var(--blue-soft);color:var(--blue-tx);border-radius:99px;padding:11px 30px;font-size:13px;font-weight:600}
+.roles a.on{background:var(--green);color:#fff}
+
+/* chrome */
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);background:var(--inv);color:var(--inv-ink);border-radius:12px;padding:12px 20px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:60;max-width:calc(100% - 32px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.idx-btn{position:fixed;right:18px;bottom:18px;z-index:50;background:var(--inv);color:var(--inv-ink);border:0;border-radius:99px;padding:11px 18px;font-size:12.5px;font-weight:600;box-shadow:0 6px 24px rgba(15,23,42,.3)}
+.idx{position:fixed;right:18px;bottom:68px;z-index:50;background:var(--surf);border-radius:18px;width:min(380px,calc(100% - 36px));max-height:70vh;overflow:auto;padding:18px 20px;box-shadow:0 12px 48px rgba(15,23,42,.25)}
+.idx h4{margin:14px 0 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.idx h4:first-child{margin-top:0}
+.idx a{display:block;padding:7px 10px;border-radius:8px;font-size:13px}
+.idx a:hover,.idx a.on{background:var(--blue-soft);color:var(--blue-tx)}
+
+/* ---------- Estilo del frontend del proyecto: formas en píldora, tipografía Caprasimo, movimiento fluido (colores de Figma) ---------- */
+h1,h2,h3{font-family:var(--font-heading)!important;font-weight:400!important}
+.kv,.sb-title{font-family:var(--font-heading);font-weight:400!important}
+.card,.promo,.course,.tutor-top{border-radius:var(--radius-lg)}
+.card{box-shadow:var(--shadow-sm)}
+.card.tight{padding:20px 26px}
+.kpi,.unit{border-radius:24px}
+.kpi{box-shadow:var(--shadow-sm)}
+.row{border-radius:16px}
+.tscroll{border-radius:24px}
+.lesson-formula,.example,.goal,.pbox{border-radius:20px}
+.field,.select{border-radius:var(--radius-pill);padding:11px 20px}
+.select{padding-right:38px}
+.fld{border-radius:22px}
+.btn{font-family:var(--font-heading);font-weight:400;border-radius:var(--radius-pill);padding:11px 24px;transition:filter .2s ease,transform .2s var(--ease)}
+.btn.sm{padding:9px 20px}
+.btn:active{transform:scale(.97)}
+.tab,.pill{border-radius:var(--radius-pill)}
+.course{overflow:hidden;position:relative;border-top:0;padding-top:30px}
+.course::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:var(--c,var(--blue))}
+.course,.kpi{transition:transform .25s var(--ease),box-shadow .25s ease}
+.course:hover,.kpi:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.unit{transition:transform .25s var(--ease),box-shadow .25s ease}
+a.unit:hover{transform:translateX(4px);box-shadow:var(--shadow-md)}
+.chip{white-space:nowrap}
+.tag{display:inline-flex;align-items:center;padding:3px 12px;border-radius:var(--radius-pill);background:var(--blue-100);color:var(--blue-tx);font-size:11.5px;font-weight:700;letter-spacing:.02em}
+/* login */
+.login .hero .logo{--s:92px;margin:0 auto 18px;background:rgba(255,255,255,.16)}
+.login .box{border-radius:36px;animation:rise .6s var(--ease) both .1s}
+.login .hero{animation:fade .5s ease both}
+.loginbtn{font-family:var(--font-heading);font-weight:400;font-size:17px;border-radius:var(--radius-pill);transition:filter .2s ease,transform .2s var(--ease)}
+.loginbtn:active{transform:scale(.99)}
+.roles a{transition:background .2s ease,transform .2s var(--ease)}
+.roles a:hover{transform:translateY(-2px)}
+/* chat */
+.thread{border-radius:24px;scroll-behavior:auto}
+.thread.empty{background:var(--blue-100);height:auto;min-height:420px;overflow:visible}
+.empty-in{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px}
+.greet{max-width:16ch;margin:0;font-size:clamp(28px,4.4vw,40px);line-height:1.08;text-wrap:pretty}
+.intro{max-width:46ch;margin:0;color:var(--muted);font-size:16px;text-wrap:pretty}
+.suggest button{font-family:var(--font-heading);font-size:14px;border-radius:var(--radius-pill);padding:10px 20px;border:1px solid var(--blue-300);background:var(--blue-100);color:var(--ink);transition:background .2s ease,transform .2s var(--ease)}
+.thread .suggest button{background:var(--surf)}
+.suggest button:hover{background:var(--blue-200)}
+.suggest button:active{transform:scale(.97)}
+.msg{border-radius:var(--radius-lg) var(--radius-lg) var(--radius-lg) 6px;padding:14px 20px;font-size:15px;overflow-wrap:anywhere}
+.msg.me{border-radius:var(--radius-lg) var(--radius-lg) 6px var(--radius-lg)}
+.msg.ok,.msg.no,.msg.tutor{border-radius:22px}
+.airow{display:flex;gap:8px;align-self:flex-start;max-width:90%}
+.airow .logo{margin-top:2px}
+.aicol{display:flex;flex-direction:column;gap:6px;min-width:0}
+.airow .msg{max-width:none;box-shadow:var(--shadow-sm);border:0}
+.msg .src{border-radius:var(--radius-pill)}
+.msg .fb button{border-radius:var(--radius-pill);transition:background .2s ease}
+.msg .fb button:hover{background:var(--blue-100)}
+.typing{margin-left:48px;border:0;box-shadow:var(--shadow-sm);border-radius:var(--radius-pill);padding:13px 18px}
+.typing i{background:var(--blue-act)}
+.composer{border-radius:var(--radius-pill);border:0;background:var(--surf);box-shadow:var(--shadow-md);padding:6px 6px 6px 22px;transition:box-shadow .2s ease}
+.composer:focus-within{box-shadow:var(--shadow-md),0 0 0 2px color-mix(in srgb,var(--blue-act) 55%,transparent)}
+.send{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:var(--radius-pill);transition:filter .15s ease,transform .2s var(--ease)}
+.send:hover{filter:brightness(1.12)}
+.send:active{transform:scale(.94)}
+.mini .it,.opt,.step,.cc{border-radius:var(--radius-pill)}
+.step{border-radius:20px}
+.opt{transition:background .2s ease,transform .2s var(--ease)}
+.opt:hover{transform:translateY(-2px)}
+.seg{border-radius:var(--radius-pill)}.seg button{border-radius:var(--radius-pill)}
+/* movimiento */
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes grow{from{width:0}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.enter>*{animation:rise .5s var(--ease) both}
+.enter>*:nth-child(2){animation-delay:.05s}.enter>*:nth-child(3){animation-delay:.1s}.enter>*:nth-child(4){animation-delay:.15s}
+.enter>*:nth-child(5){animation-delay:.2s}.enter>*:nth-child(6){animation-delay:.25s}.enter>*:nth-child(n+7){animation-delay:.3s}
+.soft>*{animation:fade .25s ease both}
+.enter .track i{animation:grow .9s var(--ease) .2s both}
+.new,.pop,.typing{animation:pop .35s var(--ease) both}
+.late{animation:fade .45s ease both}
+@media (max-width:980px){
+  .tutor-grid,.split,.two{grid-template-columns:minmax(0,1fr)}
+  .tutor-top{grid-template-columns:1fr}
+}
+@media (max-width:860px){
+  .stage{margin-left:0}
+  .sidebar{width:min(320px,86vw)}
+  .sb-head{display:flex}
+  .app[data-open="true"][data-collapsed] .sidebar{transform:none;visibility:visible;transition:transform var(--dur) var(--ease),visibility 0s}
+  .app[data-open="true"] .backdrop{opacity:1;pointer-events:auto}
+  .topbar{padding:10px 14px}
+  .rs{padding:6px 11px;font-size:12.5px}
+  .content{padding:8px 16px 90px}
+  .login .hero{padding:44px 20px 170px}
+  .login .box{padding:28px 20px 24px;margin-top:-110px}
+  .pagehead h1,.hello h1{font-size:24px}
+  .bar{grid-template-columns:80px minmax(0,1fr) 36px}
+}
+@media (max-width:560px){.brand-col{display:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+/* ---------- Personalización: tema, acento, tipografía, densidad, esquinas, menú ---------- */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B1220; --card:#131C30; --ink:#E8EDF7; --muted:#A3B0C6; --line:#26334D; --field:#1B2742;
+  --surf:#182339; --track:#2A3857; --thead:#1B2742; --zebra:#111A2D; --thread:#0F1829;
+  --green-soft:#11312A; --orange-soft:#3A2A10; --red-soft:#3D1B20; --green-ink:#6EE7B7; --orange-ink:#FCD34D; --red-ink:#FCA5A5;
+  --okbg:#12322A; --okline:#1E5A47; --noline:#6B4A14; --okchip:#14463A; --toggle:#3B4A68; --ph:#8593AB;
+  --inv:#E8EDF7; --inv-ink:#0B1220;
+  --blue:color-mix(in srgb,var(--blue-act) 78%,#000); --blue-tx:color-mix(in srgb,var(--blue-act) 55%,#fff); --side:color-mix(in srgb,var(--blue-act) 22%,#0A1020);
+  --blue-soft:color-mix(in srgb,var(--blue-act) 18%,var(--card)); --blue-100:color-mix(in srgb,var(--blue-act) 14%,var(--bg));
+  --blue-200:color-mix(in srgb,var(--blue-act) 24%,var(--card)); --blue-300:color-mix(in srgb,var(--blue-act) 36%,var(--card));
+  --shadow-sm:0 1px 3px rgba(0,0,0,.45); --shadow-md:0 6px 20px rgba(0,0,0,.5); --shadow-lg:0 14px 40px rgba(0,0,0,.6);
+  color-scheme:dark;}}
+:root[data-theme="dark"]{--bg:#0B1220; --card:#131C30; --ink:#E8EDF7; --muted:#A3B0C6; --line:#26334D; --field:#1B2742;
+  --surf:#182339; --track:#2A3857; --thead:#1B2742; --zebra:#111A2D; --thread:#0F1829;
+  --green-soft:#11312A; --orange-soft:#3A2A10; --red-soft:#3D1B20; --green-ink:#6EE7B7; --orange-ink:#FCD34D; --red-ink:#FCA5A5;
+  --okbg:#12322A; --okline:#1E5A47; --noline:#6B4A14; --okchip:#14463A; --toggle:#3B4A68; --ph:#8593AB;
+  --inv:#E8EDF7; --inv-ink:#0B1220;
+  --blue:color-mix(in srgb,var(--blue-act) 78%,#000); --blue-tx:color-mix(in srgb,var(--blue-act) 55%,#fff); --side:color-mix(in srgb,var(--blue-act) 22%,#0A1020);
+  --blue-soft:color-mix(in srgb,var(--blue-act) 18%,var(--card)); --blue-100:color-mix(in srgb,var(--blue-act) 14%,var(--bg));
+  --blue-200:color-mix(in srgb,var(--blue-act) 24%,var(--card)); --blue-300:color-mix(in srgb,var(--blue-act) 36%,var(--card));
+  --shadow-sm:0 1px 3px rgba(0,0,0,.45); --shadow-md:0 6px 20px rgba(0,0,0,.5); --shadow-lg:0 14px 40px rgba(0,0,0,.6);
+  color-scheme:dark;}
+:root[data-font="legible"]{--font:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif;--font-heading:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif}
+:root[data-font="sistema"]{--font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--font-heading:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+:root[data-font="legible"] :is(h1,h2,h3,.kv,.sb-title,.btn,.loginbtn,.suggest button,.brand-name,.greet),
+:root[data-font="sistema"] :is(h1,h2,h3,.kv,.sb-title,.btn,.loginbtn,.suggest button,.brand-name,.greet){font-weight:700!important}
+:root[data-contrast="high"]{--muted:color-mix(in srgb,var(--ink) 88%,var(--bg));--line:color-mix(in srgb,var(--ink) 48%,var(--bg));--ph:color-mix(in srgb,var(--ink) 70%,var(--bg))}
+:root[data-contrast="high"] :is(.card,.kpi,.course,.unit,.row,.msg,.step,.pill,.field,.select,.fld,.composer,.btn.soft,.chip){outline:1px solid var(--line);outline-offset:-1px}
+:root[data-contrast="high"] a:not(.nav):not(.rs):not(.btn):not(.roles a):not(.unit){text-decoration:underline}
+:root[data-motion="reduce"] *,:root[data-motion="reduce"] *::before,:root[data-motion="reduce"] *::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+:root[data-motion="reduce"] :is(.course,.kpi):hover,:root[data-motion="reduce"] a.unit:hover{transform:none}
+.content,.login{zoom:var(--zoom,1)}
+/* densidad */
+:root[data-density="compact"] .wrap{gap:14px}
+:root[data-density="compact"] .card{padding:16px 20px}
+:root[data-density="compact"] .kpi{padding:14px 18px 14px 22px}
+:root[data-density="compact"] .row{padding:6px 12px}
+:root[data-density="compact"] td{padding:9px 14px}
+:root[data-density="compact"] .nav{padding:8px 16px}
+:root[data-density="compact"] .rows{gap:5px}
+:root[data-density="comfortable"] .wrap{gap:32px}
+:root[data-density="comfortable"] .card{padding:32px 34px}
+:root[data-density="comfortable"] .row{padding:14px 18px}
+:root[data-density="comfortable"] td{padding:20px 18px}
+:root[data-density="comfortable"] .nav{padding:15px 20px}
+:root[data-density="comfortable"] .rows{gap:12px}
+/* esquinas */
+:root[data-radius="soft"]{--radius-sm:6px;--radius-md:10px;--radius-lg:18px;--radius-pill:12px}
+:root[data-radius="sharp"]{--radius-sm:2px;--radius-md:4px;--radius-lg:6px;--radius-pill:4px}
+:root:is([data-radius="soft"],[data-radius="sharp"]) :is(.kpi,.unit,.row,.tscroll,.lesson-formula,.example,.goal,.pbox,.thread,.step,.barcard,.fld,.login .box,.idx,.cc,.mini .it,.opt){border-radius:var(--radius-lg)}
+:root:is([data-radius="soft"],[data-radius="sharp"]) :is(.msg,.msg.me,.msg.ok,.msg.no,.msg.tutor){border-radius:var(--radius-md)}
+:root:is([data-radius="soft"],[data-radius="sharp"]) :is(.toggle,.toggle::after){border-radius:var(--radius-pill)}
+:root[data-radius="soft"] .login .hero{border-radius:0 0 24px 24px}
+:root[data-radius="sharp"] .login .hero{border-radius:0}
+/* menú solo íconos (escritorio) */
+@media (min-width:861px){
+  :root[data-menu="rail"] .app{--sbw:88px}
+  :root[data-menu="rail"] .nav{justify-content:center;padding:13px 0}
+  :root[data-menu="rail"] .nav span,:root[data-menu="rail"] .sb-user div{display:none}
+  :root[data-menu="rail"] .sb-user{justify-content:center;padding:10px 0;background:transparent}
+}
+/* legibilidad: textos de estado con tonos más oscuros del mismo color */
+.ks.g,.eyebrow{color:var(--green-ink)}
+.ks.o,.eyebrow.o,.st-o{color:var(--orange-ink)}
+.eyebrow.b{color:var(--blue-tx)}
+.mode-label{color:var(--blue-tx)}
+/* topbar: botones de personalización */
+.tb-tools{display:flex;gap:2px;align-items:center;margin-left:4px}
+.roleswitch+.tb-tools{margin-left:0}
+.login .pbtn-float{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:2}
+.login{position:relative}
+/* panel */
+.pback{position:fixed;inset:0;z-index:70;background:rgb(8 12 24/.45);opacity:0;pointer-events:none;transition:opacity .25s ease}
+.pback.open{opacity:1;pointer-events:auto}
+.prefs{position:fixed;top:0;right:0;bottom:0;z-index:71;width:min(400px,100%);display:flex;flex-direction:column;background:var(--card);color:var(--ink);box-shadow:var(--shadow-lg);border-radius:var(--radius-lg) 0 0 var(--radius-lg);transform:translateX(104%);visibility:hidden;transition:transform .32s var(--ease),visibility 0s linear .32s}
+.prefs.open{transform:none;visibility:visible;transition:transform .32s var(--ease),visibility 0s}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(16px + env(safe-area-inset-top,0px)) 20px 14px 24px;border-bottom:1px solid var(--line)}
+.ph h2{font-size:22px}
+.ph small{display:block;color:var(--muted);font-size:12.5px}
+.pbody{flex:1;overflow-y:auto;padding:6px 24px 20px;overscroll-behavior:contain}
+.pbody section{padding:16px 0;border-bottom:1px solid var(--line)}
+.pbody h3{font-size:15px;margin-bottom:10px}
+.pbody h3 small{font-family:var(--font);font-weight:500;font-size:12px;color:var(--muted);margin-left:6px}
+.pseg{display:flex;flex-wrap:wrap;gap:6px}
+.pseg .pb{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 14px;border-radius:var(--radius-pill);border:1px solid var(--line);background:var(--field);color:var(--ink);font-size:13.5px;font-weight:600;transition:background .2s ease,border-color .2s ease,transform .2s var(--ease)}
+.pseg .pb:hover{border-color:var(--blue-act)}
+.pseg .pb:active{transform:scale(.97)}
+.pseg .pb[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.pseg.themes .pb{flex-direction:column;gap:6px;padding:12px 8px;min-height:74px}
+.swatches{display:flex;gap:12px;flex-wrap:wrap}
+.sw{width:46px;height:46px;border-radius:50%;border:3px solid transparent;background:var(--sw);color:#fff;display:grid;place-items:center;padding:0;box-shadow:0 0 0 1px var(--line);transition:transform .2s var(--ease)}
+.sw:hover{transform:scale(1.08)}
+.sw .ic{opacity:0;transform:scale(.6);transition:opacity .2s ease,transform .2s var(--ease)}
+.sw[aria-pressed="true"]{border-color:var(--card);box-shadow:0 0 0 3px var(--sw)}
+.sw[aria-pressed="true"] .ic{opacity:1;transform:none}
+.swl{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:11.5px;color:var(--muted)}
+.swl span{width:46px;text-align:center}
+.ptoggle{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:9px 0}
+.ptoggle b{display:block;font-size:14px}
+.ptoggle span{display:block;color:var(--muted);font-size:12.5px;line-height:1.35}
+.ptoggle .toggle{background:var(--toggle)}
+.ptoggle .toggle[aria-checked="true"]{background:var(--green)}
+.pfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 24px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.pfoot small{color:var(--muted);font-size:12px;flex:1 1 160px}
+.pnote{color:var(--muted);font-size:12px;margin-top:8px}
+.pprev{display:flex;gap:10px;align-items:center;padding:14px 16px;border-radius:var(--radius-lg);background:var(--blue-soft);margin-top:12px}
+.pprev .tick{width:36px;height:36px;border-radius:50%;background:var(--blue-act);color:#fff;display:grid;place-items:center;flex:none}
+.pprev b{display:block;font-size:14px}.pprev span{font-size:12.5px;color:var(--muted)}
+@media (max-width:860px){.prefs{border-radius:0}}
+@media (max-width:560px){
+  .topbar{gap:6px;padding:10px 10px}
+  .rs{padding:6px 8px;font-size:12px}
+  .topbar .iconbtn{width:40px;height:40px}
+  .topbar .logo{--s:40px}
+  #themeBtn{display:none}
+  .tb-tools{margin-left:0}
+}
+@media (max-width:380px){.topbar{gap:4px;padding:10px 8px}.rs{padding:6px 6px;font-size:11.5px}.topbar .iconbtn{width:38px;height:38px}.topbar .logo{--s:36px}}
+</style>
+
+<div id="root"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<button class="idx-btn" id="idxBtn" aria-expanded="false">Pantallas</button>
+<div class="idx" id="idx" hidden></div>
+<div class="pback" id="pback" aria-hidden="true" data-close-prefs></div>
+<aside class="prefs" id="prefs" role="dialog" aria-modal="true" aria-labelledby="prefsT" inert></aside>
+
+<script>
+(function(){
+'use strict';
+
+/* ------------------------------------------------------------------ datos de ejemplo */
+const EST_CURSOS=[
+ {n:'Matemática',p:'Carlos Pérez',pr:80,next:'Funciones cuadráticas',c:'var(--blue)'},
+ {n:'Ciencias',p:'María González',pr:90,next:'Sistema circulatorio',c:'var(--green)'},
+ {n:'Historia',p:'Diego Morales',pr:72,next:'Revolución Industrial',c:'var(--orange)'}];
+const NOTAS=[
+ ['Matemática','6,0','5,5','6,2','5,9'],['Ciencias','6,2','5,8','6,0','6,0'],['Historia','5,4','6,0','5,8','5,7'],
+ ['Sistemas Operativos','5,8','6,1','5,5','5,8'],['Tecnologías Cloud','6,0','5,7','6,2','6,0'],['Lenguaje','5,6','5,9','5,8','5,8']];
+const DOC_CURSOS=[
+ {n:'Matemática',s:'8vo Básico A',a:32,e:4,next:'hoy, 10:00',c:'var(--blue)'},
+ {n:'Matemática',s:'8vo Básico B',a:29,e:2,next:'mañana, 09:00',c:'var(--green)'},
+ {n:'Matemática',s:'8vo Básico C',a:34,e:1,next:'jueves, 11:30',c:'var(--orange)'}];
+const DOC_ESTUDIANTES=[
+ ['Sofía Herrera','8vo Básico A','5,9','89%','Al día'],['Matías Fuentes','8vo Básico A','4,1','72%','En riesgo'],
+ ['Valentina Soto','8vo Básico B','6,3','95%','Al día'],['Benjamín Rojas','8vo Básico C','3,9','68%','Crítico']];
+const DOC_EVALS=[
+ ['Prueba coeficientes','8vo Básico A','12 sep','Corregida'],['Guía célula','8vo Básico A','18 sep','Pendiente de corrección'],
+ ['Ensayo revolución','8vo Básico B','22 sep','Borrador'],['Control fracciones','8vo Básico C','30 ago','Publicada']];
+const COLEGIOS=[
+ {n:'Colegio San Alberto',c:'Santiago',u:245,k:18,e:'Activo'},{n:'Colegio Santa María',c:'Maipú',u:180,k:14,e:'Activo'},
+ {n:'Colegio Los Andes',c:'Ñuñoa',u:96,k:9,e:'Inactivo'},{n:'Colegio Nueva Esperanza',c:'La Florida',u:132,k:11,e:'Activo'}];
+const USUARIOS=[
+ {n:'Sofía Martínez',m:'sofia@colegio.cl',r:'Estudiante',c:'8°A',e:'Activo'},{n:'Carlos Pérez',m:'carlos@colegio.cl',r:'Docente',c:'Matemática',e:'Activo'},
+ {n:'Ana González',m:'ana@colegio.cl',r:'Administrador',c:'—',e:'Activo'},{n:'Matías Fuentes',m:'matias@colegio.cl',r:'Estudiante',c:'8°A',e:'Activo'}];
+const ADM_CURSOS=[
+ {n:'Matemáticas',l:'2° Medio A',d:'Carlos Pérez',a:32,e:'Activo'},{n:'Historia',l:'2° Medio A',d:'Ana González',a:30,e:'Activo'},
+ {n:'Lenguaje',l:'1° Medio B',d:'Pedro Soto',a:28,e:'Activo'},{n:'Ciencias',l:'3° Medio C',d:'Bruno Mars',a:29,e:'Activo'}];
+const ADM_EVALS=[
+ ['Prueba de Matemática - Unidad 2','8° Básico A','María González','Activa','12 Sep 2026'],
+ ['Comprensión Lectora','7° Básico B','Carlos Pérez','Activa','10 Sep 2026'],
+ ['Fracciones y Decimales','8° Básico A','María González','Pendiente','18 Sep 2026'],
+ ['Diagnóstico Ciencias','6° Básico C','Ana Muñoz','Finalizada','05 Sep 2026']];
+
+/* ------------------------------------------------------------------ estado de la interfaz */
+const ui={tab:{},chat:[],typing:false,fb:{},tutorMode:'chat',guided:'2 / 4',notif:{est:true,doc:true},evf:'Todas',seen:0,run:0,collapsed:false,gAnim:false};
+const tab=(k,d)=>ui.tab[k]||d;
+
+/* ------------------------------------------------------------------ helpers de marcado */
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const go=(r,label,cls='btn sm')=>`<a class="${cls}" href="#${r}">${label}</a>`;
+const note=(txt)=>`data-act="toast" data-msg="${esc(txt)}"`;
+const NOT_IN_FIGMA='Esta vista no está en el diseño de Figma.';
+const kpi=(l,v,s,c='var(--blue)',sc='')=>`<div class="kpi" style="--c:${c}"><div class="kl">${l}</div><div class="kv">${v}</div><div class="ks ${sc}">${s}</div></div>`;
+const hello=(t,s)=>`<div class="card hello"><h1>${t}</h1><p class="sub">${s}</p></div>`;
+const head=(t,s,right='')=>`<div class="pagehead"><div><h1>${t}</h1><p class="sub">${s}</p></div>${right?`<div class="tools">${right}</div>`:''}</div>`;
+const search=(ph,scope)=>`<input class="field" type="search" placeholder="${ph}" aria-label="${ph}" data-filter="${scope}">`;
+const select=(opts,label)=>`<select class="select" aria-label="${label}">${opts.map(o=>`<option>${o}</option>`).join('')}</select>`;
+const tabs=(key,list,def,cls='')=>`<div class="tabs ${cls}" role="tablist">${list.map(([id,l,ok])=>`<button class="tab ${tab(key,def)===id?'on':''}" role="tab" aria-selected="${tab(key,def)===id}" ${ok===false?note(NOT_IN_FIGMA):`data-tab="${key}:${id}"`}>${l}</button>`).join('')}</div>`;
+const chipFor=s=>({'Corregida':'g','Al día':'g','Activa':'g','Activo':'g','Aprobado':'g','Pendiente de corrección':'o','En riesgo':'o','Pendiente':'o','Reprobado':'o','Borrador':'n','Finalizada':'n','Inactivo':'o','Publicada':'b','Crítico':'r'}[s]||'n');
+const pill=s=>`<span class="chip ${chipFor(s)}">${s}</span>`;
+const bar=(l,v,max,color,fmt)=>`<div class="bar"><span>${l}</span><div class="track" style="--c:${color}"><i style="width:${Math.min(100,v/max*100)}%"></i></div><b>${fmt||v}</b></div>`;
+const wbar=(l,v,color)=>`<div class="barcard"><div class="bar wide"><span class="lab">${l}</span><div class="track" style="--c:${color}"><i style="width:${v}%"></i></div><b>${v}%</b></div></div>`;
+const table=(heads,rows,cls='')=>`<div class="tscroll"><table class="${cls}"><thead><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr class="frow">${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+/* ------------------------------------------------------------------ navegación por rol */
+const NAV={
+ est:{items:[['inicio','Inicio','est-inicio'],['cursos','Mis cursos','est-cursos'],['notas','Mis notas','est-notas'],['tutor','Tutor IA','est-tutor'],['progreso','Progreso','est-progreso']],cfg:'est-config'},
+ doc:{items:[['inicio','Inicio','doc-inicio'],['cursos','Mis cursos','doc-cursos'],['estudiantes','Mis estudiantes','doc-estudiantes'],['evaluaciones','Evaluaciones','doc-evaluaciones'],['reportes','Reportes','doc-reportes']],cfg:'doc-config'},
+ adm:{items:[['inicio','Inicio','adm-inicio'],['colegios','Colegios','adm-colegios'],['usuarios','Usuarios','adm-usuarios'],['cursos','Cursos','adm-cursos'],['evaluaciones','Evaluaciones','adm-evaluaciones'],['reportes','Reportes','adm-reportes']],cfg:'adm-config'}};
+
+/* El marco (cabecera + menú) se construye una sola vez por rol; cada pantalla solo aporta su contenido. */
+function shell(role,active,content){return {role,active,content};}
+
+const ICONS={
+ menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ home:'<path d="M3 11.5L12 4l9 7.5"/><path d="M5.5 10v10h13V10"/><path d="M10 20v-5.5h4V20"/>',
+ book:'<path d="M5 4.5h11.5A2.5 2.5 0 0 1 19 7v13H7.5A2.5 2.5 0 0 1 5 17.5z"/><path d="M5 17.5A2.5 2.5 0 0 1 7.5 15H19"/>',
+ notes:'<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5v4h4"/><path d="M9 13h6M9 17h6"/>',
+ chat:'<path d="M20.5 12a8 8 0 0 1-11.7 7.1L3.5 20.5l1.4-4.9A8 8 0 1 1 20.5 12z"/>',
+ trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16.5 4.8a3.3 3.3 0 0 1 0 6.4"/><path d="M18 14.3c2.2.7 3.5 2.5 3.5 5.2"/>',
+ check:'<path d="M9 3.5h6v3H9z"/><path d="M7 5H5v16h14V5h-2"/><path d="M9 14l2 2 4-4"/>',
+ bars:'<path d="M5 21V11M12 21V4M19 21v-7"/>',
+ school:'<path d="M3 21h18"/><path d="M5 21V9.5L12 4l7 5.5V21"/><path d="M9.5 21v-5.5h5V21"/>',
+ sliders:'<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+ send:'<path d="M21.5 2.5L10.5 13.5"/><path d="M21.5 2.5l-7 19-4-8.5-8.5-4z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>'};
+Object.assign(ICONS,{
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+ moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+ auto:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+ palette:'<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 22a10 10 0 1 1 10-10c0 2.5-2 3-3.5 3H16a2 2 0 0 0-1.5 3.3c.6.8.3 3.7-2.5 3.7z"/>',
+ check:'<path d="M5 12l5 5L20 7"/>'
+});
+function ic(n,s){s=s||20;return `<svg class="ic" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;}
+const logo=s=>`<span class="logo" style="--s:${s}px" aria-hidden="true"><i></i></span>`;
+
+/* ------------------------------------------------------------------ login */
+function login(role){
+  const T={est:['Bienvenido a FeathersForAll','Accede con tu correo institucional para continuar tu experiencia de aprendizaje.','nombre@colegio.cl'],
+           doc:['Bienvenido, Docente','Ingresa con tu correo institucional para gestionar tus cursos, evaluaciones de tus estudiantes.','profesor@colegio.cl'],
+           adm:['Panel de Administración','Accede con tus credenciales institucionales para gestionar usuarios, cursos y la configuración del colegio.','admin@colegio.cl']}[role];
+  return {login:true,html:`<div class="login"><button type="button" class="iconbtn light pbtn-float" data-open-prefs aria-label="Personalizar la interfaz" title="Personalizar">${ic('palette',22)}</button><header class="hero">${logo(92)}<h1>FeathersForAll</h1><h2>Impulsa el aprendizaje con inteligencia artificial</h2><p>Una plataforma educativa inteligente para estudiantes, docentes y colegios.</p></header>
+  <form class="box" data-form="login" data-role="${role}"><h2>${T[0]}</h2><p class="sub">${T[1]}</p>
+  <label class="fld"><span>Correo institucional</span><input id="lg-mail" type="email" placeholder="${T[2]}" autocomplete="username"></label>
+  <label class="fld"><span>Contraseña</span><input id="lg-pass" type="password" placeholder="Ingresa tu contraseña" autocomplete="current-password"></label>
+  <div class="loginrow"><label><input type="checkbox" id="lg-rem"> Recordar sesión</label><a href="#login-${role}" ${note('Recuperar contraseña no está en el diseño de Figma.')}>Olvidé mi contraseña</a></div>
+  <button class="loginbtn" type="submit">Iniciar sesión</button>
+  <div class="roles">${[['est','Estudiante'],['doc','Docente'],['adm','Administrador']].map(([r,l])=>`<a href="#login-${r}" class="${r===role?'on':''}">${l}</a>`).join('')}</div></form></div>`};
+}
+
+/* ------------------------------------------------------------------ ESTUDIANTE */
+const est={
+inicio:()=>shell('est','inicio',`${hello('Hola Sofía 👋','Continúa avanzando en tu aprendizaje inteligente')}
+ <div class="kpis">${kpi('Promedio general','5.8','↑ 0.3 este mes','var(--blue)','g')}${kpi('Asistencia','89%','Buen rendimiento','var(--green)','g')}${kpi('Cursos activos','3','Asignaturas actuales','var(--orange)','o')}</div>
+ <div class="promo"><div><div class="eyebrow">Tutor IA</div><h2>Aprende con tu asistente inteligente</h2><p class="sub">Pregunta sobre tus cursos y recibe explicaciones basadas en el material de aprendizaje.</p></div>
+  <div style="display:grid;gap:14px;justify-items:start"><span class="chip">IA disponible</span>${go('est-tutor','Preguntar al Tutor IA','btn')}</div></div>
+ <div class="two"><div class="card"><h2>Próximas evaluaciones</h2><p class="sub">Organiza tus próximas actividades</p><div class="rows">
+  ${[['Matemática','12 Sep','Pendiente','o'],['Ciencias','18 Sep','Preparación','o'],['Historia','22 Sep','Disponible','g']].map(r=>`<div class="row"><b>${r[0]}</b><span class="grow"></span><span class="chip n num">${r[1]}</span><span class="chip ${r[3]}">${r[2]}</span></div>`).join('')}</div></div>
+ <div class="card"><h2>Notificaciones<span class="count">3</span></h2><p class="sub">Mantente al día con tu actividad académica</p><div class="rows">
+  ${[['g','Nuevo material','Tu profesor publicó material en Matemática','2 min'],['b','Evaluación calificada','Ya puedes revisar tu resultado de Ciencias','Hoy'],['o','Recordatorio','Evaluación de Historia en 14 días','Hoy']].map(r=>`<div class="row"><span class="dot ${r[0]}"></span><b>${r[1]}</b><span class="grow">${r[2]}</span><span class="when">${r[3]}</span></div>`).join('')}</div></div></div>`),
+
+cursos:()=>shell('est','cursos',`${head('Mis cursos','Accede a tus asignaturas y continúa con tu aprendizaje.',search('Buscar curso…','.course')+select(['Todos','En progreso','Completados'],'Filtrar cursos'))}
+ <div class="cgrid">${EST_CURSOS.map(c=>`<article class="course" style="--c:${c.c}"><h3>${c.n}</h3><p class="meta">Profesor: ${c.p}</p>
+  <div class="progress"><span>Progreso</span><b class="num">${c.pr}%</b></div><div class="track"><i style="width:${c.pr}%"></i></div>
+  <p class="meta" style="margin-top:14px">Próximo: ${c.next}</p>${go('est-curso','Entrar al curso')}</article>`).join('')}</div>
+ <div><h2 style="font-size:20px">Tus cursos</h2><p class="sub">Selecciona una asignatura para ver su contenido.</p></div>`),
+
+curso:()=>shell('est','cursos',`<div class="crumbs"><a href="#est-cursos">Mis cursos</a> / Matemática</div>
+ <div class="pagehead"><div><h1>Matemática</h1><p class="sub">Profesor Carlos Pérez</p></div>
+  <div class="card tight" style="min-width:230px"><div class="kl">Progreso del curso</div><div style="display:flex;align-items:center;gap:12px"><b class="num" style="font-size:22px">80%</b><div class="track" style="flex:1;--c:var(--green)"><i style="width:80%"></i></div></div></div></div>
+ ${tabs('estcurso',[['contenido','Contenido'],['evals','Evaluaciones']],'contenido')}
+ <div class="split"><div style="display:flex;flex-direction:column;gap:16px">
+ ${tab('estcurso','contenido')==='contenido'?`
+  <div class="unit"><span class="ic" style="color:var(--green)">✓</span><div class="t"><b>Unidad 1</b><span>Introducción a las funciones</span></div><span class="st-g">Completada</span></div>
+  <a class="unit" href="#est-contenido"><span class="ic">→</span><div class="t"><b>Unidad 2</b><span>Funciones cuadráticas</span></div><span class="st-o">En progreso</span></a>
+  <div class="unit"><span class="ic" style="color:var(--muted)">○</span><div class="t"><b>Unidad 3</b><span>Aplicaciones</span></div><span class="st-n">Pendiente</span></div>`
+ :`<div class="card"><h2>Evaluaciones de Matemática</h2><div class="rows">${[['Prueba Unidad 1','Corregida · 6,0','g'],['Prueba Unidad 2','12 Sep · Pendiente','o'],['Prueba Unidad 3','Sin fecha','n']].map(r=>`<div class="row"><b>${r[0]}</b><span class="grow"></span><span class="chip ${r[2]}">${r[1]}</span></div>`).join('')}</div></div>`}</div>
+ <div class="card"><div class="eyebrow">Continúa aprendiendo</div><h2 style="margin:6px 0 2px;font-size:20px">Funciones cuadráticas</h2><p class="sub">Unidad 2 · En progreso</p><div style="margin-top:16px">${go('est-contenido','Continuar')}</div></div></div>`),
+
+contenido:()=>shell('est','cursos',`<div class="crumbs"><a href="#est-cursos">Mis cursos</a> / <a href="#est-curso">Matemática</a> / Unidad 2</div>
+ <div class="pagehead"><div><h1>Funciones cuadráticas</h1><p class="sub">Matemática · Unidad 2</p></div>
+  <div class="card tight" style="min-width:200px"><div class="kl">Progreso</div><div style="display:flex;align-items:center;gap:12px"><b class="num">2 de 5</b><div class="track" style="flex:1;--c:var(--green)"><i style="width:40%"></i></div></div></div></div>
+ <div class="split"><div class="card" style="padding:28px 32px"><div class="eyebrow">Objetivo de aprendizaje</div>
+  <h2 style="font-size:20px;margin:8px 0 22px;line-height:1.35">Comprender las características principales de las funciones cuadráticas.</h2>
+  <h3 style="font-size:17px">¿Qué es una función cuadrática?</h3><p class="sub">Es una función polinómica de segundo grado que puede representarse mediante una parábola.</p>
+  <div class="lesson-formula">f(x) = ax² + bx + c<small>a ≠ 0</small></div>
+  <div class="example"><div class="eyebrow">Ejemplo</div><b class="f">f(x) = x² − 4x + 3</b><p class="sub">Con esta función podemos identificar sus raíces y representar su comportamiento.</p></div></div>
+ <div style="display:flex;flex-direction:column;gap:18px"><div class="card" style="background:var(--green-soft)"><div class="eyebrow o">Tutor IA</div><h2 style="margin:6px 0">¿Tienes dudas?</h2><p class="sub" style="margin-bottom:16px">Pregunta sobre este contenido y recibe ayuda basada en el material del curso.</p>${go('est-tutor','Preguntar al Tutor IA')}</div>
+  <div class="card"><div class="eyebrow b">Representación</div><div class="lesson-formula" style="font-size:19px;margin-bottom:0">y = x²<small>Parábola</small></div></div></div></div>
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><a class="btn ghost" style="border-color:transparent;background:var(--surf)" href="#est-curso">← Anterior</a><span class="num" style="font-weight:600;font-size:13px">2 / 5</span><a class="btn" href="#est-curso" ${note('Continuar avanza a la unidad siguiente (no incluida en el diseño).')}>Continuar →</a></div>`),
+
+notas:()=>shell('est','notas',`<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap"><div class="hello"><h1>Mis notas</h1><p class="sub">Consulta tus calificaciones del período actual.</p></div>${select(['Período actual','Período anterior'],'Período')}</div>
+ <div class="kpis">${kpi('Promedio general','5,8','Promedio actual','var(--blue)')}${kpi('Asignaturas','6','Cursos en curso','var(--green)')}${kpi('Evaluaciones','18','Calificaciones registradas','var(--orange)')}</div>
+ <div><h2 style="font-size:22px">Mis calificaciones</h2><p class="sub">Detalle de tus notas por asignatura.</p></div>
+ ${table(['Asignatura','N1','N2','N3','N4','N5','N6','N7','Promedio','Examen','Examen Rep','Final'],NOTAS.map(r=>[r[0],r[1],r[2],r[3],'—','—','—','—',r[4],'—','—',`<b>${r[4]}</b>`]))}`),
+
+progreso:()=>shell('est','progreso',`${hello('Hola Sofía 👋','Continúa avanzando en tu aprendizaje inteligente')}
+ <div class="kpis">${kpi('Promedio general','5,8','Rendimiento actual','var(--blue)')}${kpi('Progreso académico','78%','Avance del período','var(--green)')}${kpi('Cursos activos','6','Asignaturas en curso','var(--orange)')}</div>
+ <div><h2 style="font-size:22px">Progreso por asignatura</h2><p class="sub">Revisa cómo avanzas en cada curso.</p></div>
+ <div style="display:flex;flex-direction:column;gap:10px">${[['Matemática',82,'var(--green)'],['Ciencias',74,'var(--blue)'],['Historia',68,'var(--orange)'],['Lenguaje',61,'var(--blue)']].map(r=>wbar(r[0],r[1],r[2])).join('')}</div>`),
+
+config:()=>settings('est','Estudiante · 2° Medio A','sofia.martinez@colegio.cl'),
+
+tutor:()=>shell('est','tutor',tutorPage())
+};
+
+/* ----- Tutor IA ----- */
+const REPLIES={
+ 'Explícame este tema paso a paso':['Claro. Primero entendamos qué representa una fracción y cómo comparar sus partes. Después vemos cuándo dos fracciones valen lo mismo.','Matemática · Unidad 2 · Fracciones'],
+ 'Ayúdame a preparar una prueba':['Te propongo repasar tres ideas: fracciones equivalentes, simplificación y comparación. Empecemos con una pregunta corta de cada una.','Matemática · Unidad 2 · Repaso'],
+ '¿Puedes darme un ejemplo?':['Por ejemplo, 1/2 y 2/4 son equivalentes: al multiplicar numerador y denominador por 2 se mantiene la misma cantidad.','Matemática · Unidad 2 · Fracciones equivalentes'],
+ 'Explicar tema':['Dos fracciones son equivalentes cuando representan la misma cantidad, aunque sus números sean distintos.','Matemática · Unidad 2 · Fracciones'],
+ 'Preparar prueba':['Para tu prueba de Matemática conviene practicar fracciones equivalentes y funciones cuadráticas. ¿Empezamos?','Matemática · Unidad 2'],
+ 'Resolver ejercicio':['Muéstrame el ejercicio y lo resolvemos paso a paso. Te daré pistas antes de la respuesta.','Matemática · Unidad 2 · Práctica']};
+const DEFAULT_REPLY=['Buena pregunta. Revisando el material del curso, te lo explico paso a paso y luego lo practicamos con un ejemplo.','Matemática · Unidad 2'];
+
+function tutorPage(){
+  const guided=ui.tutorMode==='guided';
+  const topBar=`<div class="card tight tutor-top"><div><h1>Tutor IA</h1><p class="sub" style="font-size:13px">${guided?'Aprende paso a paso con ayuda contextual':'Tu asistente de aprendizaje inteligente'}</p></div>
+   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="chip">● Tutor activo</span><div class="seg" role="group" aria-label="Modo del tutor"><button class="${!guided?'on':''}" data-act="mode" data-v="chat">Chat</button><button class="${guided?'on':''}" data-act="mode" data-v="guided">Aprendizaje guiado</button></div></div>
+   <label class="curso-sel">Curso actual<select class="select"><option>Matemática 8° Básico</option><option>Ciencias 8° Básico</option><option>Historia 8° Básico</option></select></label></div>`;
+  return `<div style="display:flex;flex-direction:column;gap:20px">${topBar}${guided?tutorGuided():tutorChat()}</div>`;
+}
+function tutorChat(){
+  const empty=ui.chat.length===0&&!ui.typing;
+  const chips=['Explicar tema','Preparar prueba','Resolver ejercicio'];
+  let thread;
+  if(empty){
+    thread=`<div class="thread empty" id="thread"><div class="empty-in">${logo(104)}<span class="tag">Modo estudio</span><h2 class="greet">¿En qué puedo ayudarte hoy?</h2><p class="intro">Puedo explicarte conceptos, ayudarte a estudiar y responder preguntas sobre tus cursos.</p>
+     <div class="suggest" style="justify-content:center;margin-top:6px">${['Explícame este tema paso a paso','Ayúdame a preparar una prueba','¿Puedes darme un ejemplo?'].map(c=>`<button type="button" data-act="ask" data-q="${esc(c)}">${c}</button>`).join('')}</div>
+     <p class="sub" style="font-size:12px;margin-top:8px">Las respuestas se basan en los contenidos disponibles de tus cursos.</p></div></div>`;
+  }else{
+    const nw=i=>i>=ui.seen?' new':'';
+    thread=`<div class="thread" id="thread">
+     <div class="airow">${logo(40)}<div class="aicol"><div class="msg">Hola, soy Sofía. Puedo ayudar a entender la materia paso a paso y practicar contigo.</div></div></div>
+     ${ui.chat.map((m,i)=>m.me?`<div class="msg me${nw(i)}">${esc(m.t)}</div>`
+       :`<div class="airow${nw(i)}">${logo(40)}<div class="aicol"><div class="msg">${m.streaming?`<span data-stream>${esc(m.t)}</span>`:`${esc(m.t)}<div class="${m.fresh?'late':''}"><span class="src">Fuente · ${esc(m.src)}</span><div class="fb">
+        <button type="button" class="${ui.fb[i]==='up'?'on':''}" data-act="fb" data-i="${i}" data-v="up">Útil</button><button type="button" class="${ui.fb[i]==='down'?'on':''}" data-act="fb" data-i="${i}" data-v="down">No útil</button><button type="button" data-act="copy" data-i="${i}">Copiar</button></div></div>`}</div></div></div>`).join('')}
+     ${ui.typing?`<div class="typing" role="status" aria-label="El tutor está escribiendo"><i></i><i></i><i></i></div>`:''}
+     ${(ui.chat.length&&!ui.typing&&!busy)?`<div class="late" style="margin-top:4px"><b style="font-size:15px">Prueba también</b><div class="suggest" style="margin-top:8px">${chips.map(c=>`<button type="button" data-act="ask" data-q="${c}">${c}</button>`).join('')}</div></div>`:''}</div>`;
+  }
+  return `<div class="tutor-grid"><div class="card chatcard"><div class="chathead"><div class="who">${logo(46)}<div><b>Sofía · Tutor IA</b><span>Basado en Matemática 8° Básico · Unidad 2</span></div></div><button type="button" class="btn sm ghost" data-act="reset">+ Nueva conversación</button></div>
+   ${thread}<form class="composer" data-form="chat"><input id="chat-input" type="text" placeholder="Escribe tu pregunta…" aria-label="Escribe tu pregunta" autocomplete="off"><button class="send" type="submit" aria-label="Enviar">${ic('send')}</button></form>
+   <p class="sub" style="font-size:12px;margin-top:-6px">Puedes preguntar sobre cualquier contenido del curso</p></div>
+  <aside class="card aside"><h2>Mi aprendizaje</h2><p class="sub">Tu contexto actual</p>
+   <div class="pbox"><div class="pr"><span>Progreso del tema</span><b class="num">72%</b></div><div class="track" style="margin:8px 0 6px"><i style="width:72%"></i></div><small class="sub" style="font-size:11.5px">Dominio estimado · Fracciones</small></div>
+   <div class="mini"><h4>Ahora estás estudiando</h4><div class="it sel" style="display:block"><span class="dot" style="display:inline-block;margin-right:8px"></span>Fracciones equivalentes<br><small style="color:var(--green-ink);margin-left:16px;font-size:12px">En progreso</small></div></div>
+   <div class="mini"><h4>Temas recientes</h4>${['Fracciones','Ecuaciones','Geometría'].map((t,i)=>`<button type="button" class="it ${i===0?'on':''}" data-act="ask" data-q="Explícame ${t.toLowerCase()}">${t}<span>›</span></button>`).join('')}</div>
+   <div class="mini"><h4>Accesos rápidos</h4><button type="button" class="it on" ${note('Ver mis apuntes no está en el diseño de Figma.')}>Ver mis apuntes</button><button type="button" class="it" data-act="ask" data-q="Ayúdame a preparar una prueba">Preparar una prueba</button><button type="button" class="it" data-act="ask" data-q="Dame ejercicios para practicar">Practicar ejercicios</button></div></aside></div>`;
+}
+function tutorGuided(){
+  const a=ui.guided, ok=a==='2 / 4';
+  return `<div class="tutor-grid"><div class="card chatcard">
+   <div class="goal"><div class="tick">✓</div><div class="tx"><div class="eyebrow">Objetivo de aprendizaje</div><b style="font-size:17px">Comprender cómo funcionan las fracciones equivalentes</b><br><small>Paso 2 de 4 · Explicación guiada</small></div><span class="chip b w">EN PROGRESO</span></div>
+   <div style="border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:14px">
+    <div class="chathead"><div class="who">${logo(46)}<div><b>Sesión de aprendizaje</b><span>El tutor te guía y comprueba tu comprensión</span></div></div><span class="chip">PASO 2 / 4</span></div>
+    <div class="thread" style="height:auto;max-height:none;overflow:visible">
+     <div class="msg tutor" style="max-width:100%"><span class="lab" style="color:var(--blue-act)">Tutor IA</span>Primero revisemos una idea clave: dos fracciones pueden verse distintas y representar la misma cantidad.</div>
+     <div class="msg" style="max-width:100%"><span class="lab">Pregunta guiada</span><b style="font-weight:500;font-size:14px">¿Cuál de estas fracciones representa la misma cantidad que 1/2?</b></div>
+     <div class="opts">${['2 / 4','3 / 5','4 / 10'].map(o=>`<button class="opt ${a===o?'on':''}" data-act="guess" data-v="${o}">${o}</button>`).join('')}</div>
+     <div class="msg me${ui.gAnim?' pop':''}" style="max-width:70%"><span class="lab" style="opacity:.85">Tú</span>Creo que es ${a}.</div>
+     ${ok?`<div class="msg ok${ui.gAnim?' pop':''}"><span class="lab">Tutor IA · Correcto</span>Exacto. Si multiplicamos numerador y denominador por el mismo número, mantenemos el valor de la fracción.</div>`
+         :`<div class="msg no${ui.gAnim?' pop':''}"><span class="lab">Tutor IA · Casi</span>${a} no representa la misma cantidad que 1/2. Prueba multiplicando numerador y denominador por el mismo número.</div>`}
+    </div></div>
+   <form class="composer" data-form="guided"><input id="guided-input" type="text" placeholder="Escribe una duda o pide una pista…" aria-label="Escribe una duda o pide una pista" autocomplete="off"><button class="send" type="submit" aria-label="Enviar">${ic('send')}</button></form></div>
+  <aside class="card aside"><div style="display:flex;justify-content:space-between;align-items:baseline"><h2>Tu progreso</h2><b class="num" style="color:var(--blue-act);font-size:19px">72%</b></div><p class="sub">Dominio estimado del tema actual</p><div class="track" style="margin:10px 0 18px"><i style="width:72%;background:var(--blue-act)"></i></div>
+   <h3 style="font-size:15px;margin-bottom:10px">Ruta de aprendizaje</h3>
+   <div class="step done"><span class="n">1</span><div style="flex:1"><b>Concepto base</b><small>Completado</small></div>›</div>
+   <div class="step cur"><span class="n">2</span><div style="flex:1"><b>Fracciones equivalentes</b><small>En curso</small></div>›</div>
+   <div class="step"><span class="n">3</span><div style="flex:1"><b>Práctica guiada</b><small>Pendiente</small></div>›</div>
+   <div class="step"><span class="n">4</span><div style="flex:1"><b>Comprobación</b><small>Pendiente</small></div></div>
+   <h3 style="font-size:15px;margin:18px 0 10px">Conceptos clave</h3>
+   <div class="cc"><i></i>Numerador</div><div class="cc"><i></i>Denominador</div><div class="cc"><i></i>Fracciones equivalentes</div><div class="cc off"><i></i>Simplificación</div>
+   <div class="pbox"><div class="eyebrow b" style="font-size:10px">Siguiente</div><b style="font-size:13px">Practica otra fracción equivalente</b></div></aside></div>`;
+}
+
+/* ------------------------------------------------------------------ configuración (est/doc) */
+function settings(role,sub,mail){
+  const on=ui.notif[role];
+  return shell(role,'config',`${hello('Hola Sofía 👋','Continúa avanzando en tu aprendizaje inteligente')}
+  <div><h1 style="font-size:28px">Configuración</h1><p class="sub">Administra tu perfil, preferencias y acceso a tu cuenta.</p></div>
+  <div class="split" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)"><div style="display:flex;flex-direction:column;gap:18px">
+   <div class="card"><h2>Perfil</h2><div class="setrow" style="align-items:flex-start"><div><b style="font-size:15px">Sofía Martínez</b><span style="display:block;margin:12px 0 10px">${mail}</span><span>${sub}</span></div><button class="btn sm" ${note('Editar perfil no está en el diseño de Figma.')}>Editar perfil</button></div></div>
+   <div class="card"><h2>Preferencias</h2><div class="setrow"><div><b>Notificaciones</b><span>Recibir avisos sobre evaluaciones y novedades</span></div><button class="toggle" role="switch" aria-checked="${on}" aria-label="Notificaciones" data-act="notif" data-role="${role}"></button></div></div>
+   <div class="card"><h2>Apariencia</h2><div class="setrow" style="align-items:flex-start;flex-wrap:wrap"><div><b>Tema</b><span>Claro, oscuro o según tu dispositivo</span></div></div><div style="margin-top:12px">${themeSeg()}</div><div class="setrow"><div><b>Más opciones</b><span>Color de acento, tamaño, tipografía, densidad y más</span></div><button type="button" class="btn sm" data-open-prefs>Personalizar</button></div></div></div>
+   <div class="card"><h2>Cuenta</h2><div style="margin-top:14px"><b style="font-size:14px">Cambiar contraseña</b><p class="sub" style="font-size:12.5px;margin:2px 0 10px">Actualiza la contraseña de acceso.</p><button class="btn soft block" style="text-align:left" ${note('Cambiar contraseña no está en el diseño de Figma.')}>Cambiar contraseña</button></div>
+    <div style="margin-top:50px"><a class="btn warn block" style="text-align:left" href="#login-${role}">Cerrar sesión</a></div></div></div>
+  <p class="sub" style="font-size:12.5px">Los cambios de configuración se aplicarán a tu cuenta de FeathersForAll.</p>`);
+}
+
+/* ------------------------------------------------------------------ DOCENTE */
+const doc={
+inicio:()=>shell('doc','inicio',`${hello('Hola Sofía 👋','Aquí tienes un resumen de tus cursos y evaluaciones.')}
+ <div class="kpis">${kpi('Cursos activos','4','Este semestre','var(--green)','g')}${kpi('Estudiantes totales','128','En 4 cursos','var(--green)','g')}${kpi('Por corregir','3','Evaluaciones pendientes','var(--orange)','o')}</div>
+ <div class="promo"><div><div class="eyebrow">Tutor IA</div><h2>Revisa qué está preguntando tu curso al tutor</h2><p class="sub">Detecta dudas frecuentes y refuerza esos temas en clase.</p></div>
+  <div style="display:grid;gap:14px;justify-items:start"><span class="chip">IA disponible</span><button class="btn" ${note('La actividad del Tutor IA para docentes no está en el diseño de Figma.')}>Ver actividad del Tutor IA</button></div></div>
+ <div class="two"><div class="card"><h2>Próximas clases</h2><p class="sub">Organiza tu semana</p><div class="rows">
+  ${[['8vo Básico A — Matemática','Hoy, 10:00','Pendiente','o'],['8vo Básico B — Matemática','Mañana, 09:00','Pendiente','o'],['8vo Básico C — Matemática','Jue, 11:30','Cancelada','r']].map(r=>`<div class="row"><b>${r[0]}</b><span class="grow"></span><span class="chip n">${r[1]}</span><span class="chip ${r[3]}">${r[2]}</span></div>`).join('')}</div></div>
+ <div class="card"><h2>Notificaciones<span class="count">3</span></h2><p class="sub">Actividad reciente de tus cursos</p><div class="rows">
+  ${[['g','Evaluaciones','Sofía Reyes entregó su evaluación de Ciencias','2 min'],['b','Apoderados','Nuevo comentario de un apoderado','Hoy'],['o','Estudiantes','5 estudiantes con bajo rendimiento en Matemática','Hoy']].map(r=>`<div class="row"><span class="dot ${r[0]}"></span><b>${r[1]}</b><span class="grow">${r[2]}</span><span class="when">${r[3]}</span></div>`).join('')}</div></div></div>`),
+
+cursos:()=>shell('doc','cursos',`${head('Mis cursos','Administra los cursos que dictas este semestre.',search('Buscar curso…','.course')+select(['Todos','Activos'],'Filtrar cursos'))}
+ ${tabs('doccursos',[['todos','Todos los cursos'],['cont','Contenidos',false],['tareas','Tareas',false]],'todos','line')}
+ <div class="cgrid">${DOC_CURSOS.map(c=>`<article class="course" style="--c:${c.c}"><h3 style="color:var(--blue)">${c.n}</h3><p style="font-weight:700;font-size:13px;margin-top:6px">${c.s}</p>
+  <p class="meta" style="margin-top:14px">${c.a} estudiantes · ${c.e} evaluaciones activas</p><p class="meta">Próxima clase: ${c.next}</p>${go('doc-curso','Entrar al curso')}</article>`).join('')}</div>`),
+
+curso:()=>shell('doc','cursos',`<div class="crumbs"><a href="#doc-cursos">Mis cursos</a> / Matemática 8vo Básico A</div>
+ <div><h1 style="font-size:30px">Matemática — 8vo Básico A</h1><p class="sub">${tab('doccurso','resumen')==='resumen'?'32 estudiantes · 4 evaluaciones activas':'Materiales, guías y recursos del curso'}</p></div>
+ ${tabs('doccurso',[['resumen','Resumen'],['contenidos','Contenidos'],['tareas','Tareas',false]],'resumen')}
+ ${tab('doccurso','resumen')==='resumen'?`<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,200px))">
+   ${[['Asistencia','89%'],['Promedio del curso','5.8'],['Próxima clase','Hoy, 10:00']].map(r=>`<div class="card tight"><div class="kl">${r[0]}</div><div class="kv" style="font-size:24px">${r[1]}</div></div>`).join('')}</div>
+  <div class="two"><div class="card"><h2 style="font-size:16px">Últimos contenidos</h2><div class="rows" style="gap:0">${['Guía — Ecuaciones lineales','Video — Introducción a fracciones','PPT — Repaso unidad 3'].map(t=>`<div class="row" style="background:none;border-top:1px solid var(--line);border-radius:0;color:var(--muted)">${t}</div>`).join('')}</div></div>
+  <div class="card"><h2 style="font-size:16px">Tareas próximas a vencer</h2><div class="rows" style="gap:0">${[['Guía de ejercicios 4','Vence hoy'],['Trabajo grupal','18 sep']].map(t=>`<div class="row" style="background:none;border-top:1px solid var(--line);border-radius:0;color:var(--muted)"><span class="grow">${t[0]}</span><span>${t[1]}</span></div>`).join('')}</div></div></div>`
+ :`<div style="display:flex;justify-content:flex-end"><button class="btn sm" ${note('Subir contenido no está en el diseño de Figma.')}>+ Nuevo contenido</button></div>
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:760px">
+  ${[['UNIDAD 3 — ECUACIONES',[['PDF','Guía — Ecuaciones lineales','Subido 2 sep · 1.2 MB','#BBD2FF','var(--blue)'],['▶','Video — Introducción a fracciones','Subido 30 ago · 12 min','#FDEBD0','#F97316'],['PPT','Repaso unidad 3','Subido 28 ago · 3.4 MB','#C9F5D2','#15803D']]],['UNIDAD 2 — FRACCIONES',[['PDF','Guía práctica de fracciones','Subido 12 ago · 890 KB','#BBD2FF','var(--blue)']]]].map(([u,items])=>`<div class="eyebrow b" style="color:var(--muted)">${u}</div>${items.map(i=>`<div class="card tight" style="display:flex;align-items:center;gap:14px"><span style="width:44px;height:44px;border-radius:10px;display:grid;place-items:center;font-weight:700;background:${i[3]};color:${i[4]};flex:none">${i[0]}</span><div style="flex:1;min-width:0"><b>${i[1]}</b><div class="sub" style="font-size:12px">${i[2]}</div></div><span class="sub">···</span></div>`).join('')}`).join('')}</div>`}`),
+
+estudiantes:()=>shell('doc','estudiantes',`<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap"><div class="hello"><h1>Mis estudiantes</h1><p class="sub">Visualiza y da seguimiento a tus estudiantes.</p></div><div class="tools">${search('Buscar estudiante','.frow')}${select(['Todos los cursos','8vo Básico A','8vo Básico B','8vo Básico C'],'Curso')}</div></div>
+ ${tabs('docest',[['lista','Listado'],['ind','Progreso individual',false]],'lista','line')}
+ ${table(['Estudiante','Curso','Promedio','Asistencia','Estado'],DOC_ESTUDIANTES.map(r=>[r[0],r[1],r[2],r[3],pill(r[4])]))}`),
+
+evaluaciones:()=>shell('doc','evaluaciones',`<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap"><div class="hello"><h1>Evaluaciones</h1><p class="sub">Crea, publica y revisa las evaluaciones de tus cursos.</p></div><div class="tools">${search('Buscar curso','.frow')}${select(['Todos los cursos','8vo Básico A','8vo Básico B','8vo Básico C'],'Curso')}</div></div>
+ <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">${tabs('doceval',[['ev','Evaluaciones'],['banco','Banco de preguntas',false],['res','Resultados',false]],'ev','line')}<button class="btn" ${note('Crear evaluación no está en el diseño de Figma.')}>+ Nueva evaluación</button></div>
+ ${table(['Evaluación','Curso','Fecha','Estado'],DOC_EVALS.map(r=>[r[0],r[1],r[2],pill(r[3])]))}`),
+
+reportes:()=>shell('doc','reportes',`<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap"><div class="hello"><h1>Reportes</h1><p class="sub">Rendimiento y asistencia de tus cursos.</p></div><div class="tools">${search('Buscar curso','.bar')}${select(['Todos los cursos'],'Curso')}</div></div>
+ ${tabs('docrep',[['rend','Rendimiento'],['asis','Asistencia',false]],'rend','line')}
+ <div class="card" style="max-width:760px"><h2>Promedio por curso</h2><div class="bars">${bar('8vo Básico A',5.8,7,'var(--orange)','5.8')}${bar('8vo Básico B',6.4,7,'var(--green)','6.4')}${bar('8vo Básico C',6.2,7,'var(--blue)','6.2')}</div></div>
+ <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(150px,200px))">${[['Aprobación general','81%'],['Estudiantes en riesgo','9'],['Asistencia promedio','81%']].map(r=>`<div class="card tight"><div class="kl">${r[0]}</div><div class="kv" style="font-size:24px">${r[1]}</div></div>`).join('')}</div>`),
+
+config:()=>settings('doc','Docente de Matemática y Ciencias','sofia.martinez@colegio.cl')
+};
+
+/* ------------------------------------------------------------------ ADMINISTRADOR */
+const admHello=()=>hello('Hola, Administrador','Gestiona tu comunidad educativa desde un solo lugar');
+const formPage=(nav,kind,title,sub,fields,back)=>shell('adm',nav,`${admHello()}<form class="card form" data-form="${kind}" data-back="${back}"><h2>${title}</h2><p style="font-size:12.5px">${sub}</p>${fields}
+  <div class="actions"><a class="btn ghost sm" href="#${back}">Cancelar</a><button class="btn ghost sm" type="submit">Agregar</button></div></form>`);
+const fi=(id,label,ph,cls='')=>`<label for="${id}">${label}</label><input class="field ${cls}" id="${id}" name="${id}" placeholder="${ph}">`;
+const fs=(id,label,opts,cls='')=>`<label for="${id}">${label}</label><select class="select ${cls}" id="${id}" name="${id}">${opts.map(o=>`<option>${o}</option>`).join('')}</select>`;
+
+const adm={
+inicio:()=>shell('adm','inicio',`${admHello()}
+ <div class="kpis">${kpi('Estudiantes','1.248','Estudiantes registrados','var(--green)')}${kpi('Docentes','96','Docentes activos','var(--blue-act)')}${kpi('Cursos activos','42','Cursos actualmente habilitados','#334155')}${kpi('Evaluaciones','32','Evaluaciones en curso','var(--orange)')}</div>
+ <div><h2 style="font-size:22px">Actividad general</h2><p class="sub">Resumen de la actividad reciente de la plataforma</p></div>
+ <div class="two"><div class="card"><h2>Actividad reciente</h2><p class="sub">Resumen de la actividad reciente de la plataforma</p><div class="timeline" style="margin-top:20px">
+  ${[['Evaluación de Matemáticas publicada','Evaluaciones','Hoy'],['Nuevo estudiante registrado','Usuarios','Hoy'],['Curso de Ciencias actualizado','Cursos','Ayer'],['Evaluación de Historia completada','Evaluaciones','Ayer']].map(r=>`<div style="align-items:center"><span class="dot" style="margin:0"></span><span style="flex:1">${r[0]}</span><span class="sub" style="font-size:11px">${r[1]}</span><span class="sub" style="font-size:11px;width:36px">${r[2]}</span></div>`).join('')}</div></div>
+ <div class="card"><h2>Alertas</h2><p class="sub">Situaciones que requieren atención</p><div class="rows" style="margin-top:16px">
+  ${[['12','Evaluaciones pendientes','Revisar próximas fechas','var(--orange)'],['8','Estudiantes con bajo rendimiento','Revisar seguimiento','var(--orange)'],['3','Cursos con baja actividad','Revisar participación','var(--blue-act)']].map(r=>`<div class="row" style="border-left:4px solid ${r[3]};border-radius:8px"><b style="font-size:15px;width:24px">${r[0]}</b><div><b style="display:block;font-size:12.5px">${r[1]}</b><span class="sub" style="font-size:11.5px">${r[2]}</span></div></div>`).join('')}</div></div></div>`),
+
+colegios:()=>shell('adm','colegios',`${admHello()}
+ <div class="kpis">${kpi('Colegios registrados',COLEGIOS.length+14,'Instituciones en la plataforma','var(--blue-act)')}${kpi('Nuevos este mes','2','Nuevos registros','#6D4AFF')}${kpi('Colegios activos','15','Colegios actualmente activos','var(--orange)')}${kpi('Colegios activos','15','Colegios actualmente activos','var(--green)')}</div>
+ <div class="card"><div class="pagehead"><div><h2>Colegios</h2><p class="sub">Gestiona las instituciones registradas en la plataforma</p></div>${go('adm-colegio-nuevo','+ Agregar colegio','btn sm blue2')}</div>
+  <div class="tools" style="margin:18px 0">${search('Buscar colegio…','.frow').replace('class="field"','class="field" style="width:min(520px,100%)"')}${select(['Estado: Todos','Activo','Inactivo'],'Estado')}</div>
+  ${table(['Colegio','Comuna','Usuarios','Cursos','Estado','Acción'],COLEGIOS.map(c=>[c.n,c.c,c.u,c.k,`<span style="color:${c.e==='Activo'?'var(--green)':'var(--orange)'};font-weight:500">${c.e}</span>`,`<a class="link" href="#adm-colegio">Ver →</a>`]),'plain')}</div>`),
+
+colegio:()=>shell('adm','colegios',`${admHello()}<a class="back" href="#adm-colegios">← Colegios</a>
+ <div class="pagehead"><div><h1 style="font-size:28px">Colegio San Alberto</h1><p class="sub">Santiago · Región Metropolitana</p></div><span class="chip">● Activo</span></div>
+ <div class="kpis">${kpi('Estudiantes','245','Registrados','var(--green)')}${kpi('Docentes','32','Activos','var(--blue-act)')}${kpi('Cursos','18','Activos','var(--blue)')}${kpi('Evaluaciones','64','En el período','var(--orange)')}</div>
+ <div class="split" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)"><div class="card"><h2>Información general</h2><div class="kv2"><span>Director</span><b>María González</b><span>Correo</span><b>contacto@colegiosanalberto.cl</b><span>Teléfono</span><b>+56 2 2345 6789</b><span>Incorporación</span><b>Marzo 2026</b></div></div>
+  <div class="card"><h2>Administración</h2><div class="acts"><a class="btn soft" href="#adm-usuarios">Gestionar usuarios</a><a class="btn soft" style="color:var(--green-ink)" href="#adm-cursos">Ver cursos</a><a class="btn soft" style="color:var(--orange-ink)" href="#adm-evaluaciones">Ver evaluaciones</a></div></div></div>
+ <div><h2 style="font-size:19px;margin-bottom:12px">Actividad reciente</h2><div class="card tight"><div class="timeline">${[['g','Evaluación de Matemáticas publicada','Hoy · 10:20'],['b','Nuevo docente registrado','Ayer · 16:40'],['b','Curso de Ciencias actualizado','Ayer · 11:15']].map(r=>`<div><span class="dot ${r[0]==='b'?'b':''}"></span><div><b style="font-weight:600">${r[1]}</b><small>${r[2]}</small></div></div>`).join('')}</div></div></div>`),
+
+'colegio-nuevo':()=>formPage('colegios','colegio','Agregar colegio','Registra una nueva institución en FeathersForAll.',
+  fi('nombre','Nombre del colegio','Ej. Colegio San Alberto')+fi('comuna','Comuna','Ej. Santiago')+fi('direccion','Dirección','Ej. Av. Principal 123')+fi('admin','Administrador','Nombre del administrador')+fi('correo','Correo institucional','admin@colegio.cl')+fs('estado','Estado',['Activo','Inactivo'],'half'),'adm-colegios'),
+
+usuarios:()=>shell('adm','usuarios',`${admHello()}
+ <div class="kpis">${kpi('Usuarios totales','1.376','Usuarios registrados','var(--blue)')}${kpi('Estudiantes','1.248','Estudiantes activos','var(--green)')}${kpi('Docentes','96','Docentes activos','var(--blue-act)')}${kpi('Administradores','32','Administradores activos','var(--orange)')}</div>
+ <div class="pagehead"><div><h2 style="font-size:24px">Usuarios</h2><p class="sub">Gestiona los usuarios registrados en la institución</p></div>${go('adm-usuario-nuevo','+ Agregar usuario','btn')}</div>
+ <div class="tools">${search('Buscar por nombre o correo…','.frow').replace('class="field"','class="field" style="width:min(560px,100%)"')}${select(['Rol: Todos','Estudiante','Docente','Administrador'],'Rol')}${select(['Estado: Todos','Activo','Inactivo'],'Estado')}</div>
+ <div class="card tight">${table(['Nombre','Correo','Rol','Curso','Estado',''],USUARIOS.map(u=>[u.n,`<span style="color:var(--muted)">${u.m}</span>`,u.r,`<span style="color:var(--muted)">${u.c}</span>`,`<span style="color:var(--green);font-weight:500">${u.e}</span>`,`<a class="link" href="#adm-usuario">Ver →</a>`]),'plain')}</div>`),
+
+usuario:()=>shell('adm','usuarios',`${admHello()}
+ <div class="card profile"><div class="avatar" style="width:80px;height:80px;font-size:24px">SM</div><div><h1 style="font-size:26px">Sofía Martínez</h1><p class="sub">Estudiante · 8°A · Colegio San Alberto</p><span class="chip" style="margin:10px 0;font-size:11px">Activo</span><p class="sub" style="font-size:12.5px">sofia.martinez@colegio.cl</p></div></div>
+ <div class="split" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)"><div class="card"><h2>Información académica</h2><div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;gap:14px">${[['Curso','8° Básico A'],['Promedio general','5,8'],['Asistencia','89%'],['Progreso','72%']].map(r=>`<div><div class="sub" style="font-size:11.5px">${r[0]}</div><b>${r[1]}</b></div>`).join('')}</div></div>
+ <div class="card"><h2>Actividad reciente</h2><div class="timeline">${[['Evaluación de Matemáticas','Hoy · completada'],['Contenido de Ciencias','Ayer · revisado'],['Último acceso','Ayer · 18:42']].map(r=>`<div><span class="dot"></span><div><b style="font-weight:500">${r[0]}</b><small>${r[1]}</small></div></div>`).join('')}</div></div></div>
+ <a class="back" href="#adm-usuarios">← Volver a usuarios</a>`),
+
+'usuario-nuevo':()=>formPage('usuarios','usuario','Agregar usuario','Registra un nuevo usuario para la institución.',
+  fi('nombres','Nombres','Ej. Alex Isai')+fi('apellidos','Apellidos','Ej. Flores Ramirez')+fs('tipo','Tipo de usuario',['Estudiante','Docente','Administrador'])+fi('curso','Curso','8°A')+`<label for="acceso">Acceso temporal</label><input class="field half" id="acceso" name="acceso" value="ICCCK" readonly>`+fs('estado','Estado',['Activo','Inactivo'],'half'),'adm-usuarios'),
+
+cursos:()=>shell('adm','cursos',`${admHello()}
+ <div class="kpis">${kpi('Cursos registrados','42','Total de cursos','var(--blue)')}${kpi('Cursos activos','38','Actualmente activos','var(--blue-act)')}${kpi('Estudiantes inscritos','1.248','En todos los cursos','var(--green)')}${kpi('Docentes','96','Docentes asignados','var(--orange)')}</div>
+ <div class="pagehead"><div><h2 style="font-size:24px">Cursos</h2><p class="sub">Gestiona los cursos registrados en la institución</p></div>${go('adm-curso-nuevo','+ Agregar Curso','btn')}</div>
+ <div class="tools">${search('Buscar por nombre','.frow').replace('class="field"','class="field" style="width:min(600px,100%)"')}${select(['Estado: Todos','Activo','Inactivo'],'Estado')}</div>
+ <div class="card tight">${table(['Curso','Nivel','Docente','Estudiantes','Estado',''],ADM_CURSOS.map(c=>[c.n,`<span style="color:var(--muted)">${c.l}</span>`,c.d,`<span style="color:var(--muted)">${c.a}</span>`,`<span style="color:var(--green);font-weight:500">${c.e}</span>`,`<a class="link" href="#adm-curso">Ver →</a>`]),'plain')}</div>`),
+
+curso:()=>shell('adm','cursos',`${admHello()}<a class="back" href="#adm-cursos">← Volver a cursos</a>
+ <div class="pagehead"><div><h1 style="font-size:28px">Matemática · 2° Medio A</h1><p class="sub">Carlos Pérez · Curso activo</p></div><span class="chip">● Activo</span></div>
+ <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${kpi('Estudiantes','32','Inscritos','var(--green)')}${kpi('Evaluaciones','8','Registradas','var(--blue-act)')}${kpi('Progreso','76%','Promedio del curso','var(--orange)')}</div>
+ <div class="split" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)"><div class="card"><h2>Información del curso</h2><div class="kv2"><span>Asignatura</span><b>Matemática</b><span>Nivel</span><b>2° Medio A</b><span>Docente</span><b>Carlos Pérez</b><span>Estado</span><b>Activo</b></div></div>
+ <div class="card"><h2>Acciones</h2><div class="acts"><button class="btn blue2" ${note('Gestionar estudiantes no está en el diseño de Figma.')}>Gestionar estudiantes</button><a class="btn soft" href="#adm-evaluaciones">Ver evaluaciones</a><button class="btn danger" ${note('Desactivar curso no está en el diseño de Figma.')}>Desactivar curso</button></div></div></div>
+ <div><h2 style="font-size:19px">Estudiantes inscritos</h2><p class="sub" style="font-size:12px;margin-bottom:12px">Últimos estudiantes registrados en el curso</p><div class="card tight"><div class="rows" style="margin-top:0;gap:0">${[['Sofía Martínez','5,9','89%'],['Diego Soto','5,6','92%'],['Camila Pérez','6,2','95%']].map(r=>`<div class="row" style="background:none;font-size:12px"><b style="width:160px">${r[0]}</b><span class="grow">Promedio ${r[1]}</span><span class="grow">Asistencia ${r[2]}</span><a class="link" href="#adm-usuario">Ver →</a></div>`).join('')}</div></div></div>`),
+
+'curso-nuevo':()=>formPage('cursos','curso','Agregar curso','Registra un nuevo curso para la institución.',
+  fi('nombre','Nombre del curso','Ej. 8°A')+fi('nivel','Nivel educativo','8° Básico')+fs('docente','Docente a cargo',['Seleccionar docente','Carlos Pérez','Ana González','Pedro Soto','Bruno Mars'])+fs('jornada','Jornada',['Mañana','Tarde'])+fs('estado','Estado',['Activo','Inactivo'],'half'),'adm-cursos'),
+
+evaluaciones:()=>{
+  const f=ui.evf, st={'Todas':null,'Activas':'Activa','Pendientes':'Pendiente','Finalizadas':'Finalizada'}[f];
+  const rows=ADM_EVALS.filter(r=>!st||r[3]===st);
+  return shell('adm','evaluaciones',`${admHello()}
+  <div class="kpis">${kpi('Evaluaciones totales','32','Evaluaciones registradas','var(--blue)')}${kpi('Activas','24','Evaluaciones en curso','var(--green)')}${kpi('Pendientes','5','Por comenzar','var(--orange)')}${kpi('Finalizadas','3','Evaluaciones cerradas','#64748B')}</div>
+  <div class="card"><div class="pagehead"><div><h2>Evaluaciones</h2><p class="sub">Consulta las evaluaciones creadas por los docentes.</p></div>${search('Buscar evaluación…','.frow')}</div>
+   <div class="pagehead" style="margin:18px 0"><div class="pills">${['Todas','Activas','Pendientes','Finalizadas'].map(p=>`<button class="pill ${f===p?'on':''}" data-act="evf" data-v="${p}">${p}</button>`).join('')}</div><span style="font-weight:600;color:var(--muted)">Solo lectura</span></div>
+   ${table(['Evaluación','Curso','Docente','Estado','Fecha','Acción'],rows.map(r=>[r[0],r[1],r[2],pill(r[3]),`<span style="color:var(--muted)">${r[4]}</span>`,`<a class="btn ghost sm" href="#adm-evaluacion">Ver</a>`]),'plain')}</div>`);
+},
+
+evaluacion:()=>shell('adm','evaluaciones',`${admHello()}<a class="back" href="#adm-evaluaciones">← Evaluaciones</a>
+ <div><h1 style="font-size:26px">Detalle de evaluación</h1><p class="sub">Revisa la información y los resultados de una evaluación.</p></div>
+ <div class="card"><div class="pagehead"><h2 style="font-size:20px">Prueba Unidad 1 — Matemática</h2><span class="chip">Activa · Solo lectura</span></div><div class="kv2" style="grid-template-columns:90px 1fr 90px 1fr;font-size:12.5px"><span>Curso: 2°A</span><span></span><span>Docente: Carlos Pérez</span><span></span><span>Fecha: 12 Sep 2026</span><span></span><span>Tipo: Evaluación sumativa</span></div></div>
+ <div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">${[['Participación','28 / 32','87,5% de estudiantes'],['Promedio general','5,8','Escala 1,0 — 7,0'],['Aprobación','82%','23 estudiantes aprobados']].map(r=>`<div class="card tight"><div class="kl">${r[0]}</div><div class="kv" style="font-size:24px">${r[1]}</div><div class="ks">${r[2]}</div></div>`).join('')}</div>
+ <div class="card"><h2 style="font-size:17px">Resultados por estudiante</h2><p class="sub" style="font-size:12px;margin-bottom:8px">Consulta individual de calificaciones</p>
+  ${table(['Estudiante','Calificación','Estado','Participó'],[['Sofía Martínez','<b>6,4</b>','<span style="color:var(--green);font-weight:600">Aprobado</span>','Sí'],['Mateo Rojas','<b>5,9</b>','<span style="color:var(--green);font-weight:600">Aprobado</span>','Sí'],['Valentina Soto','<b>4,8</b>','<span style="color:var(--green);font-weight:600">Aprobado</span>','Sí'],['Tomás Pérez','<b>3,9</b>','<span style="color:var(--orange);font-weight:600">Reprobado</span>','Sí'],['Camila Díaz','—','<span style="color:var(--muted);font-weight:600">Pendiente</span>','No']],'plain')}</div>
+ <p class="sub" style="font-size:12px">Esta vista es informativa. El administrador no puede crear ni modificar evaluaciones.</p>`),
+
+reportes:()=>shell('adm','reportes',`${admHello()}
+ <div class="pagehead"><div><h1 style="font-size:28px">Reportes</h1><p class="sub">Resumen del rendimiento y asistencia de la institución.</p></div><div class="tools">${search('Buscar curso…','.bar')}${select(['Todos los cursos'],'Curso')}</div></div>
+ ${tabs('admrep',[['rend','Rendimiento'],['asis','Asistencia',false]],'rend','line')}
+ <div class="split" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)"><div class="card"><h2>Promedio por curso</h2><p class="sub" style="font-size:12px">Rendimiento académico de los cursos de la institución.</p><div class="bars">${bar('8° Básico A',5.8,7,'var(--orange)','5,8')}${bar('8° Básico B',6.4,7,'var(--green)','6,4')}${bar('8° Básico C',6.2,7,'var(--blue)','6,2')}${bar('1° Medio A',5.6,7,'var(--blue-act)','5,6')}</div></div>
+ <div class="card"><h2>Resumen institucional</h2><div style="margin-top:16px"><div class="sub" style="font-size:12px">Promedio general</div><div class="kv" style="font-size:28px">6,1</div></div><div style="margin-top:12px"><div class="sub" style="font-size:12px">Mejor curso</div><b>8° Básico B · 6,4</b></div></div></div>
+ <div class="kpis">${kpi('Aprobación general','84%','Estudiantes aprobados','var(--green)')}${kpi('Asistencia promedio','89%','Asistencia institucional','var(--blue-act)')}${kpi('Estudiantes en riesgo','24','Requieren seguimiento','var(--orange)')}${kpi('Cursos activos','38','Cursos habilitados','#0F172A')}</div>
+ <div><h2 style="font-size:19px">Estudiantes que requieren atención</h2><p class="sub" style="font-size:12px;margin-bottom:12px">Cursos con mayor cantidad de estudiantes en riesgo académico.</p><div class="card tight two" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">${[['8° Básico A','9 estudiantes','5,2'],['1° Medio A','8 estudiantes','5,4'],['8° Básico C','7 estudiantes','5,5']].map(r=>`<div><b style="font-size:12.5px">${r[0]}</b><div style="color:var(--orange);font-weight:700;font-size:13px;margin:4px 0">${r[1]}</div><div class="sub" style="font-size:11.5px">${r[2]} promedio</div></div>`).join('')}</div></div>
+ <div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn soft" href="#adm-reportes-rend">Ver rendimiento académico</a><a class="btn soft" href="#adm-reportes-tutor">Ver uso del Tutor IA</a></div>`),
+
+'reportes-rend':()=>shell('adm','reportes',`${admHello()}<a class="back" href="#adm-reportes">← Reportes</a>
+ <div><h1 style="font-size:24px">Rendimiento académico</h1><p class="sub">Resumen del rendimiento de estudiantes, cursos y asignaturas.</p></div>
+ <div class="tools">${search('Buscar curso o asignatura…','.bar').replace('class="field"','class="field" style="width:min(430px,100%)"')}${select(['Todos los cursos'],'Curso')}${select(['Todas las áreas'],'Área')}</div>
+ <div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">${[['Promedio institucional','6,1'],['Aprobación general','84%'],['Asistencia promedio','89%'],['Estudiantes en riesgo','24']].map(r=>`<div class="card tight"><div class="kl" style="font-size:11.5px">${r[0]}</div><div class="kv" style="font-size:24px">${r[1]}</div></div>`).join('')}</div>
+ <div class="card"><h2 style="font-size:16px">Promedio por curso</h2><div class="bars">${[['8° Básico A',5.8],['8° Básico B',6.4],['8° Básico C',6.2],['1° Medio A',5.6],['1° Medio B',6.3]].map(r=>bar(r[0],r[1],7,'var(--blue-act)',String(r[1]).replace('.',','))).join('')}</div></div>
+ <div class="two"><div class="card"><h2 style="font-size:16px">Estudiantes en riesgo</h2><p class="sub" style="font-size:12px">24 estudiantes requieren seguimiento académico.</p><div class="rows" style="gap:10px;margin-top:14px">${[['Promedio bajo','14'],['Inasistencia','7'],['Ambos indicadores','3']].map(r=>`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>${r[0]}</span><b style="color:var(--ink)">${r[1]}</b></div>`).join('')}</div></div>
+ <div class="card"><h2 style="font-size:16px">Asistencia por curso</h2><div class="rows" style="gap:10px;margin-top:14px">${[['8° Básico A','92%'],['8° Básico B','89%'],['8° Básico C','86%']].map(r=>`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>${r[0]}</span><b style="color:var(--ink)">${r[1]}</b></div>`).join('')}</div></div></div>`),
+
+'reportes-tutor':()=>shell('adm','reportes',`${admHello()}<a class="back" href="#adm-reportes">← Reportes</a>
+ <div class="kpis">${kpi('Consultas realizadas','1.842','Consultas registradas','var(--blue-act)')}${kpi('Estudiantes activos','486','Han utilizado Tutor IA','var(--green)')}${kpi('Tasa de resolución','91%','Consultas respondidas','var(--orange)')}${kpi('Fuera de contexto','7%','Consultas no relacionadas','var(--red)')}</div>
+ <div class="split" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)"><div class="card"><h2 style="font-size:17px">Uso del Tutor IA por asignatura</h2><p class="sub" style="font-size:12px">Cantidad de consultas realizadas durante el período</p><div class="bars">${[['Matemática',520,'var(--blue-act)'],['Lenguaje',410,'var(--green)'],['Ciencias',356,'var(--blue-act)'],['Historia',302,'var(--orange)'],['Inglés',254,'var(--blue-act)']].map(r=>bar(r[0],r[1],520,r[2],String(r[1]))).join('')}</div></div>
+ <div class="card"><h2 style="font-size:17px">Desempeño del Tutor IA</h2><p class="sub" style="font-size:12px">Indicadores de calidad de las respuestas</p><div style="display:flex;flex-direction:column;gap:18px;margin-top:20px">${[['Resueltas',91,'var(--green)'],['Requieren apoyo',6,'var(--orange)'],['Fuera de contexto',3,'var(--red)']].map(r=>`<div><div class="sub" style="font-size:12px">${r[0]}</div><div style="display:flex;align-items:center;gap:14px"><b class="num" style="font-size:18px;width:46px">${r[1]}%</b><div class="track" style="flex:1;--c:${r[2]};margin:0"><i style="width:${r[1]}%"></i></div></div></div>`).join('')}</div></div></div>
+ <div class="card"><h2 style="font-size:17px">Actividad reciente del Tutor IA</h2><p class="sub" style="font-size:12px;margin-bottom:12px">Resumen de las últimas interacciones registradas</p><div class="rows" style="gap:12px">${[['Matemática','Consultas sobre ecuaciones cuadráticas','Hace 8 min','Resuelta','g'],['Ciencias','Explicación sobre sistema solar','Hace 21 min','Resuelta','g'],['Historia','Consulta fuera de contexto','Hace 34 min','Revisar','o'],['Lenguaje','Análisis de comprensión lectora','Hace 52 min','Resuelta','g']].map(r=>`<div class="row" style="background:none;padding:0;font-size:12px"><b style="width:90px">${r[0]}</b><span class="grow">${r[1]}</span><span class="when" style="width:80px">${r[2]}</span><span style="width:60px;font-weight:600;color:${r[4]==='g'?'var(--green)':'var(--orange)'}">${r[3]}</span></div>`).join('')}</div></div>`),
+
+config:()=>shell('adm','config',`${admHello()}
+ <div><h1 style="font-size:28px">Configuración</h1><p class="sub">Administra tu cuenta y la configuración de la institución.</p></div>
+ <div class="two">${[['Perfil del administrador',[['Nombre','Sofía Martínez'],['Correo','sofia@feathersforall.cl'],['Rol','Administrador']],'Editar perfil'],['Información de la institución',[['Institución','FeathersForAll'],['Dirección','Santiago, Chile'],['Contacto institucional','contacto@feathersforall.cl']],'Editar información'],['Configuración de plataforma',[['Notificaciones','Activadas'],['Avisos del sistema','Activados'],['Estado de la plataforma','Operativa']],'Configurar'],['Seguridad',[['Contraseña','Última actualización reciente'],['Sesiones activas','1'],['Acceso','protegido']],'Administrar seguridad']].map(([t,l,b])=>`<div class="card"><h2 style="font-size:16px">${t}</h2><div class="rows" style="gap:12px;font-size:12.5px;color:var(--muted);margin-bottom:6px">${l.map(x=>`<div>${x[0]}: ${x[1]}</div>`).join('')}</div><button class="btn sm blue2" style="margin-top:6px" ${note(b+' no está en el diseño de Figma.')}>${b}</button></div>`).join('')}</div>`)
+};
+
+/* ------------------------------------------------------------------ router */
+const ROUTES={
+ 'login-est':()=>login('est'),'login-doc':()=>login('doc'),'login-adm':()=>login('adm')};
+Object.keys(est).forEach(k=>ROUTES['est-'+k]=est[k]);
+Object.keys(doc).forEach(k=>ROUTES['doc-'+k]=doc[k]);
+Object.keys(adm).forEach(k=>ROUTES['adm-'+k]=adm[k]);
+
+const INDEX=[
+ ['Acceso',[['login-est','Login Estudiante'],['login-doc','Login Docente'],['login-adm','Login Administrador']]],
+ ['Estudiante',[['est-inicio','Inicio'],['est-cursos','Mis cursos'],['est-curso','Curso'],['est-contenido','Curso · Contenido'],['est-notas','Mis notas'],['est-tutor','Tutor IA (chat y aprendizaje guiado)'],['est-progreso','Progreso'],['est-config','Configuración']]],
+ ['Docente',[['doc-inicio','Inicio'],['doc-cursos','Cursos'],['doc-curso','Curso (resumen y contenidos)'],['doc-estudiantes','Mis estudiantes'],['doc-evaluaciones','Evaluaciones'],['doc-reportes','Reportes'],['doc-config','Configuración']]],
+ ['Administrador',[['adm-inicio','Inicio'],['adm-colegios','Colegios'],['adm-colegio','Ver colegio'],['adm-colegio-nuevo','Agregar colegio'],['adm-usuarios','Usuarios'],['adm-usuario','Ver usuario'],['adm-usuario-nuevo','Agregar usuario'],['adm-cursos','Cursos'],['adm-curso','Ver curso'],['adm-curso-nuevo','Agregar curso'],['adm-evaluaciones','Evaluaciones'],['adm-evaluacion','Ver evaluación'],['adm-reportes','Reportes'],['adm-reportes-rend','Reportes · Rendimiento'],['adm-reportes-tutor','Reportes · Tutor IA'],['adm-config','Configuración']]]];
+
+const root=document.getElementById('root');
+const mq=window.matchMedia('(max-width:860px)');
+const $=id=>document.getElementById(id);
+const USER={est:['Sofía Martínez','Estudiante · 2° Medio A'],doc:['Sofía Martínez','Docente de Matemática y Ciencias'],adm:['Sofía Martínez','Administrador']};
+const MODE_LABEL={est:'Modo estudiante',doc:'Modo docente',adm:'Modo administrador'};
+const NAV_ICON={inicio:'home',cursos:'book',notas:'notes',tutor:'chat',progreso:'trend',estudiantes:'users',evaluaciones:'check',reportes:'bars',colegios:'school',usuarios:'users'};
+let shellRole=null,busy=false;
+/* ---- personalización de la interfaz (se guarda en este navegador) ---- */
+const PREF_DEF={theme:'auto',accent:'azul',size:'100',font:'fig',density:'normal',radius:'pill',menu:'full',motion:'0',contrast:'0',idx:'1'};
+const PREF_OK={theme:['auto','light','dark'],accent:['azul','violeta','turquesa','rosa','naranja'],size:['90','100','115','130'],font:['fig','legible','sistema'],density:['compact','normal','comfortable'],radius:['pill','soft','sharp'],menu:['full','rail'],motion:['0','1'],contrast:['0','1'],idx:['0','1']};
+const ACCENTS={
+  azul:{n:'Azul',l:['#1E3A8A','#3B82F6'],d:'#3B82F6'},
+  violeta:{n:'Violeta',l:['#4C1D95','#7C3AED'],d:'#8B5CF6'},
+  turquesa:{n:'Turquesa',l:['#115E59','#0F766E'],d:'#0D9488'},
+  rosa:{n:'Rosa',l:['#9D174D','#DB2777'],d:'#DB2777'},
+  naranja:{n:'Naranja',l:['#9A3412','#C2410C'],d:'#EA580C'}
+};
+const P=Object.assign({},PREF_DEF);
+try{const s=JSON.parse(localStorage.getItem('ffa-prefs')||'{}');for(const k in PREF_DEF)if(PREF_OK[k].includes(s[k]))P[k]=s[k];}catch(e){}
+const R=document.documentElement,mqDark=matchMedia('(prefers-color-scheme: dark)'),hostTheme=R.getAttribute('data-theme');
+let prefsOpen=false,prefsOpener=null,setByMe=false;
+function isDark(){return P.theme==='dark'||(P.theme==='auto'&&(hostTheme?hostTheme==='dark':mqDark.matches));}
+function applyPrefs(){
+  if(P.theme==='auto'){if(setByMe){hostTheme?R.setAttribute('data-theme',hostTheme):R.removeAttribute('data-theme');setByMe=false;}}
+  else{R.setAttribute('data-theme',P.theme);setByMe=true;}
+  const d=isDark(),a=ACCENTS[P.accent],set=(k,v)=>v==null?R.style.removeProperty(k):R.style.setProperty(k,v);
+  const all=['--blue','--blue-act','--blue-soft','--blue-100','--blue-200','--blue-300'];
+  if(P.accent==='azul'){all.forEach(k=>set(k,null));}
+  else if(d){all.forEach(k=>set(k,null));set('--blue-act',a.d);}
+  else{const m=p=>`color-mix(in srgb,${a.l[1]} ${p}%,#fff)`;set('--blue',a.l[0]);set('--blue-act',a.l[1]);set('--blue-soft',m(11));set('--blue-100',m(11));set('--blue-200',m(20));set('--blue-300',m(34));}
+  R.dataset.font=P.font;R.dataset.density=P.density;R.dataset.radius=P.radius;R.dataset.menu=P.menu;
+  R.dataset.contrast=P.contrast==='1'?'high':'normal';R.dataset.motion=P.motion==='1'?'reduce':'normal';
+  R.style.setProperty('--zoom',String(+P.size/100));
+  const ib=document.getElementById('idxBtn');ib.hidden=P.idx!=='1';if(P.idx!=='1'){document.getElementById('idx').hidden=true;ib.setAttribute('aria-expanded','false');}
+  try{localStorage.setItem('ffa-prefs',JSON.stringify(P));}catch(e){}
+  syncPrefs();
+}
+function setPref(k,v){P[k]=v;applyPrefs();}
+function syncPrefs(){
+  document.querySelectorAll('[data-pref]').forEach(b=>b.setAttribute('aria-pressed',String(P[b.dataset.pref]===b.dataset.v)));
+  document.querySelectorAll('[data-pref-toggle]').forEach(b=>b.setAttribute('aria-checked',String(P[b.dataset.prefToggle]==='1')));
+  const tb=document.getElementById('themeBtn');
+  if(tb){const d=isDark();tb.innerHTML=ic(d?'sun':'moon',22);tb.setAttribute('aria-label',d?'Cambiar a tema claro':'Cambiar a tema oscuro');tb.title=d?'Tema claro':'Tema oscuro';}
+}
+function themeSeg(){return `<div class="pseg themes" role="group" aria-label="Tema">${[['light','sun','Claro'],['dark','moon','Oscuro'],['auto','auto','Automático']].map(([v,i,l])=>`<button type="button" class="pb" data-pref="theme" data-v="${v}" aria-pressed="false">${ic(i,20)}${l}</button>`).join('')}</div>`;}
+function pseg(k,opts,label){return `<div class="pseg" role="group" aria-label="${label}">${opts.map(([v,l,st])=>`<button type="button" class="pb" data-pref="${k}" data-v="${v}" aria-pressed="false"${st?` style="${st}"`:''}>${l}</button>`).join('')}</div>`;}
+function ptog(k,t,s){return `<div class="ptoggle"><div><b id="pt-${k}">${t}</b><span>${s}</span></div><button type="button" class="toggle" role="switch" aria-checked="false" aria-labelledby="pt-${k}" data-pref-toggle="${k}"></button></div>`;}
+function buildPrefs(){
+  $('prefs').innerHTML=`<div class="ph"><div><h2 id="prefsT">Personalizar</h2><small>Ajusta la interfaz a tu gusto</small></div><button type="button" class="iconbtn" data-close-prefs aria-label="Cerrar personalización">${ic('x',22)}</button></div>
+  <div class="pbody">
+   <section><h3>Tema</h3>${themeSeg()}</section>
+   <section><h3>Color de acento</h3><div class="swatches" role="group" aria-label="Color de acento">${Object.entries(ACCENTS).map(([k,a])=>`<button type="button" class="sw" style="--sw:${a.l[1]}" data-pref="accent" data-v="${k}" aria-label="${a.n}" aria-pressed="false">${ic('check',20)}</button>`).join('')}</div>
+     <div class="swl" aria-hidden="true">${Object.values(ACCENTS).map(a=>`<span>${a.n}</span>`).join('')}</div>
+     <div class="pprev"><span class="tick">${ic('check',18)}</span><div><b>Así se ve tu acento</b><span>Botones, enlaces y selecciones usan este color.</span></div></div></section>
+   <section><h3>Tamaño del contenido</h3>${pseg('size',[['90','Pequeño'],['100','Normal'],['115','Grande'],['130','Muy grande']],'Tamaño del contenido')}</section>
+   <section><h3>Tipografía</h3>${pseg('font',[['fig','Original'],['legible','Alta legibilidad',"font-family:'Atkinson Hyperlegible',system-ui,sans-serif"],['sistema','Del sistema','font-family:system-ui,sans-serif']],'Tipografía')}</section>
+   <section><h3>Densidad</h3>${pseg('density',[['compact','Compacta'],['normal','Normal'],['comfortable','Amplia']],'Densidad')}</section>
+   <section><h3>Esquinas</h3>${pseg('radius',[['pill','Redondeadas'],['soft','Suaves'],['sharp','Rectas']],'Estilo de esquinas')}</section>
+   <section><h3>Menú lateral</h3>${pseg('menu',[['full','Con texto'],['rail','Solo íconos']],'Menú lateral')}<p class="pnote">«Solo íconos» se aplica en pantallas anchas.</p></section>
+   <section><h3>Accesibilidad y otros</h3>${ptog('motion','Reducir animaciones','Menos movimiento en transiciones y entradas.')}${ptog('contrast','Alto contraste','Textos y bordes más marcados.')}${ptog('idx','Botón «Pantallas»','Acceso rápido a todas las pantallas del prototipo.')}</section>
+  </div>
+  <div class="pfoot"><small>Se guarda en este navegador.</small><button type="button" class="btn sm soft" data-prefs-reset>Restablecer</button></div>`;
+}
+function openPrefs(from){
+  prefsOpener=from||null;prefsOpen=true;const p=$('prefs');p.inert=false;p.classList.add('open');$('pback').classList.add('open');
+  const r=$('root');if(r)r.inert=true;
+  setTimeout(()=>{const c=p.querySelector('[data-close-prefs]');if(c)c.focus();},40);
+}
+function closePrefs(){
+  if(!prefsOpen)return;prefsOpen=false;const p=$('prefs');p.classList.remove('open');p.inert=true;$('pback').classList.remove('open');
+  const r=$('root');if(r)r.inert=false;
+  if(prefsOpener&&document.contains(prefsOpener))prefsOpener.focus();prefsOpener=null;
+}
+buildPrefs();
+mqDark.addEventListener('change',applyPrefs);
+
+try{ui.collapsed=localStorage.getItem('ffa-collapsed')==='1';}catch(e){ui.collapsed=false;}
+
+function current(){const h=(location.hash||'').slice(1);return ROUTES[h]?h:'login-est';}
+const isMobile=()=>mq.matches;
+
+/* ---- marco: cabecera con logo + menú lateral minimizable ---- */
+function buildShell(role){
+  const n=NAV[role],u=USER[role];
+  root.innerHTML=`<div class="app" id="app" data-collapsed="${ui.collapsed}" data-open="false">
+  <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+  <aside class="sidebar" id="sidebar" aria-label="Menú de navegación">
+    <div class="sb-head"><button class="iconbtn light" id="sbClose" type="button" aria-label="Cerrar menú">${ic('x',22)}</button><span class="sb-title">Menú</span></div>
+    <div class="sb-user"><span class="sb-av" aria-hidden="true">${u[0][0]}</span><div><b>${u[0]}</b><small>${u[1]}</small></div></div>
+    <nav class="sb-nav" aria-label="Principal">${n.items.map(([k,l,r])=>`<a class="nav" data-key="${k}" href="#${r}" title="${l}">${ic(NAV_ICON[k])}<span>${l}</span></a>`).join('')}</nav>
+    <div class="spacer"></div>
+    <a class="nav" data-key="config" href="#${n.cfg}" title="Configuración">${ic('sliders')}<span>Configuración</span></a>
+  </aside>
+  <div class="stage">
+    <header class="topbar">
+      <button class="iconbtn" id="menuBtn" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Cerrar menú">${ic('menu',22)}</button>
+      ${logo(48)}
+      <div class="brand-col"><span class="brand-name">FeathersForAll.</span><span class="mode-label">${MODE_LABEL[role]}</span></div>
+      <div class="roleswitch" role="group" aria-label="Cambiar de rol">${[['est','Estudiante'],['doc','Docente'],['adm','Admin']].map(([r,l])=>`<a class="rs ${r===role?'on':''}" href="#${r}-inicio" ${r===role?'aria-current="true"':''}>${l}</a>`).join('')}</div>
+      <div class="tb-tools"><button type="button" class="iconbtn" id="themeBtn" aria-label="Cambiar tema" title="Cambiar tema"></button><button type="button" class="iconbtn" data-open-prefs aria-label="Personalizar la interfaz" title="Personalizar">${ic('palette',22)}</button></div>
+    </header>
+    <main class="content"><div class="wrap" id="wrap"></div></main>
+  </div></div>`;
+  shellRole=role;
+  syncLayout();syncPrefs();
+}
+function updateNav(active){
+  document.querySelectorAll('#sidebar .nav').forEach(a=>{const on=a.dataset.key===active;a.classList.toggle('on',on);if(on)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
+}
+function menuClosed(){const a=$('app');return isMobile()?a.dataset.open!=='true':ui.collapsed;}
+function syncLayout(){
+  const a=$('app');if(!a)return;
+  if(isMobile()){a.dataset.collapsed='true';}else{a.dataset.open='false';a.dataset.collapsed=String(ui.collapsed);}
+  const c=menuClosed();
+  $('sidebar').inert=c;
+  const b=$('menuBtn');b.setAttribute('aria-expanded',String(!c));b.setAttribute('aria-label',c?'Abrir menú':'Cerrar menú');
+}
+function toggleMenu(){
+  const a=$('app');if(!a)return;
+  if(isMobile()){a.dataset.open=String(a.dataset.open!=='true');}
+  else{ui.collapsed=!ui.collapsed;try{localStorage.setItem('ffa-collapsed',ui.collapsed?'1':'0');}catch(e){}}
+  syncLayout();
+  if(isMobile()){if(menuClosed())$('menuBtn').focus();else setTimeout(()=>{const c=$('sbClose');if(c)c.focus();},60);}
+}
+function closeMobileMenu(){const a=$('app');if(a&&isMobile()&&a.dataset.open==='true'){a.dataset.open='false';syncLayout();}}
+
+/* ---- render: solo se cambia el contenido; el marco se conserva para que todo se sienta fluido ---- */
+function scrollThread(smooth,keep){
+  const t=$('thread');if(!t)return;
+  if(keep!=null)t.scrollTop=keep;
+  t.scrollTo({top:t.scrollHeight,behavior:smooth?'smooth':'auto'});
+}
+function render(mode,smooth){
+  const id=current(),r=ROUTES[id]();
+  const th=$('thread'),keep=th?th.scrollTop:0;
+  if(r.login){shellRole=null;root.innerHTML=r.html;window.scrollTo(0,0);}
+  else{
+    if(shellRole!==r.role||!$('app'))buildShell(r.role);
+    updateNav(r.active);
+    const w=$('wrap'),y=window.scrollY;
+    w.className='wrap'+(mode?' '+mode:'');
+    w.innerHTML=r.content;
+    window.scrollTo(0,mode==='enter'?0:y);
+  }
+  scrollThread(!!smooth&&mode!=='enter',mode==='enter'?0:keep);
+  ui.seen=ui.chat.length;ui.chat.forEach(m=>{m.fresh=false;});ui.gAnim=false;
+  buildIndex(id);
+}
+function buildIndex(id){
+  document.getElementById('idx').innerHTML=INDEX.map(([g,l])=>`<h4>${g}</h4>${l.map(([r,n])=>`<a href="#${r}" class="${r===id?'on':''}">${n}</a>`).join('')}`).join('');
+}
+window.addEventListener('hashchange',()=>{
+  render('enter');
+  closeMobileMenu();
+  document.getElementById('idx').hidden=true;document.getElementById('idxBtn').setAttribute('aria-expanded','false');
+});
+mq.addEventListener('change',syncLayout);
+
+/* ---- avisos ---- */
+let toastT;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);}
+
+/* ---- chat del Tutor IA: escribe primero los puntos, luego la respuesta aparece palabra por palabra ---- */
+function focusInput(){setTimeout(()=>{const i=document.getElementById('chat-input');if(i)i.focus({preventScroll:true});},0);}
+function ask(q){
+  q=(q||'').trim();if(!q||busy)return;
+  busy=true;const run=ui.run;
+  ui.chat.push({me:true,t:q});ui.typing=true;
+  render(null,true);focusInput();
+  const [full,src]=REPLIES[q]||DEFAULT_REPLY;
+  setTimeout(()=>{
+    if(run!==ui.run){busy=false;return;}
+    const m={me:false,t:'',full,src,streaming:true};
+    ui.typing=false;ui.chat.push(m);
+    render(null,true);focusInput();
+    const words=full.split(' ');let n=0;
+    const iv=setInterval(()=>{
+      if(run!==ui.run||!ui.chat.includes(m)){clearInterval(iv);busy=false;return;}
+      n=Math.min(words.length,n+2);m.t=words.slice(0,n).join(' ');
+      const el=document.querySelector('[data-stream]');
+      if(el){el.textContent=m.t;scrollThread(true);}
+      if(n>=words.length){clearInterval(iv);m.streaming=false;m.fresh=true;busy=false;if(current()==='est-tutor'){render(null,true);focusInput();}}
+    },70);
+  },850);
+}
+
+/* ---- interacciones ---- */
+document.addEventListener('click',e=>{
+  if(e.target.closest('#idxBtn')){const p=document.getElementById('idx');p.hidden=!p.hidden;document.getElementById('idxBtn').setAttribute('aria-expanded',String(!p.hidden));return;}
+  const pb=e.target.closest('[data-pref]');if(pb){setPref(pb.dataset.pref,pb.dataset.v);return;}
+  const pt=e.target.closest('[data-pref-toggle]');if(pt){const k=pt.dataset.prefToggle;setPref(k,P[k]==='1'?'0':'1');return;}
+  const op=e.target.closest('[data-open-prefs]');if(op){openPrefs(op);return;}
+  if(e.target.closest('[data-close-prefs]')){closePrefs();return;}
+  if(e.target.closest('#themeBtn')){setPref('theme',isDark()?'light':'dark');return;}
+  if(e.target.closest('[data-prefs-reset]')){Object.assign(P,PREF_DEF);applyPrefs();toast('Personalización restablecida');return;}
+  if(e.target.closest('#menuBtn')){toggleMenu();return;}
+  if(e.target.closest('#sbClose')||e.target.closest('#backdrop')){if(isMobile()&&$('app').dataset.open==='true')toggleMenu();return;}
+  const t=e.target.closest('[data-tab]');
+  if(t){const [k,v]=t.dataset.tab.split(':');ui.tab[k]=v;render('soft');return;}
+  const a=e.target.closest('[data-act]');
+  if(!a)return;
+  const act=a.dataset.act;
+  if(act==='toast'){e.preventDefault();toast(a.dataset.msg||NOT_IN_FIGMA);return;}
+  if(act==='mode'){ui.tutorMode=a.dataset.v;render('soft');return;}
+  if(act==='ask'){ask(a.dataset.q);return;}
+  if(act==='reset'){ui.run++;ui.chat=[];ui.fb={};ui.typing=false;busy=false;ui.seen=0;render('soft');return;}
+  if(act==='fb'){const i=a.dataset.i;ui.fb[i]=ui.fb[i]===a.dataset.v?null:a.dataset.v;render();return;}
+  if(act==='copy'){const m=ui.chat[+a.dataset.i];const txt=m?m.t:'';
+    (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Respuesta copiada')).catch(()=>toast('No se pudo copiar. Selecciona el texto y cópialo.'));return;}
+  if(act==='guess'){ui.guided=a.dataset.v;ui.gAnim=true;render();return;}
+  if(act==='notif'){const r=a.dataset.role;ui.notif[r]=!ui.notif[r];render();toast(ui.notif[r]?'Notificaciones activadas':'Notificaciones desactivadas');return;}
+  if(act==='evf'){ui.evf=a.dataset.v;render('soft');return;}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(prefsOpen){closePrefs();return;}if(shellRole)closeMobileMenu();}
+  if(e.key==='Tab'&&prefsOpen){const f=[...$('prefs').querySelectorAll('button:not([disabled])')];if(!f.length)return;const a=f[0],z=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}
+});
+
+document.addEventListener('input',e=>{
+  const f=e.target.closest('[data-filter]');if(!f)return;
+  const q=f.value.trim().toLowerCase();
+  document.querySelectorAll(f.dataset.filter).forEach(el=>{el.hidden=!!q&&!el.textContent.toLowerCase().includes(q);});
+});
+
+document.addEventListener('submit',e=>{
+  const f=e.target.closest('form[data-form]');if(!f)return;
+  e.preventDefault();
+  const k=f.dataset.form;
+  if(k==='login'){location.hash=f.dataset.role+'-inicio';return;}
+  if(k==='chat'){const i=document.getElementById('chat-input');const v=i.value;i.value='';ask(v);return;}
+  if(k==='guided'){const i=document.getElementById('guided-input');const v=i.value.trim();i.value='';if(v)toast('El tutor responde con una pista en la sesión real.');return;}
+  const d=Object.fromEntries(new FormData(f).entries());
+  if(k==='colegio'){COLEGIOS.push({n:d.nombre||'Nuevo colegio',c:d.comuna||'—',u:0,k:0,e:d.estado||'Activo'});toast('Colegio agregado (ejemplo)');}
+  if(k==='usuario'){USUARIOS.push({n:((d.nombres||'')+' '+(d.apellidos||'')).trim()||'Nuevo usuario',m:'nuevo@colegio.cl',r:d.tipo||'Estudiante',c:d.curso||'—',e:d.estado||'Activo'});toast('Usuario agregado (ejemplo)');}
+  if(k==='curso'){ADM_CURSOS.push({n:d.nombre||'Nuevo curso',l:d.nivel||'—',d:d.docente&&d.docente!=='Seleccionar docente'?d.docente:'Sin asignar',a:0,e:d.estado||'Activo'});toast('Curso agregado (ejemplo)');}
+  location.hash=f.dataset.back;
+});
+
+applyPrefs();
+render('enter');
+})();
+</script>
+
+
+</body></html>

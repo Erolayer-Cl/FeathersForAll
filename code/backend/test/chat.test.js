@@ -178,3 +178,27 @@ describe('createOllamaClient', () => {
     assert.equal(await client.ping(), false);
   });
 });
+
+describe('sondas de Kubernetes', () => {
+  test('/livez responde 200 aunque el LLM esté caído', async () => {
+    const ctx = await startApp(fakeLlm({ fail: true, up: false }));
+    try {
+      const res = await fetch(`${ctx.url}/livez`);
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), { status: 'ok' });
+    } finally {
+      ctx.server.close();
+    }
+  });
+
+  test('/readyz sin base de datos configurada -> 200', async () => {
+    const ctx = await startApp(fakeLlm({ up: false }));
+    try {
+      const res = await fetch(`${ctx.url}/readyz`);
+      assert.equal(res.status, 200);
+      assert.equal((await res.json()).db, 'disabled');
+    } finally {
+      ctx.server.close();
+    }
+  });
+});

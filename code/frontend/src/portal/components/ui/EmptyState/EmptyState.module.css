@@ -1,0 +1,4 @@
+.empty { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; padding: 22px 18px; border-radius: 16px; background: var(--fp-field); color: var(--fp-muted); font-size: 13.5px; text-align: center; }
+.empty b { color: var(--fp-ink); font-size: 14.5px; }
+.empty p { margin: 0; max-width: 46ch; }
+.empty > :last-child:not(b):not(p) { margin-top: 8px; }

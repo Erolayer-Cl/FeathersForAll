@@ -5,6 +5,8 @@ import { createDb } from './platform/db.js';
 import { createRag, ragConfigFromEnv } from './modules/tutor/rag/create-rag.js';
 
 const production = process.env.NODE_ENV === 'production';
+// "true"/"false" explícito gana; si no viene, se usa el valor por defecto del ambiente.
+const flag = (name, fallback) => (process.env[name] === undefined ? fallback : process.env[name] === 'true');
 const config = {
   port: Number(process.env.PORT ?? 3000),
   logLevel: process.env.LOG_LEVEL ?? 'info',
@@ -47,8 +49,9 @@ const server = createApp({
   tenantId: ragConfig.tenantId,
   defaultCourseId: ragConfig.defaultCourseId,
   // En producción no hay ruta de carga de desarrollo y el chat exige token.
-  enableIngestApi: !production,
-  chatRequiresAuth: production,
+  // ENABLE_DEV_ROUTES / CHAT_REQUIRE_AUTH permiten cambiarlo en el clúster local del laboratorio (S07).
+  enableIngestApi: flag('ENABLE_DEV_ROUTES', !production),
+  chatRequiresAuth: flag('CHAT_REQUIRE_AUTH', production),
 }).listen(config.port, () => {
   logger.info({
     port: config.port,
