@@ -27,11 +27,20 @@ export function activeChatKey(state) {
   return state.view === 'pruebas' ? 'pruebas' : 'tutor';
 }
 
-/** Convierte el chat al formato de la API, sin mensajes de error ni respuestas vacías. */
+// Límites de POST /v1/dev/chat (backend: src/modules/tutor/tutor.routes.js). Sin recortar,
+// un chat de más de 25 turnos o una respuesta muy larga haría fallar todas las preguntas siguientes.
+export const MAX_API_MESSAGES = 50;
+export const MAX_API_CONTENT = 4000;
+
+/**
+ * Convierte el chat al formato de la API, sin mensajes de error ni respuestas vacías.
+ * Envía solo los últimos MAX_API_MESSAGES mensajes, cada uno con a lo más MAX_API_CONTENT caracteres.
+ */
 export function toApiMessages(messages) {
   return messages
     .filter((m) => (m.role === 'user' || m.role === 'ai') && m.text.trim())
-    .map((m) => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text }));
+    .slice(-MAX_API_MESSAGES)
+    .map((m) => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.text.slice(0, MAX_API_CONTENT) }));
 }
 
 /** Guarda el chat activo en el historial (si tiene mensajes) y lo deja vacío. */

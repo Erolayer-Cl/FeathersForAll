@@ -18,6 +18,8 @@ const config = {
   llmNumCtx: process.env.LLM_NUM_CTX ? Number(process.env.LLM_NUM_CTX) : 4096,
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
+  // Duración del JWT del login: 8 h por defecto (una jornada escolar; no hay refresh token).
+  jwtTtlSeconds: Number(process.env.JWT_TTL_SECONDS ?? 8 * 3600),
 };
 const ragConfig = ragConfigFromEnv();
 
@@ -45,6 +47,7 @@ const server = createApp({
   llm,
   db,
   jwtSecret: config.jwtSecret,
+  jwtTtlSeconds: config.jwtTtlSeconds,
   rag,
   tenantId: ragConfig.tenantId,
   defaultCourseId: ragConfig.defaultCourseId,

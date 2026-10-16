@@ -1,11 +1,20 @@
 openapi: 3.1.0
 info:
-  title: AulaViva API
-  version: 1.0.0
-  summary: API pública del monolito modular de AulaViva (FeathersForAll).
+  title: FeathersForAll API
+  version: 1.1.0
+  summary: API pública del monolito modular de FeathersForAll.
   description: |
-    Contrato contract-first de AulaViva. Fuente de verdad para backend (Node.js + Express),
-    frontend (HTML/CSS/JS en Vercel) y cliente TypeScript generado.
+    Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
+    frontend (React + Vite, ADR 0005) y cliente TypeScript generado.
+
+    **Autenticación (v1.1, ADR 0007):** `POST /auth/login` con el RBD del colegio, el correo y la
+    contraseña entrega un JWT HS256 (`sub`, `tenant_id`, `role`; 8 h). El resto de las operaciones
+    exige `Authorization: Bearer <JWT>`. Cualquier fallo del login responde el mismo `401`; tras
+    varios fallos seguidos de una misma cuenta responde `429` con `Retry-After`.
+
+    **Privacidad (v1.1):** cada rol ve solo lo suyo. El estudiante ve sus asignaturas y sus notas
+    (solo lectura), el docente los cursos que dicta y el admin su colegio. Lo aplica la API y,
+    además, la base de datos (RLS de lectura por usuario).
 
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
     (claim `tenant_id`) y el backend lo fija por transacción en PostgreSQL (RLS, ADR 0002 D1).
@@ -20,21 +29,25 @@ info:
 
     **Versionado:** prefijo `/v1`. Política en `Documentos/api/versioning-policy.md`.
   contact:
-    name: Equipo AulaViva (FeathersForAll)
+    name: Equipo FeathersForAll
     url: https://github.com/Erolayer-Cl/FeathersForAll
   license:
     name: MIT
     identifier: MIT
 servers:
-  - url: https://api.aulaviva.example/v1
+  - url: https://api.feathersforall.example/v1
     description: Producción (Render) — URL definitiva por confirmar
-  - url: https://staging-api.aulaviva.example/v1
+  - url: https://staging-api.feathersforall.example/v1
     description: Staging (Render)
   - url: http://localhost:3000/v1
     description: Desarrollo local
 security:
   - bearerAuth: []
 tags:
+  - name: Identidad
+    description: Login por RBD + correo + contraseña y perfil del usuario autenticado (ADR 0007).
+  - name: Notas
+    description: Notas del estudiante en escala chilena 1,0–7,0, solo lectura.
   - name: Cursos
     description: Gestión de cursos y matrícula (H1).
   - name: Evaluaciones
@@ -44,6 +57,118 @@ tags:
   - name: Tutor IA
     description: Consultas al tutor IA con RAG por curso/tenant (H5). Procesamiento asíncrono vía SQS.
 paths:
+  /auth/login:
+    post:
+      tags: [Identidad]
+      summary: Iniciar sesión
+      description: |
+        Login en dos pasos: el RBD identifica al colegio y, dentro de ese colegio, se validan el correo
+        y la contraseña. Es la única operación sin token. Cualquier fallo (RBD, correo o contraseña)
+        responde el mismo `401`, para no revelar qué cuentas existen. Tras 5 fallos seguidos de una
+        misma cuenta en 15 minutos responde `429` con `Retry-After`. No crea recursos, por eso no
+        lleva `Idempotency-Key`.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+            examples:
+              estudiante:
+                value: { rbd: "99901", email: "camila@demo-a.cl", password: "demo1234" }
+      responses:
+        '200':
+          description: Sesión iniciada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /me:
+    get:
+      tags: [Identidad]
+      summary: Mi perfil
+      description: Perfil del usuario autenticado y su colegio. `401` si la cuenta fue desactivada.
+      operationId: getMe
+      responses:
+        '200':
+          description: Perfil.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/grades:
+    get:
+      tags: [Notas]
+      summary: Mis asignaturas y mis notas
+      description: |
+        Solo estudiantes (otro rol: `403`). Lista TODAS las asignaturas con matrícula activa, también
+        las que aún no tienen notas, con el promedio ponderado de cada una y si el tutor IA tiene
+        apuntes del curso (`tutor_available`). Solo lectura.
+      operationId: getMyGrades
+      parameters:
+        - name: course_id
+          in: query
+          required: false
+          description: Limita la respuesta a una asignatura.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Asignaturas con sus notas.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyGrades'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /me/grades/{assessmentId}:
+    get:
+      tags: [Notas]
+      summary: Detalle de una evaluación entregada
+      description: Mi respuesta a cada pregunta, si fue correcta y la retroalimentación del docente. Solo estudiantes; `404` si no la entregué.
+      operationId: getMyGradeDetail
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Detalle de la evaluación.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradeDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /courses:
     post:
       tags: [Cursos]
@@ -87,7 +212,11 @@ paths:
     get:
       tags: [Cursos]
       summary: Listar cursos
-      description: Lista los cursos del tenant visibles para el usuario (docente ve los suyos, estudiante los matriculados). Paginación por cursor.
+      description: |
+        Cursos visibles para el usuario: el estudiante ve sus asignaturas (matrícula activa), el docente
+        los cursos que dicta y el admin todos los de su colegio. Cada curso indica si el tutor IA tiene
+        apuntes (`tutor_available`, `tutor_documents`); `students_count` solo lo ve el personal.
+        Paginación por cursor (keyset): orden por periodo descendente y luego por nombre.
       operationId: listCourses
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -107,6 +236,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CoursePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
@@ -115,7 +246,7 @@ paths:
     get:
       tags: [Cursos]
       summary: Obtener curso
-      description: Devuelve un curso del tenant del usuario. Si pertenece a otro colegio responde 404.
+      description: Devuelve un curso en el que el usuario participa (estudiante matriculado, su docente o el admin del colegio). Si no participa o es de otro colegio responde 404 (no se revela su existencia).
       operationId: getCourse
       parameters:
         - $ref: '#/components/parameters/CourseId'
@@ -370,7 +501,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: JWT emitido tras el login institucional (SSO/OAuth2). Incluye `sub`, `tenant_id` y `role` (`docente`, `estudiante`, `admin_colegio`).
+      description: JWT HS256 emitido por `POST /auth/login` (ADR 0007; el SSO institucional queda como evolución). Incluye `sub`, `tenant_id` y `role` (`docente`, `estudiante`, `admin_colegio`).
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -418,7 +549,7 @@ components:
       description: Error RFC 7807.
       required: [type, title, status]
       properties:
-        type: { type: string, format: uri, example: "https://api.aulaviva.example/errors/validation" }
+        type: { type: string, format: uri, example: "https://api.feathersforall.example/errors/validation" }
         title: { type: string, example: "Datos inválidos" }
         status: { type: integer, example: 422 }
         detail: { type: string, example: "La pregunta 2 no tiene respuesta correcta." }
@@ -449,7 +580,10 @@ components:
           properties:
             id: { type: string, format: uuid }
             teacher_id: { type: string, format: uuid }
-            students_count: { type: integer, minimum: 0 }
+            teacher_name: { type: string, example: "Ana Rojas" }
+            students_count: { type: integer, minimum: 0, description: "Estudiantes con matrícula activa. Solo para docente y admin." }
+            tutor_available: { type: boolean, description: "El tutor IA tiene apuntes indexados de este curso." }
+            tutor_documents: { type: integer, minimum: 0, description: "Apuntes que el docente subió al tutor." }
             created_at: { type: string, format: date-time }
     CoursePage:
       type: object
@@ -461,6 +595,87 @@ components:
         next_cursor:
           type: [string, 'null']
           description: Cursor de la siguiente página; null si no hay más.
+    LoginInput:
+      type: object
+      required: [rbd, email, password]
+      properties:
+        rbd: { type: string, minLength: 1, maxLength: 20, description: "RBD del colegio.", example: "99901" }
+        email: { type: string, format: email, maxLength: 150, example: "camila@demo-a.cl" }
+        password: { type: string, minLength: 1, maxLength: 256, format: password }
+    School:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Colegio Demo A" }
+        rbd: { type: [string, 'null'], example: "99901" }
+    Me:
+      type: object
+      required: [id, name, email, role, school]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Camila Díaz" }
+        email: { type: string, format: email }
+        role: { type: string, enum: [estudiante, docente, admin_colegio] }
+        school: { $ref: '#/components/schemas/School' }
+    Session:
+      type: object
+      required: [access_token, token_type, expires_in, user]
+      properties:
+        access_token: { type: string, description: "JWT HS256 con sub, tenant_id y role." }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: "Segundos de validez del token.", example: 28800 }
+        user: { $ref: '#/components/schemas/Me' }
+    GradeEntry:
+      type: object
+      required: [assessment_id, title, grade]
+      properties:
+        assessment_id: { type: string, format: uuid }
+        title: { type: string, example: "Fracciones" }
+        score: { type: number, minimum: 0, maximum: 100, description: "Puntaje en % de logro." }
+        grade: { type: number, minimum: 1, maximum: 7, description: "Nota 1,0–7,0 (se calcula con el puntaje y la exigencia)." }
+        weight: { type: number, exclusiveMinimum: 0, description: "Ponderación de la evaluación en el promedio." }
+        submitted_at: { type: string, format: date-time }
+    MyCourseGrades:
+      type: object
+      required: [course_id, course, grades]
+      properties:
+        course_id: { type: string, format: uuid }
+        course: { type: string, example: "Matemáticas 7° Básico A" }
+        subject: { type: [string, 'null'], example: "Matemática" }
+        period: { type: string, example: "2026-S2" }
+        teacher_name: { type: string, example: "Ana Rojas" }
+        tutor_available: { type: boolean }
+        average: { type: [number, 'null'], description: "Promedio ponderado del ramo; null si aún no hay notas." }
+        grades:
+          type: array
+          items: { $ref: '#/components/schemas/GradeEntry' }
+    MyGrades:
+      type: object
+      required: [student_id, courses]
+      properties:
+        student_id: { type: string, format: uuid }
+        courses:
+          type: array
+          items: { $ref: '#/components/schemas/MyCourseGrades' }
+    GradeDetail:
+      allOf:
+        - $ref: '#/components/schemas/GradeEntry'
+        - type: object
+          required: [answers]
+          properties:
+            pass_threshold: { type: number, description: "Exigencia: % de logro para el 4,0." }
+            answers:
+              type: array
+              items:
+                type: object
+                required: [order, question, correct]
+                properties:
+                  order: { type: integer, minimum: 1 }
+                  question: { type: string }
+                  selected_option: { type: [string, 'null'], description: "Texto de la alternativa elegida." }
+                  correct: { type: boolean }
+                  feedback: { type: [string, 'null'] }
     EnrollmentInput:
       type: object
       required: [student_email]
@@ -645,7 +860,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
           example:
-            type: "https://api.aulaviva.example/errors/validation"
+            type: "https://api.feathersforall.example/errors/validation"
             title: "Datos inválidos"
             status: 422
             detail: "No se puede publicar: la pregunta 2 no tiene respuesta correcta."

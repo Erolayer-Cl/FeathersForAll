@@ -1,14 +1,7 @@
 // Cliente del chat de desarrollo del backend (POST /v1/dev/chat, respuesta en streaming).
+import { API_URL, ApiError, toApiError } from './http.js';
 
-const API_URL = (import.meta.env?.VITE_API_URL ?? '').replace(/\/+$/, '');
-
-export class ApiError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-  }
-}
+export { ApiError };
 
 /**
  * Envía la conversación y entrega la respuesta del tutor en fragmentos de texto.
@@ -27,11 +20,8 @@ export async function* streamChat({ mode, messages, signal, fetchImpl = fetch })
     signal,
   });
 
-  if (!res.ok) {
-    // Errores RFC 7807 del backend: se usa `detail` si viene.
-    const problem = await res.json().catch(() => null);
-    throw new ApiError(problem?.detail ?? `Error ${res.status}`, res.status);
-  }
+  // Errores RFC 7807 del backend: se usa `detail` si viene.
+  if (!res.ok) throw await toApiError(res);
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   try {

@@ -100,7 +100,14 @@ export function createTutorRouter({ llm, rag, tenantId = 'dev', defaultCourseId 
 
     // Se espera el primer fragmento antes de enviar cabeceras: si el LLM está
     // caído, todavía se puede responder un 503 RFC 7807 en vez de un 200 vacío.
-    const first = await stream.next();
+    let first;
+    try {
+      first = await stream.next();
+    } catch (err) {
+      // El cliente se fue antes del primer fragmento (p. ej. "nueva conversación"): no es un error del servidor.
+      if (abort.signal.aborted) return;
+      throw err;
+    }
 
     res.status(200);
     res.type('text/plain; charset=utf-8');

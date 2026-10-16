@@ -4,6 +4,92 @@
  */
 
 export interface paths {
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Iniciar sesión
+         * @description Login en dos pasos: el RBD identifica al colegio y, dentro de ese colegio, se validan el correo
+         *     y la contraseña. Es la única operación sin token. Cualquier fallo (RBD, correo o contraseña)
+         *     responde el mismo `401`, para no revelar qué cuentas existen. Tras 5 fallos seguidos de una
+         *     misma cuenta en 15 minutos responde `429` con `Retry-After`. No crea recursos, por eso no
+         *     lleva `Idempotency-Key`.
+         */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mi perfil
+         * @description Perfil del usuario autenticado y su colegio. `401` si la cuenta fue desactivada.
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mis asignaturas y mis notas
+         * @description Solo estudiantes (otro rol: `403`). Lista TODAS las asignaturas con matrícula activa, también
+         *     las que aún no tienen notas, con el promedio ponderado de cada una y si el tutor IA tiene
+         *     apuntes del curso (`tutor_available`). Solo lectura.
+         */
+        get: operations["getMyGrades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/grades/{assessmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalle de una evaluación entregada
+         * @description Mi respuesta a cada pregunta, si fue correcta y la retroalimentación del docente. Solo estudiantes; `404` si no la entregué.
+         */
+        get: operations["getMyGradeDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses": {
         parameters: {
             query?: never;
@@ -13,7 +99,10 @@ export interface paths {
         };
         /**
          * Listar cursos
-         * @description Lista los cursos del tenant visibles para el usuario (docente ve los suyos, estudiante los matriculados). Paginación por cursor.
+         * @description Cursos visibles para el usuario: el estudiante ve sus asignaturas (matrícula activa), el docente
+         *     los cursos que dicta y el admin todos los de su colegio. Cada curso indica si el tutor IA tiene
+         *     apuntes (`tutor_available`, `tutor_documents`); `students_count` solo lo ve el personal.
+         *     Paginación por cursor (keyset): orden por periodo descendente y luego por nombre.
          */
         get: operations["listCourses"];
         put?: never;
@@ -37,7 +126,7 @@ export interface paths {
         };
         /**
          * Obtener curso
-         * @description Devuelve un curso del tenant del usuario. Si pertenece a otro colegio responde 404.
+         * @description Devuelve un curso en el que el usuario participa (estudiante matriculado, su docente o el admin del colegio). Si no participa o es de otro colegio responde 404 (no se revela su existencia).
          */
         get: operations["getCourse"];
         put?: never;
@@ -199,7 +288,7 @@ export interface components {
         Problem: {
             /**
              * Format: uri
-             * @example https://api.aulaviva.example/errors/validation
+             * @example https://api.feathersforall.example/errors/validation
              */
             type: string;
             /** @example Datos inválidos */
@@ -235,7 +324,14 @@ export interface components {
             id: string;
             /** Format: uuid */
             teacher_id: string;
+            /** @example Ana Rojas */
+            teacher_name?: string;
+            /** @description Estudiantes con matrícula activa. Solo para docente y admin. */
             students_count?: number;
+            /** @description El tutor IA tiene apuntes indexados de este curso. */
+            tutor_available?: boolean;
+            /** @description Apuntes que el docente subió al tutor. */
+            tutor_documents?: number;
             /** Format: date-time */
             created_at: string;
         };
@@ -243,6 +339,98 @@ export interface components {
             data: components["schemas"]["Course"][];
             /** @description Cursor de la siguiente página; null si no hay más. */
             next_cursor?: string | null;
+        };
+        LoginInput: {
+            /**
+             * @description RBD del colegio.
+             * @example 99901
+             */
+            rbd: string;
+            /**
+             * Format: email
+             * @example camila@demo-a.cl
+             */
+            email: string;
+            /** Format: password */
+            password: string;
+        };
+        School: {
+            /** Format: uuid */
+            id: string;
+            /** @example Colegio Demo A */
+            name: string;
+            /** @example 99901 */
+            rbd?: string | null;
+        };
+        Me: {
+            /** Format: uuid */
+            id: string;
+            /** @example Camila Díaz */
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "estudiante" | "docente" | "admin_colegio";
+            school: components["schemas"]["School"];
+        };
+        Session: {
+            /** @description JWT HS256 con sub, tenant_id y role. */
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /**
+             * @description Segundos de validez del token.
+             * @example 28800
+             */
+            expires_in: number;
+            user: components["schemas"]["Me"];
+        };
+        GradeEntry: {
+            /** Format: uuid */
+            assessment_id: string;
+            /** @example Fracciones */
+            title: string;
+            /** @description Puntaje en % de logro. */
+            score?: number;
+            /** @description Nota 1,0–7,0 (se calcula con el puntaje y la exigencia). */
+            grade: number;
+            /** @description Ponderación de la evaluación en el promedio. */
+            weight?: number;
+            /** Format: date-time */
+            submitted_at?: string;
+        };
+        MyCourseGrades: {
+            /** Format: uuid */
+            course_id: string;
+            /** @example Matemáticas 7° Básico A */
+            course: string;
+            /** @example Matemática */
+            subject?: string | null;
+            /** @example 2026-S2 */
+            period?: string;
+            /** @example Ana Rojas */
+            teacher_name?: string;
+            tutor_available?: boolean;
+            /** @description Promedio ponderado del ramo; null si aún no hay notas. */
+            average?: number | null;
+            grades: components["schemas"]["GradeEntry"][];
+        };
+        MyGrades: {
+            /** Format: uuid */
+            student_id: string;
+            courses: components["schemas"]["MyCourseGrades"][];
+        };
+        GradeDetail: components["schemas"]["GradeEntry"] & {
+            /** @description Exigencia: % de logro para el 4,0. */
+            pass_threshold?: number;
+            answers: {
+                order: number;
+                question: string;
+                /** @description Texto de la alternativa elegida. */
+                selected_option?: string | null;
+                correct: boolean;
+                feedback?: string | null;
+            }[];
         };
         EnrollmentInput: {
             /**
@@ -441,7 +629,7 @@ export interface components {
             content: {
                 /**
                  * @example {
-                 *       "type": "https://api.aulaviva.example/errors/validation",
+                 *       "type": "https://api.feathersforall.example/errors/validation",
                  *       "title": "Datos inválidos",
                  *       "status": 422,
                  *       "detail": "No se puede publicar: la pregunta 2 no tiene respuesta correcta.",
@@ -495,6 +683,111 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginInput"];
+            };
+        };
+        responses: {
+            /** @description Sesión iniciada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Perfil. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getMyGrades: {
+        parameters: {
+            query?: {
+                /** @description Limita la respuesta a una asignatura. */
+                course_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Asignaturas con sus notas. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyGrades"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getMyGradeDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Detalle de la evaluación. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradeDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listCourses: {
         parameters: {
             query?: {
@@ -521,6 +814,7 @@ export interface operations {
                     "application/json": components["schemas"]["CoursePage"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             429: components["responses"]["RateLimited"];
         };

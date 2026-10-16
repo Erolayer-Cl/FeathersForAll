@@ -4,7 +4,3 @@
  *  pantalla. Por defecto se ven con `npm run dev` y se ocultan en la versión compilada (`npm run build`).
  *  Para forzarlas, reemplaza el valor por `true` (mostrar siempre) o `false` (ocultar siempre). */
 export const SHOW_DEV_TOOLS = import.meta.env.DEV;
-
-/** Datos de ejemplo (cursos, evaluaciones, notas…). Los crean el administrador y los docentes, así que
- *  por defecto el portal arranca vacío. Pon `true` solo para ver el diseño con ejemplos. */
-export const SHOW_DEMO_DATA = false;

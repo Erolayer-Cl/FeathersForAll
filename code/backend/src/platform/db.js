@@ -57,6 +57,20 @@ export function createDb({ connectionString, max = 10, logger }) {
   return {
     withSession,
 
+    /**
+     * Consulta suelta, SIN colegio ni usuario: para el RLS es una sesión anónima (0 filas en
+     * las tablas de un colegio). Solo sirve para funciones que no dependen de la sesión, como
+     * colegio_por_rbd() en el paso 1 del login.
+     */
+    async query(sql, params) {
+      const client = await connect();
+      try {
+        return await client.query(sql, params);
+      } finally {
+        client.release();
+      }
+    },
+
     /** Sesión de un usuario autenticado: req.user = { id, colegioId, rol } (ver auth.js). */
     withUser: (user, fn, opts) => withSession({ colegioId: user.colegioId, usuarioId: user.id, rol: user.rol }, fn, opts),
 

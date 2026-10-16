@@ -37,6 +37,10 @@ function toProblem(err) {
   if (err.type === 'entity.too.large') {
     return new HttpProblem(413, 'Solicitud demasiado grande', 'El cuerpo supera el tamaño permitido');
   }
+  // Otros errores del cliente que detecta Express (charset o Content-Encoding no soportado → 415, etc.).
+  if (err.expose && err.status >= 400 && err.status < 500) {
+    return new HttpProblem(err.status, 'Solicitud inválida', err.message, 'invalid-request');
+  }
   return new HttpProblem(500, 'Error interno', 'Ocurrió un error inesperado', 'internal-error');
 }
 

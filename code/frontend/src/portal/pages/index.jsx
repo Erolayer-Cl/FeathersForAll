@@ -3,6 +3,9 @@
 // Para sumar una pantalla: crea su componente y agrega una línea.
 import { LoginPage } from './login/LoginPage.jsx';
 import { EstudianteInicioPage } from './estudiante/InicioPage.jsx';
+import { CursoPage } from './estudiante/CursoPage.jsx';
+import { MisCursosPage } from './estudiante/MisCursosPage.jsx';
+import { MisNotasPage } from './estudiante/MisNotasPage.jsx';
 import { SettingsPage } from './shared/SettingsPage.jsx';
 
 export const PAGES = {
@@ -10,6 +13,9 @@ export const PAGES = {
   'login-doc': () => <LoginPage role="doc" />,
   'login-adm': () => <LoginPage role="adm" />,
   'est-inicio': EstudianteInicioPage,
+  'est-cursos': MisCursosPage,
+  'est-curso': CursoPage,
+  'est-notas': MisNotasPage,
   'est-config': () => <SettingsPage role="est" />,
   'doc-config': () => <SettingsPage role="doc" />,
   'adm-config': () => <SettingsPage role="adm" />,

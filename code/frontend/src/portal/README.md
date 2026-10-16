@@ -30,20 +30,22 @@ src/portal/
     PreferencesPanel/            panel «Personalizar»
   dev/                           DevPageJumper (solo pruebas, detrás de SHOW_DEV_TOOLS)
   config/
-    devFlags.js                  interruptores de pruebas (herramientas y datos de ejemplo)
+    devFlags.js                  interruptor de las herramientas de prueba
     roles.js                     menú de cada rol (agregar una sección = una línea)
     routes.js (+ .test.js)       las 34 pantallas del Figma (solo datos)
-  router/                        usePortalRoute, PortalLink, useMediaQuery
-  layout/                        PortalFrame (aplica preferencias) y PortalShell (menú + barra superior)
-  components/                    ui/ (Button, Card, Chip, Kpi, PageHead, Switch), PortalLogo, icons.jsx
-  data/mock.js                   datos de ejemplo (se elimina cuando haya API)
+  router/                        usePortalRoute, PortalLink, useMediaQuery, access.js (guardia de rutas)
+  layout/                        PortalFrame (preferencias + guardia de rutas) y PortalShell (menú + barra superior)
+  components/                    ui/ (Button, Card, Chip, EmptyState, Kpi, LoadState, PageHead, Switch), PortalLogo, icons.jsx
+  session/                       sesión: login, token, rol del portal (SessionProvider, useSession)
+  hooks/useApiData.js            pide datos a la API con el token (carga, error, 401 → login)
+  utils/notas.js                 formato es-CL de notas y tabla N1…Nk
   pages/
     index.jsx                    registro: id de ruta → pantalla
-    login/, estudiante/, shared/ pantallas hechas: Login ×3, Estudiante · Inicio, Configuración ×3
+    login/, estudiante/, shared/ pantallas hechas: Login ×3, Estudiante · Inicio, Mis cursos, Curso, Mis notas, Configuración ×3
 ```
 
 ## Herramientas solo para pruebas (no son del producto final)
-`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el **selector de rol** de la barra superior y el botón flotante **«Pantallas»** para saltar a cualquier pantalla. Por defecto se ven con `npm run dev` y desaparecen en `npm run build`. Ahí mismo está `SHOW_DEMO_DATA` (datos de ejemplo).
+`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el **selector de rol** de la barra superior y el botón flotante **«Pantallas»** para saltar a cualquier pantalla. Por defecto se ven con `npm run dev` y desaparecen en `npm run build`.
 En el producto, el rol se decide al iniciar sesión.
 
 ## Contenido que crece (cursos, evaluaciones, colegios…)
@@ -51,7 +53,7 @@ En el producto, el rol se decide al iniciar sesión.
 - **Las listas salen de los datos**, no del código: se dibujan con `.map()` sobre lo que entregue la API. Con 0, 3 o 300 elementos el código es el mismo.
 - **Vacío:** toda lista debe mostrar `<EmptyState>` cuando no hay elementos (ya lo usa Estudiante · Inicio).
 - **El menú no cambia** con los datos: sus secciones son fijas por rol. Lo que cambia es el contenido de cada sección.
-- **Id que no existe:** cada pantalla de detalle debe mostrar un aviso «no encontrado» (pendiente de construir con la API).
+- **Id que no existe:** cada pantalla de detalle muestra un aviso «no encontrado» con `<LoadState notFound={{ title, action }}>` (ejemplo: `pages/estudiante/CursoPage.jsx`).
 - Cuando haya muchos elementos (cientos de usuarios, por ejemplo) hará falta paginación o búsqueda en el servidor; se agrega en cada lista.
 
 ## Personalización incluida
@@ -79,5 +81,5 @@ build: { rollupOptions: { input: { main: 'index.html', portal: 'portal.html' } }
 
 ## Pendiente
 - Las otras 27 pantallas del Figma (hoy marcador).
-- Conectar login y datos a la API (`TODO(auth)` en `LoginPage.jsx`; reemplazar `data/mock.js`). Cursos, evaluaciones y notas los crean admin y docentes: por eso las pantallas arrancan vacías (`SHOW_DEMO_DATA = false` en `config/devFlags.js`; ponlo en `true` solo para ver el diseño con ejemplos). El usuario del menú y el perfil (`DEMO_USER`, `PERFIL_DEMO`) también son de ejemplo hasta que haya sesión.
+- ~~Conectar login y datos a la API~~ (etapa 1, hecho para el estudiante): el login usa `POST /v1/auth/login` y la sesión vive en `session/`; las pantallas piden sus datos con `hooks/useApiData.js` y `api/portalApi.js`. Pendiente: pantallas de docente y administrador con datos reales.
 - El Tutor IA del estudiante (`est-tutor`) debería reutilizar `features/chat` de la app existente.

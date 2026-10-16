@@ -4,7 +4,7 @@
 --
 --     psql -d feathersforall -v ON_ERROR_STOP=1 -f 90_seed_demo.sql
 --
--- Requiere 01 + 02 + 03. Se ejecuta con un superusuario o con
+-- Requiere 01 + 02 + 03 + 04. Se ejecuta con un superusuario o con
 -- feathersforall_plataforma (BYPASSRLS). Los UUID son fijos para poder
 -- generar tokens de prueba (ver `npm run dev:token`).
 --
@@ -24,17 +24,20 @@ INSERT INTO colegios (id, nombre, rbd) VALUES
     ('11111111-1111-1111-1111-111111111111', 'Colegio Demo A', '99901'),
     ('22222222-2222-2222-2222-222222222222', 'Colegio Demo B', '99902');
 
--- Sin login real todavía (SSO): el hash es un marcador que no valida ninguna contraseña.
+-- Contraseña de TODOS los usuarios demo: demo1234 (datos sintéticos, solo desarrollo).
+-- Cada hash tiene su propia sal (scrypt, ver src/platform/password.js); se generan con
+--     npm run -s hash:password -- 'demo1234'
+-- Login: POST /v1/auth/login con el RBD del colegio (99901 o 99902), el correo y la contraseña.
 INSERT INTO usuarios (id, colegio_id, nombre, email, password_hash, rol) VALUES
-    ('a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Ana Rojas',      'ana.rojas@demo-a.cl',   '!sso', 'docente'),
-    ('a0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Luis Pérez',     'luis.perez@demo-a.cl',  '!sso', 'docente'),
-    ('a0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Marta Soto',     'marta.soto@demo-a.cl',  '!sso', 'admin_colegio'),
-    ('e0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Camila Díaz',    'camila@demo-a.cl',      '!sso', 'estudiante'),
-    ('e0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Benjamín Muñoz', 'benjamin@demo-a.cl',    '!sso', 'estudiante'),
-    ('e0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Sofía Herrera',  'sofia@demo-a.cl',       '!sso', 'estudiante'),
-    ('e0000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Tomás Fuentes',  'tomas@demo-a.cl',       '!sso', 'estudiante'),
-    ('b0000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Pedro Lagos',    'pedro.lagos@demo-b.cl', '!sso', 'docente'),
-    ('b0000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'Javiera Núñez',  'javiera@demo-b.cl',     '!sso', 'estudiante');
+    ('a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Ana Rojas',      'ana.rojas@demo-a.cl',   'scrypt$16384$8$5$EBw28x6Ouxav3VKFDYUv1A$-9pcBQFOYCr0-KSbQZMYrKbjBJSke7memDyRh686cPU', 'docente'),
+    ('a0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Luis Pérez',     'luis.perez@demo-a.cl',  'scrypt$16384$8$5$COUkcWBbl9LXZMedlPQXlw$BauBv_F2Ht4Ks5CMsXxc7RdmqFFrOZkEdxguYvtEApE', 'docente'),
+    ('a0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Marta Soto',     'marta.soto@demo-a.cl',  'scrypt$16384$8$5$YXcvteu8NAm57kb6_R3Lug$XKSbNPpcm6twgn7Q1kM04yYzlxuhxBmt1ekDDmCiSyY', 'admin_colegio'),
+    ('e0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Camila Díaz',    'camila@demo-a.cl',      'scrypt$16384$8$5$_sNVEu7OWIIbXMIt2n5ECQ$SnzTFuxT0XarE_hQcr_gnnlSUSlsYCJJu7kpNF9oHOo', 'estudiante'),
+    ('e0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Benjamín Muñoz', 'benjamin@demo-a.cl',    'scrypt$16384$8$5$la75SZNA99B4Obi0VFiCbA$-uevKpEeeodIAp_6KM6y288e_l8eU1CRKMsyqeWyte0', 'estudiante'),
+    ('e0000000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Sofía Herrera',  'sofia@demo-a.cl',       'scrypt$16384$8$5$dw6yq_zrLiQlk6cCTH3Oeg$4yRWyQsm6EDiXoaZ9B9ezEWsGn56fyqFcdkQ2zVeMRw', 'estudiante'),
+    ('e0000000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'Tomás Fuentes',  'tomas@demo-a.cl',       'scrypt$16384$8$5$8NaWawc90NHtFjaUQSbqGw$9pXfZf0vHh59RGSMoMasSYx-UCMoSKpY5A1iBeihXSg', 'estudiante'),
+    ('b0000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Pedro Lagos',    'pedro.lagos@demo-b.cl', 'scrypt$16384$8$5$q3TG_gXkOMZhTuYq9oTnEg$akC5eSezfGBV_CX-XFl32vTma7GtlxlpQK_7xuSVNLA', 'docente'),
+    ('b0000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222', 'Javiera Núñez',  'javiera@demo-b.cl',     'scrypt$16384$8$5$o3Avbr_9yBKgCgykR9p4gA$4XAPHehbRFiG0E_2R26cT0-RC1BKweRYG2ZxWBUI25I', 'estudiante');
 
 -- ---------------------------------------------------------------- Colegio A
 SET LOCAL app.colegio_id = '11111111-1111-1111-1111-111111111111';

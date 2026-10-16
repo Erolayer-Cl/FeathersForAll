@@ -106,6 +106,25 @@ describe('vector store', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test('ingestas simultáneas no fallan y todas quedan en disco', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rag-'));
+    try {
+      const path = join(dir, 'store.json');
+      const store = createVectorStore({ path });
+      // Documentos grandes para que las escrituras realmente se superpongan.
+      const chunks = Array.from({ length: 200 }, (_, i) => ({ text: `fragmento ${i} `.repeat(100), embedding: [1, 0, 0] }));
+      const results = await Promise.allSettled(
+        ['a.md', 'b.md', 'c.md'].map((docId) => store.replaceDocument({ ...A, docId, chunks })),
+      );
+      assert.deepEqual(results.map((r) => r.reason?.code ?? r.status), ['fulfilled', 'fulfilled', 'fulfilled']);
+
+      const docs = createVectorStore({ path }).listDocuments(A).map((d) => d.doc_id).sort();
+      assert.deepEqual(docs, ['a.md', 'b.md', 'c.md']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('rag service', () => {

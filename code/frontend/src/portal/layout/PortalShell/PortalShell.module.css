@@ -29,7 +29,8 @@
 .navItem:hover { background: rgb(255 255 255 / 0.12); }
 .navItem:active { transform: scale(0.98); }
 .navItem:focus-visible { outline-color: #fff; }
-.on { background: var(--fp-accent); }
+.on { background: var(--fp-accent-solid); }
+.content:focus { outline: none; } /* recibe el foco por código al cambiar de pantalla (PortalFrame) */
 .last { margin-top: auto; }
 
 .iconBtn { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: var(--fp-radius-pill); background: transparent; color: var(--fp-brand-text); transition: background 0.2s ease, transform 0.2s var(--fp-ease); }
@@ -75,12 +76,10 @@
   .topbar { gap: 6px; padding: 10px 10px; }
   .brand, .themeBtn { display: none; }
   .role { padding: 6px 8px; font-size: 12px; }
-  .iconBtn { width: 40px; height: 40px; }
   .topLogo { --fp-logo-size: 40px !important; }
 }
 @media (max-width: 380px) {
   .topbar { gap: 4px; padding: 10px 8px; }
   .role { padding: 6px 6px; font-size: 11.5px; }
-  .iconBtn { width: 38px; height: 38px; }
   .topLogo { --fp-logo-size: 36px !important; }
 }

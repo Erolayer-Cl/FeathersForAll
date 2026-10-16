@@ -13,7 +13,8 @@
 .fp-root *::after {
   box-sizing: border-box;
 }
-.fp-root :is(h1, h2, h3, p) {
+/* :where() = especificidad cero: los márgenes de las clases de cada componente (.sub, .error…) ganan. */
+:where(.fp-root) :where(h1, h2, h3, p) {
   margin: 0;
 }
 .fp-root :is(h1, h2, h3) {
@@ -21,7 +22,9 @@
   font-weight: 400;
   text-wrap: balance;
 }
-.fp-root :is(button, input, select) {
+/* Especificidad cero (:where): es solo un valor por defecto, cualquier clase de un componente lo
+   reemplaza (p. ej. el texto blanco de .submit o de Button). Con :is() le ganaba a las clases. */
+:where(.fp-root) :where(button, input, select) {
   font: inherit;
   color: inherit;
 }
@@ -33,6 +36,14 @@
 }
 .fp-root a:not([class]) {
   color: var(--fp-brand-text);
+}
+.fp-root .fp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .fp-root :focus-visible {
   outline: 2px solid var(--fp-accent);

@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   Check,
+  ChevronDown,
   ClipboardCheck,
   FileText,
   GraduationCap,
@@ -33,6 +34,7 @@ const ICONS = {
   menu: Menu,
   close: X,
   tick: Check,
+  chevron: ChevronDown,
   sun: Sun,
   moon: Moon,
   monitor: Monitor,
@@ -40,7 +42,7 @@ const ICONS = {
 };
 
 /** @param {{name: keyof typeof ICONS, size?: number}} props */
-export function Icon({ name, size = 20 }) {
+export function Icon({ name, size = 20, className }) {
   const Cmp = ICONS[name];
-  return Cmp ? <Cmp size={size} strokeWidth={2.4} aria-hidden="true" /> : null;
+  return Cmp ? <Cmp size={size} strokeWidth={2.4} className={className} aria-hidden="true" /> : null;
 }

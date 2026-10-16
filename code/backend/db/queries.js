@@ -1,4 +1,5 @@
-// Consultas SQL de AulaViva / FeathersForAll (S06), sobre 01_schema.sql + 02_s06_ajustes.sql + 03_notas.sql.
+// Consultas SQL de AulaViva / FeathersForAll (S06), sobre 01_schema.sql + 02_s06_ajustes.sql + 03_notas.sql
+// + 04_privacidad_login.sql (privacidad de lectura por usuario: sin app.rol no se ven datos de estudiantes).
 // Módulo ESM (el backend usa "type": "module"):  import { LOGIN } from './db/queries.js'
 //
 // Cómo se ejecutan (ver CAMBIOS_SCHEMA.md):
@@ -27,10 +28,17 @@ export const COLEGIO_POR_RBD = `
 SELECT colegio_por_rbd($1) AS colegio_id`;
 
 // Paso 2 (ya con SET LOCAL app.colegio_id): el email es único POR colegio (CITEXT).
+// La API no puede leer password_hash directo (permisos_app.sql): solo con esta función (04).
 export const LOGIN = `
-SELECT id, colegio_id, nombre, email, password_hash, rol
-FROM usuarios
-WHERE email = $1 AND activo`;
+SELECT id, nombre, email, rol, password_hash
+FROM credenciales_login($1)`;
+
+// Perfil del usuario de la sesión (GET /v1/me y respuesta del login).
+export const PERFIL = `
+SELECT u.id, u.nombre, u.email, u.rol, c.id AS colegio_id, c.nombre AS colegio, c.rbd
+FROM usuarios u
+JOIN colegios c ON c.id = u.colegio_id
+WHERE u.id = $1 AND u.activo`;
 
 // [plataforma] Login del master (no tiene colegio).
 export const LOGIN_MASTER = `
@@ -55,26 +63,38 @@ INSERT INTO cursos (docente_id, nombre, periodo, asignatura, nivel)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, nombre, periodo, asignatura, nivel, created_at`;
 
-export const CURSOS_DOCENTE = `
-SELECT id, nombre, periodo, asignatura, nivel
-FROM cursos
-WHERE docente_id = $1 AND activo
-ORDER BY periodo DESC, nombre`;
+// Columnas de un curso para la API (contrato: schema Course).
+//   matriculados       -> students_count (la API solo lo muestra al personal: para un estudiante,
+//                         el RLS de 04 cuenta solo su propia matrícula)
+//   apuntes            -> tutor_documents: apuntes que el docente subió al RAG del curso
+//   tutor_disponible   -> tutor_available: hay fragmentos indexados, así que el tutor puede responder
+const COLUMNAS_CURSO = `
+       c.id, c.nombre, c.periodo, c.asignatura, c.nivel, c.docente_id, d.nombre AS docente, c.created_at,
+       (SELECT count(*) FROM matriculas m WHERE m.curso_id = c.id AND m.activo) AS matriculados,
+       (SELECT count(*) FROM apuntes_curso a WHERE a.curso_id = c.id) AS apuntes,
+       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible`;
 
-export const CURSOS_ESTUDIANTE = `
-SELECT c.id, c.nombre, c.periodo, c.asignatura, c.nivel
+// Cursos que ve la sesión (GET /v1/courses): el admin, todos los de su colegio; el docente,
+// los que dicta; el estudiante, en los que tiene matrícula activa (puede_ver_curso, 04).
+// $1 = periodo (NULL = todos), $2 = tamaño de página.
+// Paginación keyset por (periodo DESC, nombre, id): $3, $4, $5 = última fila de la página
+// anterior (NULL en la primera página).
+export const CURSOS_VISIBLES = `
+SELECT ${COLUMNAS_CURSO}
 FROM cursos c
-JOIN matriculas m ON m.curso_id = c.id
-WHERE m.estudiante_id = $1 AND m.activo AND c.activo
-ORDER BY c.periodo DESC, c.nombre`;
+JOIN usuarios d ON d.id = c.docente_id
+WHERE puede_ver_curso(c.id)
+  AND ($1::text IS NULL OR c.periodo = $1)
+  AND ($3::text IS NULL OR c.periodo < $3 OR (c.periodo = $3 AND (c.nombre, c.id) > ($4::text, $5::uuid)))
+ORDER BY c.periodo DESC, c.nombre, c.id
+LIMIT $2`;
 
-// RLS ya filtra por colegio: no hace falta WHERE colegio_id.
-export const CURSOS_COLEGIO = `
-SELECT c.id, c.nombre, c.periodo, c.nivel, u.nombre AS docente
+// Un curso, solo si la sesión lo puede ver (GET /v1/courses/{id}). Si no, 0 filas -> 404.
+export const CURSO_DETALLE = `
+SELECT ${COLUMNAS_CURSO}
 FROM cursos c
-JOIN usuarios u ON u.id = c.docente_id
-WHERE c.activo
-ORDER BY c.periodo DESC, c.nombre`;
+JOIN usuarios d ON d.id = c.docente_id
+WHERE c.id = $1 AND puede_ver_curso(c.id)`;
 
 // [plataforma]
 export const CURSOS_MASTER = `
@@ -250,6 +270,18 @@ SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, c.docen
 FROM evaluaciones e
 JOIN cursos c ON c.id = e.curso_id
 WHERE e.id = $1`;
+
+// Ramos del estudiante (GET /v1/me/grades): TODOS sus cursos con matrícula activa, tengan o no
+// notas todavía, con su docente y si el tutor tiene apuntes. $2 NULL = todos los ramos.
+export const RAMOS_ESTUDIANTE = `
+SELECT c.id AS curso_id, c.nombre AS curso, c.asignatura, c.periodo, d.nombre AS docente,
+       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible
+FROM matriculas m
+JOIN cursos c   ON c.id = m.curso_id
+JOIN usuarios d ON d.id = c.docente_id
+WHERE m.estudiante_id = $1 AND m.activo AND c.activo
+  AND ($2::uuid IS NULL OR c.id = $2)
+ORDER BY c.nombre`;
 
 // Mis notas (estudiante), opcionalmente de un solo curso ($2 NULL = todos).
 export const NOTAS_ESTUDIANTE = `

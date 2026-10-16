@@ -1,5 +1,5 @@
 // Crea la base de desarrollo SIN psql (alternativa a db/crear_bdd.sql).
-//   npm run db:setup              → esquema (01 + 02 + 03) y usuario feathersforall_app
+//   npm run db:setup              → esquema (01 a 04), usuario feathersforall_app y sus permisos
 //   npm run db:setup -- --demo    → además los datos demo (90_seed_demo.sql), si la base está vacía
 //
 // Requiere en .env:
@@ -7,7 +7,8 @@
 //                        postgres://postgres:CLAVE@localhost:5432/feathersforall
 //   DATABASE_URL       = postgres://feathersforall_app:OTRA_CLAVE@localhost:5432/feathersforall
 //                        (la clave de feathersforall_app se toma de aquí)
-// Es seguro repetirlo: si el esquema ya existe no lo vuelve a aplicar.
+// Es seguro repetirlo: si el esquema ya existe no lo vuelve a aplicar. A una base creada antes de
+// la etapa 1 le agrega 04_privacidad_login.sql (si falta) y vuelve a aplicar permisos_app.sql.
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,15 +41,24 @@ try {
   } else {
     for (const f of ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql']) await apply(f);
   }
+  // 04 llegó después: se aplica si su función todavía no existe.
+  const { rows: v } = await client.query("SELECT to_regprocedure('puede_ver_curso(uuid)') IS NOT NULL AS hay");
+  if (v[0].hay) console.log('· 04_privacidad_login.sql ya estaba aplicado');
+  else await apply('04_privacidad_login.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'feathersforall_app') THEN CREATE ROLE feathersforall_app; END IF;
     END $$`);
-  await client.query(`ALTER ROLE feathersforall_app LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD ${client.escapeLiteral(appPassword)}`);
-  await client.query(`GRANT USAGE ON SCHEMA public TO feathersforall_app;
-                      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO feathersforall_app`);
+  // Sin NOSUPERUSER (exige ser superusuario y falla en Postgres gestionados); se verifica después.
+  await client.query(`ALTER ROLE feathersforall_app LOGIN NOBYPASSRLS PASSWORD ${client.escapeLiteral(appPassword)}`);
+  await client.query(`DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'feathersforall_app' AND (rolsuper OR rolbypassrls)) THEN
+        RAISE EXCEPTION 'feathersforall_app no puede ser superusuario ni tener BYPASSRLS: el RLS no aplicaría';
+    END IF;
+END $$;`);
   console.log('✔ usuario feathersforall_app (sin BYPASSRLS)');
+  await apply('permisos_app.sql');
 
   if (process.argv.includes('--demo')) {
     const { rows: c } = await client.query('SELECT count(*)::int AS n FROM colegios');

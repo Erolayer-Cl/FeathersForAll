@@ -37,13 +37,21 @@ export function createVectorStore({ path } = {}) {
     loadedMtime = mtime;
   }
 
-  async function persist() {
-    if (!path) return;
+  async function write() {
     mkdirSync(dirname(path), { recursive: true });
     const tmp = `${path}.tmp`;
     await writeFile(tmp, JSON.stringify({ version: 1, records }));
     await rename(tmp, path);
     loadedMtime = statSync(path).mtimeMs;
+  }
+
+  // Una escritura a la vez: dos ingestas simultáneas compartirían el mismo .tmp y la
+  // segunda fallaría con ENOENT. Cada escritura guarda el estado más reciente de `records`.
+  let writing = Promise.resolve();
+  function persist() {
+    if (!path) return Promise.resolve();
+    writing = writing.catch(() => {}).then(write);
+    return writing;
   }
 
   refresh();

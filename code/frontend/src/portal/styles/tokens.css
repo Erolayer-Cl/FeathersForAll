@@ -15,10 +15,10 @@
   --fp-surface: #ffffff;
   --fp-field: #f6f8fb;
   --fp-ink: #0f172a;
-  --fp-muted: #64748b;
+  --fp-muted: #5b6b80; /* 4,5:1 o más sobre field, track y surface (WCAG AA) */
   --fp-line: #e5eaf2;
   --fp-track: #e6ebf3;
-  --fp-placeholder: #6b7a90;
+  --fp-placeholder: #61708a;
   --fp-inverse: var(--fp-ink);
   --fp-on-inverse: #ffffff;
 
@@ -37,6 +37,8 @@
   --fp-accent-soft: color-mix(in srgb, var(--fp-accent) 11%, var(--fp-surface));
   --fp-accent-mid: color-mix(in srgb, var(--fp-accent) 20%, var(--fp-surface));
   --fp-accent-strong: color-mix(in srgb, var(--fp-accent) 34%, var(--fp-surface));
+  /* Fondo para texto blanco: el acento puro no llega a 4,5:1 con todos los colores (azul: 3,7:1) */
+  --fp-accent-solid: color-mix(in srgb, var(--fp-accent) 78%, #000);
 
   /* Tipografía (las preferencias de tipografía las reemplazan) */
   --fp-font: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

@@ -53,10 +53,3 @@ export const ROLES = {
 };
 
 export const ROLE_IDS = Object.keys(ROLES);
-
-/** Usuario de ejemplo del menú. Reemplazar por la sesión real cuando exista la autenticación. */
-export const DEMO_USER = {
-  est: { name: 'Sofía Martínez', detail: 'Estudiante · 2° Medio A' },
-  doc: { name: 'Sofía Martínez', detail: 'Docente de Matemática y Ciencias' },
-  adm: { name: 'Sofía Martínez', detail: 'Administrador' },
-};

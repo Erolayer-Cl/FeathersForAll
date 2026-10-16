@@ -34,6 +34,8 @@ ENV NODE_ENV=production \
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
+# Las rutas de notas importan las consultas SQL (src/modules/notas → ../../../db/queries.js).
+COPY db/queries.js ./db/queries.js
 USER nonroot
 EXPOSE 8080
 # La imagen distroless ya usa "node" como ENTRYPOINT. Sin --env-file: la config llega por env (ConfigMap/Secret).

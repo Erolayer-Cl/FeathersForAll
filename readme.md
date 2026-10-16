@@ -1,7 +1,8 @@
-# FeathersForAll — Equipo AulaViva
+# FeathersForAll
 
 > Plataforma SaaS multi-tenant con tutor IA para colegios de la Región Metropolitana.
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
+> Construido sobre la iniciativa **AulaViva** del taller; FeathersForAll es la marca propia del producto.
 
 [![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S07-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
@@ -11,7 +12,7 @@
 
 ## Qué es esto
 
-Un grupo de colegios necesita modernizar su experiencia de aprendizaje. AulaViva entrega a docentes y estudiantes una plataforma multi-tenant con gestión de cursos, evaluaciones auto-corregidas y un **tutor IA anclado al currículum vigente del MINEDUC** mediante RAG sobre los apuntes de cada curso.
+Un grupo de colegios necesita modernizar su experiencia de aprendizaje. FeathersForAll entrega a docentes y estudiantes una plataforma multi-tenant con gestión de cursos, evaluaciones auto-corregidas y un **tutor IA anclado al currículum vigente del MINEDUC** mediante RAG sobre los apuntes de cada curso.
 
 **Alcance mínimo comprometido (MVP):**
 
@@ -37,7 +38,7 @@ graph TB
     A["👪 Apoderado"] --> AV
     S["🏫 Sostenedor"] --> AV
 
-    AV["<b>AulaViva</b><br/>SaaS multi-tenant<br/>cursos · evaluaciones · tutor IA"]
+    AV["<b>FeathersForAll</b><br/>SaaS multi-tenant<br/>cursos · evaluaciones · tutor IA"]
 
     AV --> LLM["Proveedor LLM<br/><i>sistema externo</i>"]
     AV --> CUR["Corpus curricular<br/>MINEDUC + apuntes"]
@@ -69,21 +70,23 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 ├── models.md                           # Contexto del taller (PPT S01–S07) y estado del proyecto
 ├── code/
 │   ├── backend/                        # API Node.js + Express (monolito modular) + Dockerfile (S07)
-│   │   └── db/                         # Esquema PostgreSQL (01 + 02 + 03), consultas y pruebas (S06)
+│   │   ├── compose.yaml                # Base local con Docker (PostgreSQL 16 + pgvector + datos demo)
+│   │   ├── requests/postman/           # Colección Postman con la matriz de permisos
+│   │   └── db/                         # Esquema PostgreSQL (01–04 + permisos), consultas y pruebas
 │   └── frontend/                       # React + Vite (ADR 0005): chat + portal por rol (portal.html) + Dockerfile (S07)
 ├── k8s/                                # Manifiestos Kubernetes con Kustomize + clúster kind (S07)
 ├── terraform/                          # IaC: namespace, cuota y Secret del equipo (S07)
 └── FeathersForAll/
     ├── .spectral.yaml                  # Reglas de lint del contrato (S05)
     ├── api/
-    │   ├── openapi.yaml                # Contrato OpenAPI 3.1 (10 endpoints)
+    │   ├── openapi.yaml                # Contrato OpenAPI 3.1 (v1.1.0: 14 operaciones)
     │   └── examples/                   # Ejemplos ejecutables + run-examples.mjs
     ├── packages/
     │   └── api-client/                 # Cliente TypeScript generado
     └── Documentos/
         ├── Entregables/
         │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
-        ├── adr/                        # Architecture Decision Records (0001–0006)
+        ├── adr/                        # Architecture Decision Records (0001–0007)
         ├── arch/
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
@@ -142,6 +145,16 @@ La API se conecta con el rol `feathersforall_app` (sin BYPASSRLS) y abre cada re
 
 DER: `FeathersForAll/Documentos/data/der.png` · Eventos: `data/event-catalog.md` · Contextos: `data/bounded-contexts.md`.
 
+### Probar la API y el portal (etapa 1, rol estudiante)
+
+```bash
+cd code/backend
+docker compose up -d && npm install && npm run dev     # base con datos demo + API en :3000
+cd ../frontend && npm install && npm run dev            # portal en http://localhost:5173/portal.html
+```
+
+Credenciales demo: RBD `99901`, `camila@demo-a.cl`, contraseña `demo1234` (más usuarios en [code/backend/README.md](code/backend/README.md)). Colección de Postman: `code/backend/requests/postman/`. Matriz de permisos: [permisos.md](FeathersForAll/Documentos/api/permisos.md).
+
 ### API (S05, contract-first)
 
 ```bash
@@ -167,6 +180,7 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0004](FeathersForAll/Documentos/adr/0004-datos-y-eventos.md) | Datos y eventos: PostgreSQL + pgvector con RLS, SQS y Outbox | Propuesta | 07-10-2026 |
 | [0005](FeathersForAll/Documentos/adr/0005-frontend-react.md) | Frontend con React + Vite (reemplaza la línea de frontend del ADR 0002) | Propuesta | 07-10-2026 |
 | [0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | Contenedores, Kubernetes e IaC: distroless, kind, Kustomize y Terraform | Propuesta | 14-10-2026 |
+| [0007](FeathersForAll/Documentos/adr/0007-autenticacion-y-privacidad.md) | Autenticación propia por RBD y privacidad de lectura por usuario | Propuesta | 16-10-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 
