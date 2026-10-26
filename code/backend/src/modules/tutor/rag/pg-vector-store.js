@@ -124,21 +124,14 @@ export function createPgVectorStore({ db }) {
     /**
      * ¿Este usuario puede usar el tutor de este curso?
      * Estudiante: matrícula activa. Docente: es el docente del curso. Admin: el curso es de su colegio.
+     * Es la misma regla que GET /v1/courses: puede_ver_curso() de 04_privacidad_login.sql, evaluada
+     * con la sesión del usuario (colegio, id y rol del JWT).
      */
     async canUseCourse({ tenantId, courseId, user }) {
       if (!validRef({ tenantId, courseId })) return false;
       if (!user) return true; // sin login (solo desarrollo): lo decide la configuración
-      return read({ tenantId }, user, async (client) => (await client.query(
-        `SELECT CASE $2::text
-                  WHEN 'estudiante' THEN EXISTS (SELECT 1 FROM matriculas m
-                                                 WHERE m.curso_id = c.id AND m.estudiante_id = $3::uuid AND m.activo)
-                  WHEN 'docente' THEN c.docente_id = $3::uuid
-                  WHEN 'admin_colegio' THEN true
-                  ELSE false
-                END AS ok
-         FROM cursos c WHERE c.id = $1 AND c.activo`,
-        [courseId, user.rol, user.id],
-      )).rows[0]?.ok === true);
+      return read({ tenantId }, user, async (client) =>
+        (await client.query('SELECT puede_ver_curso($1) AS ok', [courseId])).rows[0].ok === true);
     },
 
     /** Docente dueño del curso (lo usa el script de ingesta para actuar en su nombre). */

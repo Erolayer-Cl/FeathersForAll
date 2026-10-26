@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Button, Card, PageHead, Switch } from '../../components/ui/index.js';
-import { PERFIL_DEMO } from '../../data/mock.js';
+import { ROLES } from '../../config/roles.js';
 import { PREFERENCE_OPTIONS } from '../../preferences/preferences.js';
 import { usePreferences } from '../../preferences/usePreferences.js';
+import { useSession } from '../../session/useSession.js';
 import styles from './SettingsPage.module.css';
 
 /** Configuración (igual para los tres roles): perfil, notificaciones, apariencia y cuenta. */
 export function SettingsPage({ role }) {
-  const perfil = PERFIL_DEMO[role];
+  const { user, signOut } = useSession();
   const { prefs, setPref, openPanel } = usePreferences();
   const [notify, setNotify] = useState(true); // ejemplo local: cuando haya API, vendrá del perfil
 
@@ -20,11 +21,14 @@ export function SettingsPage({ role }) {
             <h2>Perfil</h2>
             <div className={styles.row}>
               <div>
-                <b>{perfil.nombre}</b>
-                <span className={styles.line}>{perfil.correo}</span>
-                <span>{perfil.detalle}</span>
+                <b>{user?.name}</b>
+                <span className={styles.line}>{user?.email}</span>
+                <span>
+                  {ROLES[role].label} · {user?.school.name} (RBD {user?.school.rbd})
+                </span>
               </div>
-              <Button size="sm">Editar perfil</Button>
+              {/* Aún no hay endpoints para editar el perfil ni cambiar la contraseña: se explica en vez de un botón muerto. */}
+              <span className={styles.line}>Para corregir tus datos, pídeselo a tu colegio.</span>
             </div>
           </Card>
 
@@ -76,13 +80,11 @@ export function SettingsPage({ role }) {
           <h2>Cuenta</h2>
           <div className={styles.account}>
             <b>Cambiar contraseña</b>
-            <span>Actualiza la contraseña de acceso.</span>
-            <Button variant="soft" block>
-              Cambiar contraseña
-            </Button>
+            <span>Por ahora la restablece tu colegio. Pronto podrás cambiarla desde aquí.</span>
           </div>
           <div className={styles.logout}>
-            <Button variant="warn" block href={`#/portal/login-${role}`}>
+            {/* Borra la sesión guardada; la guardia de rutas lleva al login. */}
+            <Button variant="warn" block onClick={() => signOut()}>
               Cerrar sesión
             </Button>
           </div>

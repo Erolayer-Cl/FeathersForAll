@@ -7,9 +7,10 @@ import { LlmUnavailableError } from './llm-client.js';
  * @param {string} opts.endpoint  URL base de Ollama, p. ej. http://localhost:11434
  * @param {string} opts.model     Modelo de embeddings, p. ej. bge-m3
  * @param {number} [opts.timeoutMs]
+ * @param {string} [opts.keepAlive]  como en llm-client.js: cuánto queda el modelo en memoria sin uso
  * @param {typeof fetch} [opts.fetchImpl]
  */
-export function createOllamaEmbedder({ endpoint, model, timeoutMs = 60000, fetchImpl = fetch }) {
+export function createOllamaEmbedder({ endpoint, model, timeoutMs = 60000, keepAlive, fetchImpl = fetch }) {
   const baseUrl = endpoint.replace(/\/+$/, '');
 
   return {
@@ -24,7 +25,7 @@ export function createOllamaEmbedder({ endpoint, model, timeoutMs = 60000, fetch
         res = await fetchImpl(`${baseUrl}/api/embed`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ model, input: texts }),
+          body: JSON.stringify({ model, input: texts, ...(keepAlive !== undefined && { keep_alive: keepAlive }) }),
           signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (err) {

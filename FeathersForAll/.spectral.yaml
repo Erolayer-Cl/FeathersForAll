@@ -1,4 +1,4 @@
-# Reglas de lint del contrato AulaViva. Uso (sin instalar nada):
+# Reglas de lint del contrato FeathersForAll. Uso (sin instalar nada):
 #   npx @stoplight/spectral-cli lint api/openapi.yaml
 extends: ["spectral:oas"]
 rules:
@@ -10,7 +10,7 @@ rules:
   info-contact: error
   info-license: error
 
-  aulaviva-paths-kebab-case:
+  feathersforall-paths-kebab-case:
     description: Los paths usan kebab-case (recursos, no verbos).
     severity: error
     given: $.paths[*]~
@@ -19,7 +19,7 @@ rules:
       functionOptions:
         match: "^(/([a-z0-9]+(-[a-z0-9]+)*|\\{[a-zA-Z]+\\}))+$"
 
-  aulaviva-no-verbs-in-path:
+  feathersforall-no-verbs-in-path:
     description: Los paths no contienen verbos (create, get, update, delete).
     severity: error
     given: $.paths[*]~
@@ -28,7 +28,7 @@ rules:
       functionOptions:
         notMatch: "/(create|get|update|delete|list)"
 
-  aulaviva-servers-versioned:
+  feathersforall-servers-versioned:
     description: Todos los servers terminan en /v1 (versionado explícito).
     severity: error
     given: $.servers[*].url
@@ -37,7 +37,7 @@ rules:
       functionOptions:
         match: "/v[0-9]+$"
 
-  aulaviva-errors-rfc7807:
+  feathersforall-errors-rfc7807:
     description: Las respuestas 4xx/5xx usan application/problem+json (RFC 7807).
     severity: error
     given: $.components.responses[*].content
@@ -48,7 +48,7 @@ rules:
           type: object
           required: ["application/problem+json"]
 
-  aulaviva-post-idempotency:
+  feathersforall-post-idempotency:
     description: Los POST declaran el header Idempotency-Key.
     severity: error
     given: $.paths[*].post
@@ -56,7 +56,7 @@ rules:
       field: parameters
       function: truthy
 
-  aulaviva-success-trace-id:
+  feathersforall-success-trace-id:
     description: Las respuestas 2xx exponen X-Trace-Id.
     severity: warn
     given: $.paths[*][*].responses[?(@property.match(/^2/))]
@@ -64,7 +64,7 @@ rules:
       field: headers.X-Trace-Id
       function: truthy
 
-  aulaviva-snake-case-properties:
+  feathersforall-snake-case-properties:
     description: Propiedades JSON en snake_case.
     severity: warn
     given: $..properties[*]~
@@ -72,3 +72,10 @@ rules:
       function: casing
       functionOptions:
         type: snake
+
+# El login no crea recursos: no lleva Idempotency-Key (ADR 0007).
+overrides:
+  - files:
+      - "api/openapi.yaml#/paths/~1auth~1login/post"
+    rules:
+      feathersforall-post-idempotency: "off"

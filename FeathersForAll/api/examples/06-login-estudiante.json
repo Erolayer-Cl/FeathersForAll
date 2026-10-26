@@ -1,0 +1,8 @@
+{
+  "name": "Identidad · Estudiante inicia sesión con RBD, correo y contraseña",
+  "method": "POST",
+  "path": "/auth/login",
+  "headers": {},
+  "body": { "rbd": "99901", "email": "camila@demo-a.cl", "password": "demo1234" },
+  "expect_status": 200
+}

@@ -16,8 +16,13 @@ const config = {
   llmTemperature: Number(process.env.LLM_TEMPERATURE ?? 0.6),
   // Ventana de contexto: con apuntes en el prompt, el valor por defecto de Ollama puede quedarse corto.
   llmNumCtx: process.env.LLM_NUM_CTX ? Number(process.env.LLM_NUM_CTX) : 4096,
+  // Modelo en memoria entre preguntas (auditoría 2026-10): con el valor de Ollama (5 min) la primera
+  // pregunta tras una pausa tarda ~19 s en CPU por la carga del modelo. Ocupa ~3,4 GB de RAM mientras tanto.
+  llmKeepAlive: process.env.LLM_KEEP_ALIVE ?? '30m',
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
+  // Duración del JWT del login: 8 h por defecto (una jornada escolar; no hay refresh token).
+  jwtTtlSeconds: Number(process.env.JWT_TTL_SECONDS ?? 8 * 3600),
 };
 const ragConfig = ragConfigFromEnv();
 
@@ -29,6 +34,7 @@ const llm = createOllamaClient({
   timeoutMs: config.llmTimeoutMs,
   temperature: config.llmTemperature,
   numCtx: config.llmNumCtx,
+  keepAlive: config.llmKeepAlive,
 });
 
 // Sin DATABASE_URL: chat + RAG en archivo JSON (como antes). Con DATABASE_URL: notas + RAG en pgvector.
@@ -45,6 +51,7 @@ const server = createApp({
   llm,
   db,
   jwtSecret: config.jwtSecret,
+  jwtTtlSeconds: config.jwtTtlSeconds,
   rag,
   tenantId: ragConfig.tenantId,
   defaultCourseId: ragConfig.defaultCourseId,

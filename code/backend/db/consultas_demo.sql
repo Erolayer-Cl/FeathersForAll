@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Consultas de notas para ejecutar desde VS Code (extensión "PostgreSQL" de
 -- Microsoft, SQLTools o Database Client) o con psql, sobre la base demo:
---     01 + 02 + 03 + 90_seed_demo.sql
+--     01 + 02 + 03 + 04 + 90_seed_demo.sql   (docker compose up -d ya la deja así)
 -- =============================================================================
 --
 -- IMPORTANTE — el RLS:
@@ -10,6 +10,9 @@
 --     datos de TODOS los colegios; para evitarlo, el bloque 0 hace SET ROLE.
 --   * Sin app.colegio_id no se ve ninguna fila (fail-closed): ejecuta primero
 --     el bloque 0, en la MISMA conexión que las consultas.
+--   * Desde 04, leer notas, matrículas e intentos también exige un ROL: el bloque 0
+--     actúa como Marta Soto (admin del Colegio Demo A), que ve todo su colegio.
+--     Para ver lo que ve una estudiante, usa el bloque 0b (Camila: solo lo suyo).
 --
 -- Selecciona un bloque y ejecútalo (en la extensión de Microsoft: Ctrl+Shift+E).
 
@@ -19,6 +22,12 @@
 -- ---------------------------------------------------------------------------
 SET ROLE feathersforall_app;          -- quita esta línea si ya te conectaste como feathersforall_app
 SET app.colegio_id = '11111111-1111-1111-1111-111111111111';
+SET app.usuario_id = 'a0000000-0000-0000-0000-000000000003';   -- Marta Soto
+SET app.rol        = 'admin_colegio';
+
+-- 0b. (Opcional) Ver como la estudiante Camila Díaz: solo sus notas y sus matrículas.
+-- SET app.usuario_id = 'e0000000-0000-0000-0000-000000000001';
+-- SET app.rol        = 'estudiante';
 
 
 -- ---------------------------------------------------------------------------

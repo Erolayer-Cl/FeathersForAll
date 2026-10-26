@@ -1,37 +1,24 @@
 // Pruebas de integración de las rutas de notas contra un PostgreSQL REAL.
-// Se saltan si no hay TEST_DATABASE_URL (un superusuario de una base de pruebas):
+// Se saltan si no hay TEST_DATABASE_URL (ver test/pg-fixture.js):
 //
-//   TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test
+//   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 //
-// Crean una base temporal, aplican 01 + 02 + 03 + 90_seed_demo.sql y conectan la
-// API como feathersforall_app (sin BYPASSRLS), igual que en producción.
+// Crean una base temporal con el esquema completo (01–04) + datos demo y conectan la API
+// con los permisos de feathersforall_app (sin BYPASSRLS), igual que en producción.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
-import pg from 'pg';
 import pino from 'pino';
 import { createApp } from '../src/app.js';
 import { createDb } from '../src/platform/db.js';
 import { signJwt } from '../src/platform/auth.js';
+import { createTestDatabase, DEMO, SKIP } from './pg-fixture.js';
 
-const ADMIN_URL = process.env.TEST_DATABASE_URL;
 const SECRET = 'secreto-de-pruebas-con-mas-de-32-caracteres';
 const logger = pino({ level: 'silent' });
 
-const A = '11111111-1111-1111-1111-111111111111';
-const B = '22222222-2222-2222-2222-222222222222';
-const ANA = 'a0000000-0000-0000-0000-000000000001';      // docente Matemáticas (A)
-const LUIS = 'a0000000-0000-0000-0000-000000000002';     // docente Historia (A)
-const MARTA = 'a0000000-0000-0000-0000-000000000003';    // admin colegio A
-const CAMILA = 'e0000000-0000-0000-0000-000000000001';
-const BENJA = 'e0000000-0000-0000-0000-000000000002';
-const SOFIA = 'e0000000-0000-0000-0000-000000000003';
-const TOMAS = 'e0000000-0000-0000-0000-000000000004';
-const PEDRO = 'b0000000-0000-0000-0000-000000000001';    // docente colegio B
-const MATE = 'c0000000-0000-0000-0000-000000000001';
-const FRACCIONES = 'd0000000-0000-0000-0000-000000000001';
-const DECIMALES = 'd0000000-0000-0000-0000-000000000002';
+const { colegioA: A, colegioB: B, ana: ANA, luis: LUIS, marta: MARTA, camila: CAMILA, benja: BENJA,
+  sofia: SOFIA, tomas: TOMAS, pedro: PEDRO, mate: MATE, historia: HISTORIA,
+  fracciones: FRACCIONES, decimales: DECIMALES } = DEMO;
 
 const token = (sub, tenant_id, role) => signJwt({ sub, tenant_id, role }, SECRET);
 const T = {
@@ -43,9 +30,8 @@ const T = {
   pedro: token(PEDRO, B, 'docente'),
 };
 
-describe('notas (PostgreSQL)', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, () => {
-  const dbName = `ffa_test_${randomBytes(4).toString('hex')}`;
-  let admin;
+describe('notas (PostgreSQL)', { skip: SKIP }, () => {
+  let testDb;
   let db;
   let server;
   let url;
@@ -59,32 +45,8 @@ describe('notas (PostgreSQL)', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, 
   };
 
   before(async () => {
-    admin = new pg.Client({ connectionString: ADMIN_URL });
-    await admin.connect();
-    await admin.query(`CREATE DATABASE ${dbName}`);
-    // El rol es del servidor (no de la base): puede existir de otra prueba sin LOGIN.
-    await admin.query(`DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'feathersforall_app') THEN
-          CREATE ROLE feathersforall_app;
-        END IF;
-      END $$`);
-    await admin.query(`ALTER ROLE feathersforall_app LOGIN NOBYPASSRLS PASSWORD 'test'`);
-
-    const testUrl = new URL(ADMIN_URL);
-    testUrl.pathname = `/${dbName}`;
-    const setup = new pg.Client({ connectionString: testUrl.href });
-    await setup.connect();
-    for (const f of ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '90_seed_demo.sql']) {
-      await setup.query(await readFile(new URL(`../db/${f}`, import.meta.url), 'utf8'));
-    }
-    await setup.query(`GRANT USAGE ON SCHEMA public TO feathersforall_app;
-                       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO feathersforall_app`);
-    await setup.end();
-
-    const appUrl = new URL(testUrl);
-    appUrl.username = 'feathersforall_app';
-    appUrl.password = 'test';
-    db = createDb({ connectionString: appUrl.href, max: 4 });
+    testDb = await createTestDatabase('ffa_notas');
+    db = createDb({ connectionString: testDb.appUrl, max: 4 });
     const llm = { async *chat() {}, ping: async () => true };
     server = createApp({ logger, llm, db, jwtSecret: SECRET }).listen(0);
     await new Promise((r) => server.once('listening', r));
@@ -94,8 +56,7 @@ describe('notas (PostgreSQL)', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, 
   after(async () => {
     server?.close();
     await db?.end();
-    await admin?.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
-    await admin?.end();
+    await testDb?.drop();
   });
 
   describe('autenticación', () => {
@@ -136,6 +97,20 @@ describe('notas (PostgreSQL)', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, 
       const body = await getJson(`/v1/me/grades?course_id=${MATE}`, T.camila);
       assert.equal(body.courses.length, 1);
       await getJson('/v1/me/grades?course_id=abc', T.camila, 400);
+    });
+
+    test('lista TODOS los ramos del estudiante, también los que aún no tienen notas', async () => {
+      const body = await getJson('/v1/me/grades', T.tomas);
+      const historia = body.courses.find((c) => c.course_id === HISTORIA);
+      // Tomás no rindió Historia: el ramo aparece igual, sin promedio.
+      assert.deepEqual(
+        { subject: historia.subject, teacher: historia.teacher_name, average: historia.average, grades: historia.grades },
+        { subject: 'Historia', teacher: 'Luis Pérez', average: null, grades: [] },
+      );
+      const mate = body.courses.find((c) => c.course_id === MATE);
+      assert.equal(mate.subject, 'Matemática');
+      assert.equal(mate.period, '2026-S2');
+      assert.equal(mate.tutor_available, false); // el seed no trae apuntes
     });
 
     test('un intento en curso no tiene nota', async () => {
@@ -227,6 +202,15 @@ describe('notas (PostgreSQL)', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, 
       method: 'PATCH',
       headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
       body: JSON.stringify(body),
+    });
+
+    test('solo ver: un estudiante no puede cambiar la exigencia ni la ponderación (403)', async () => {
+      assert.equal((await patch(T.camila, { pass_threshold: 10 })).status, 403);
+      assert.equal((await patch(T.camila, { weight: 5 })).status, 403);
+      // Y la nota no cambió.
+      const body = await getJson(`/v1/me/grades/${FRACCIONES}`, T.camila);
+      assert.equal(body.grade, 7.0);
+      assert.equal(body.pass_threshold, 60);
     });
 
     test('valida el cuerpo y el permiso', async () => {

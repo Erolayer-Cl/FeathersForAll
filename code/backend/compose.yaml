@@ -1,0 +1,41 @@
+# Base de datos local de desarrollo: PostgreSQL 16 + pgvector con el esquema y los datos demo.
+#
+#   docker compose up -d      # la primera vez crea el esquema (01–04), el usuario de la API y los datos demo
+#   docker compose ps         # "healthy" = lista para usar
+#   docker compose down -v    # borra la base (el volumen) para partir de cero
+#
+# Las claves son SOLO de desarrollo y la base escucha únicamente en 127.0.0.1.
+# Deben coincidir con DATABASE_URL (feathersforall_app) y TEST_DATABASE_URL (postgres) de .env.
+name: feathersforall
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg16
+    # Vuelve a levantarse sola al reiniciar el equipo o Docker (salvo que la detengas con "docker compose stop").
+    restart: unless-stopped
+    # Docker da 64 MB de /dev/shm por defecto: PostgreSQL lo usa para las tareas en paralelo (por ejemplo,
+    # construir el índice HNSW de los apuntes) y con 64 MB falla con "could not resize shared memory segment".
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: feathersforall
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Clave del usuario de la API (feathersforall_app); la usa db/docker-init.sh.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-cambiar}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Esquema y datos demo (solo lectura) + script que los aplica en el primer arranque.
+      - ./db:/schema:ro
+      - ./db/docker-init.sh:/docker-entrypoint-initdb.d/10-feathersforall.sh:ro
+    healthcheck:
+      # Por TCP: durante la inicialización el servidor solo escucha por socket local,
+      # así que "healthy" significa que el esquema y los datos demo ya están cargados.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d feathersforall"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

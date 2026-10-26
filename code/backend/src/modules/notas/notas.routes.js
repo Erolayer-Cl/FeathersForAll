@@ -1,30 +1,13 @@
 import { Router } from 'express';
 import { HttpProblem } from '../../platform/problem.js';
+import { invalid, uuidParam } from '../../platform/validation.js';
+import { cursoVisible, esStaffDelCurso } from '../cursos/acceso-curso.js';
 import * as Q from '../../../db/queries.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOTA_APROBACION = 4.0;
 
 const notFound = (what) => new HttpProblem(404, 'No encontrado', `${what} no existe o no es visible`, 'not-found');
 const forbidden = () => new HttpProblem(403, 'Sin permiso', 'Tu rol no puede ver estas notas', 'forbidden');
-const invalid = (detail) => new HttpProblem(400, 'Solicitud inválida', detail, 'validation-error');
-
-/** UUID válido o 400 (si no, Postgres lanzaría 22P02 y saldría un 500). */
-function uuidParam(value, name, { optional = false } = {}) {
-  if (value === undefined && optional) return null;
-  if (typeof value !== 'string' || !UUID.test(value)) throw invalid(`"${name}" debe ser un UUID`);
-  return value;
-}
-
-/** El docente dueño del curso o el admin del colegio (el RLS ya limita al colegio). */
-const esStaffDelCurso = (user, curso) =>
-  user.rol === 'admin_colegio' || (user.rol === 'docente' && curso.docente_id === user.id);
-
-async function cursoVisible(client, user, courseId) {
-  const curso = (await client.query(Q.CURSO_ACCESO, [courseId, user.id])).rows[0];
-  if (!curso) throw notFound('El curso');
-  return curso;
-}
 
 async function evaluacionVisible(client, assessmentId) {
   const ev = (await client.query(Q.EVALUACION_ACCESO, [assessmentId])).rows[0];
@@ -50,21 +33,33 @@ export function createNotasRouter({ db }) {
   const router = Router();
   const read = (user, fn) => db.withUser(user, fn, { readOnly: true });
 
-  // Mis notas, agrupadas por curso, con el promedio ponderado de cada curso.
+  // Mis ramos y mis notas (solo lectura): TODAS las asignaturas con matrícula activa, tengan o no
+  // notas todavía, con el promedio ponderado de cada una y si el tutor tiene apuntes del curso.
   router.get('/v1/me/grades', async (req, res) => {
     if (req.user.rol !== 'estudiante') throw forbidden();
     const courseId = uuidParam(req.query.course_id, 'course_id', { optional: true });
 
-    const rows = await read(req.user, async (c) => (await c.query(Q.NOTAS_ESTUDIANTE, [req.user.id, courseId])).rows);
+    const { ramos, notas } = await read(req.user, async (c) => ({
+      ramos: (await c.query(Q.RAMOS_ESTUDIANTE, [req.user.id, courseId])).rows,
+      notas: (await c.query(Q.NOTAS_ESTUDIANTE, [req.user.id, courseId])).rows,
+    }));
 
-    const courses = new Map();
-    for (const r of rows) {
-      if (!courses.has(r.curso_id)) {
-        courses.set(r.curso_id, { course_id: r.curso_id, course: r.curso, average: r.promedio_curso, grades: [] });
-      }
-      courses.get(r.curso_id).grades.push(gradeRow(r));
-    }
-    res.json({ student_id: req.user.id, courses: [...courses.values()] });
+    const notasPorCurso = Map.groupBy(notas, (n) => n.curso_id);
+    const courses = ramos.map((r) => {
+      const delRamo = notasPorCurso.get(r.curso_id) ?? [];
+      return {
+        course_id: r.curso_id,
+        course: r.curso,
+        subject: r.asignatura,
+        period: r.periodo,
+        teacher_name: r.docente,
+        tutor_available: r.tutor_disponible,
+        // Ponderado por la ponderación de cada evaluación; null si aún no hay notas.
+        average: delRamo[0]?.promedio_curso ?? null,
+        grades: delRamo.map(gradeRow),
+      };
+    });
+    res.json({ student_id: req.user.id, courses });
   });
 
   // Detalle de una evaluación ya entregada: qué respondí, si estaba bien y la retroalimentación.

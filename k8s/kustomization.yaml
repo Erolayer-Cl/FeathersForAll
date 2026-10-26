@@ -1,8 +1,8 @@
 # FeathersForAll en Kubernetes (S07). Aplicar con:   kubectl apply -k k8s/
 #
 # Reparto de responsabilidades (ADR 0006):
-#   - Terraform (terraform/): namespace, cuotas y Secret ffa-api-secrets  → la "plataforma"
-#   - Kustomize (este directorio): Deployments, Services, Ingress, ConfigMap, HPA, PDB → la "aplicación"
+#   - Terraform (terraform/): namespace, cuotas y Secrets ffa-api-secrets / ffa-jobs-secrets  → la "plataforma"
+#   - Kustomize (este directorio): Deployments, Services, Ingress, ConfigMap, HPA, PDB, CronJob → la "aplicación"
 # Por eso aquí NO hay Namespace ni Secret: se crean primero con `terraform apply`.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -21,6 +21,7 @@ resources:
   - ingress.yaml
   - hpa.yaml
   - pdb.yaml
+  - cronjob-purga.yaml        # retención de conversaciones del tutor (ADR 0008)
 
 # Imágenes por DIGEST, nunca :latest. Los digest los entrega `docker push` (ver k8s/README.md, paso 3).
 images:

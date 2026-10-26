@@ -23,5 +23,14 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Gate de CI (S08, ADR 0009): ≥ 70 % de líneas en la lógica (src/**/*.js). Los componentes .jsx y los
+    // hooks/contextos de React (use*.js, *Context.js) todavía no tienen pruebas; entran al gate en S09
+    // junto con Testing Library.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.js'],
+      exclude: ['src/**/*.test.js', 'src/**/use*.js', 'src/**/*Context.js'],
+      thresholds: { lines: 70 },
+    },
   },
 });

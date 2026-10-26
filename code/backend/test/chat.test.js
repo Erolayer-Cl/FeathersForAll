@@ -89,6 +89,61 @@ describe('POST /v1/dev/chat', () => {
     assert.equal(res.status, 400);
     assert.equal((await res.json()).type, 'https://api.feathersforall.example/errors/invalid-json');
   });
+
+  test('un charset no soportado es error del cliente (415), no un 500', async () => {
+    const res = await fetch(`${ctx.url}/v1/dev/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=latin1' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hola' }] }),
+    });
+    assert.equal(res.status, 415);
+    assert.match(res.headers.get('content-type'), /application\/problem\+json/);
+    assert.equal((await res.json()).status, 415);
+  });
+});
+
+describe('el cliente cancela antes del primer fragmento', () => {
+  test('no se registra como error del servidor', async () => {
+    const logs = [];
+    const capture = pino({ level: 'info' }, { write: (line) => logs.push(JSON.parse(line)) });
+    let started;
+    let finished;
+    const llmStarted = new Promise((resolve) => { started = resolve; });
+    const llmFinished = new Promise((resolve) => { finished = resolve; });
+    // LLM lento: no entrega nada hasta que se aborta la señal (como Ollama cargando el modelo).
+    const llm = {
+      // eslint-disable-next-line require-yield -- a propósito: nunca entrega un token
+      async *chat(_messages, { signal }) {
+        try {
+          started();
+          await new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+        } finally {
+          finished();
+        }
+      },
+      async ping() { return true; },
+    };
+    const server = createApp({ logger: capture, llm }).listen(0);
+    await new Promise((resolve) => server.once('listening', resolve));
+    try {
+      const client = new AbortController();
+      const request = fetch(`http://127.0.0.1:${server.address().port}/v1/dev/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: [{ role: 'user', content: 'explícame las fracciones' }] }),
+        signal: client.signal,
+      }).catch(() => {});
+      await llmStarted;
+      client.abort();
+      await request;
+      await llmFinished;
+      // Express entrega el error al router padre con setImmediate: se dan varias vueltas al event loop.
+      for (let i = 0; i < 10; i++) await new Promise((resolve) => setImmediate(resolve));
+      assert.deepEqual(logs.filter((l) => l.level >= 50).map((l) => l.msg), []);
+    } finally {
+      server.close();
+    }
+  });
 });
 
 describe('cuando el LLM no está disponible', () => {
@@ -155,6 +210,37 @@ describe('createOllamaClient', () => {
       stream: true,
       options: { temperature: 0.6 },
     });
+  });
+
+  test('con keepAlive lo envía como keep_alive (modelo en memoria entre preguntas)', async () => {
+    let body;
+    const client = createOllamaClient({
+      endpoint: 'http://ollama.test',
+      model: 'm',
+      timeoutMs: 1000,
+      keepAlive: '30m',
+      fetchImpl: async (_url, init) => {
+        body = JSON.parse(init.body);
+        return ndjsonFetch(['{"message":{"content":"ok"},"done":true}\n'])();
+      },
+    });
+    for await (const _ of client.chat([{ role: 'user', content: 'x' }]));
+    assert.equal(body.keep_alive, '30m');
+  });
+
+  test('onStats recibe las métricas de Ollama en milisegundos (solo números)', async () => {
+    const client = createOllamaClient({
+      endpoint: 'http://ollama.test',
+      model: 'm',
+      timeoutMs: 1000,
+      fetchImpl: ndjsonFetch([
+        '{"message":{"content":"Hola"},"done":false}\n',
+        '{"message":{"content":""},"done":true,"load_duration":19000000000,"prompt_eval_count":594,"prompt_eval_duration":6830460000,"eval_count":24,"eval_duration":1780840000}\n',
+      ]),
+    });
+    let stats;
+    for await (const _ of client.chat([{ role: 'user', content: 'x' }], { onStats: (s) => { stats = s; } }));
+    assert.deepEqual(stats, { load_ms: 19000, prompt_tokens: 594, prompt_ms: 6830, eval_tokens: 24, eval_ms: 1781 });
   });
 
   test('convierte un error HTTP del proveedor en LlmUnavailableError', async () => {

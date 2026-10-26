@@ -2,15 +2,17 @@
 
 Revisión del esquema base de FeathersForAll. El objetivo principal: que la **base de datos** garantice el aislamiento entre colegios y la integridad de las evaluaciones, en vez de depender de que la API nunca se equivoque.
 
-Las reglas se verifican con `test_integridad.sql` (casos que deben fallar, revisión visual) y `98_test_s06_ajustes.sql` (23 pruebas automáticas), sobre PostgreSQL 16 + pgvector:
+Las reglas se verifican con `test_integridad.sql` (casos que deben fallar, revisión visual) y `98_test_s06_ajustes.sql` (52 pruebas automáticas), sobre PostgreSQL 16 + pgvector:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 03_notas.sql -f 98_test_s06_ajustes.sql
+psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 03_notas.sql -f 04_privacidad_login.sql -f 98_test_s06_ajustes.sql
 ```
 
 > Ajustes posteriores de S06 (tutor asíncrono, periodo del curso, retroalimentación por pregunta, outbox, idempotencia y búsqueda del colegio para el login): ver `02_s06_ajustes.sql` y sus pruebas en `98_test_s06_ajustes.sql`.
 >
 > Notas en escala 1.0–7.0 (exigencia, ponderación, vista `notas`): ver `03_notas.sql` y la sección **Notas** al final de este archivo.
+>
+> Privacidad de lectura por usuario y login (etapa 1): ver `04_privacidad_login.sql`, `permisos_app.sql` y la sección **Privacidad y login** al final (ADR 0007).
 
 ---
 
@@ -106,3 +108,22 @@ psql -v ON_ERROR_STOP=1 -f 01_schema.sql -f 02_s06_ajustes.sql -f 03_notas.sql -
 | `ACIERTO_POR_PREGUNTA` | Contaba respuestas de intentos sin enviar, distorsionando la tasa de acierto. | Solo intentos enviados. |
 
 Además, `test_integridad.sql` estaba desactualizado (usaba `app.tenant_id`, la vista `v_puntajes` que no existe, y esperaba que `DELETE FROM colegios` funcionara aunque es `RESTRICT`): se reescribió con las reglas actuales.
+
+---
+
+## Privacidad y login (`04_privacidad_login.sql` + `permisos_app.sql`, etapa 1 · ADR 0007)
+
+Hasta `03`, el RLS limitaba **qué colegio** se ve y **quién escribe**, pero dentro de un colegio cualquier sesión podía **leer** las notas, respuestas y consultas al tutor de todos los estudiantes, e incluso `password_hash`.
+
+| # | Cambio | Por qué |
+|---|--------|---------|
+| 32 | Función `puede_ver_curso(curso)`: admin del colegio, docente del curso o estudiante con matrícula activa | Una sola regla de lectura para la API de cursos (`GET /v1/courses`) y para el tutor IA. |
+| 33 | Función `puede_ver_estudiante(curso, estudiante)` | El estudiante solo ve lo suyo, el docente solo sus cursos, el admin su colegio y el worker (`servicio`) lo que necesita. Sin `app.rol` no se ve nada (fail-closed). |
+| 34 | Políticas `RESTRICTIVE FOR SELECT` en `matriculas`, `intentos_evaluacion` (y por lo tanto la vista `notas`), `respuestas_estudiante`, `consultas_tutor_ia`, `consultas_fuentes` y `usuarios` | Privacidad por usuario en la base, no solo en la API: si un endpoint se equivoca, la base igual oculta los datos de otros estudiantes. |
+| 35 | Función `credenciales_login(email)` (`SECURITY DEFINER`, filtra por `app_colegio_id()`) | Es la única forma de leer `password_hash`. Paso 2 del login, después de `colegio_por_rbd()`. |
+| 36 | `permisos_app.sql`: GRANT del rol de la API en un solo archivo; `SELECT` de `usuarios` por columna (sin `password_hash`); `EXECUTE` de `colegio_por_rbd` y `credenciales_login` | Antes el `EXECUTE` de `colegio_por_rbd` solo estaba en un comentario, así que el login fallaba con "permission denied". |
+| 37 | `90_seed_demo.sql`: hashes scrypt reales de la contraseña demo `demo1234` | Antes el marcador `!sso` no validaba ninguna contraseña. |
+
+**Para el backend:** las lecturas de datos de estudiantes requieren `app.rol` y `app.usuario_id` (`db.withUser`). `db.withColegio` (sin rol) ya no ve matrículas, intentos ni notas. Se verificó con `98_test_s06_ajustes.sql` (52/52) y con las pruebas de integración del backend.
+
+**Pendiente para producción:** el dueño de `colegio_por_rbd` y `credenciales_login` debe ser `feathersforall_plataforma` (BYPASSRLS, sin superusuario); en local es el superusuario que ejecuta los scripts.

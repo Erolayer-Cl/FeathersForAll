@@ -1,4 +1,4 @@
-// Genera un JWT de DESARROLLO firmado con JWT_SECRET (en producción lo emite el SSO).
+// Genera un JWT de DESARROLLO firmado con JWT_SECRET, sin pasar por el login (el real es POST /v1/auth/login, ADR 0007).
 //
 //   npm run dev:token -- docente      -> Ana Rojas, docente de Matemáticas (datos de 90_seed_demo.sql)
 //   npm run dev:token -- estudiante   -> Camila Díaz

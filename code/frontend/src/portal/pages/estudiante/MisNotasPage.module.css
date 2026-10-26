@@ -1,0 +1,36 @@
+/* Estudiante · Mis notas (prototipo: cabecera con selector, KPIs y tabla con encabezado azul). */
+.hello { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.hello h1 { font-size: 28px; }
+.sub { margin-top: 2px; color: var(--fp-muted); font-size: 14px; }
+.title { font-size: 22px; }
+
+/* Chevron con dos gradientes, como el .select del prototipo. */
+.select {
+  appearance: none; padding: 11px 40px 11px 20px; border: 1px solid transparent; border-radius: var(--fp-radius-pill);
+  background-color: var(--fp-field);
+  background-image: linear-gradient(45deg, transparent 50%, var(--fp-muted) 50%), linear-gradient(135deg, var(--fp-muted) 50%, transparent 50%);
+  background-position: calc(100% - 22px) 55%, calc(100% - 17px) 55%;
+  background-size: 5px 5px; background-repeat: no-repeat;
+  font-size: 13.5px; cursor: pointer;
+}
+.select:focus { border-color: var(--fp-accent); }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 18px; }
+
+/* La tabla se desplaza dentro de su contenedor en pantallas angostas (la página no). */
+.scroll { overflow-x: auto; border-radius: var(--fp-radius-md); box-shadow: var(--fp-shadow-sm); }
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.table th, .table td { padding: 14px 16px; border-bottom: 1px solid var(--fp-line); background: var(--fp-surface); text-align: center; white-space: nowrap; }
+.table thead th { background: var(--fp-accent-soft); color: var(--fp-brand-text); font-weight: 600; }
+.table tbody tr:nth-child(even) > * { background: var(--fp-bg); }
+.table th:first-child { text-align: left; }
+/* La asignatura queda fija al desplazar la tabla en celular. */
+.table tr > :first-child { position: sticky; left: 0; z-index: 1; max-width: 46vw; white-space: normal; }
+.table tbody th { font-weight: 600; }
+.table tbody th small { display: block; color: var(--fp-muted); font-size: 12px; font-weight: 400; }
+.average { font-weight: 700; }
+.success { color: var(--fp-success-ink); }
+.danger { color: var(--fp-danger-ink); }
+.neutral { color: var(--fp-muted); }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

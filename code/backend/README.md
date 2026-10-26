@@ -6,6 +6,8 @@ Monolito modular Node.js + Express (ADR 0002). Módulos:
 
 - `tutor`: tutor de IA con LLM local (Ollama) y **RAG**: responde con los apuntes que subió el docente, conversa si el estudiante solo saluda, y si la respuesta no está en los apuntes dice "No encuentro eso" en vez de inventar.
 - `notas`: notas en escala chilena 1.0–7.0 sobre PostgreSQL (opcional: sin `DATABASE_URL` el servidor arranca solo con el chat).
+- `identidad`: login propio por RBD + correo + contraseña (scrypt, JWT HS256) y perfil (`/v1/me`). Ver [ADR 0007](../../FeathersForAll/Documentos/adr/0007-autenticacion-y-privacidad.md).
+- `cursos`: cursos visibles por rol (las asignaturas del estudiante, las clases del docente).
 
 ## Requisitos
 
@@ -31,12 +33,48 @@ npm run dev                  # http://localhost:3000
 npm test                     # no necesita Ollama (LLM simulado) ni PostgreSQL
 ```
 
-### Base de datos local
+### Base de datos local con Docker (recomendado)
+
+```bash
+docker compose up -d        # PostgreSQL 16 + pgvector con esquema 01–05, usuario de la API y datos demo
+docker compose ps           # "healthy" = lista
+docker compose down -v      # borrar todo y empezar de cero
+```
+
+Las claves del compose (`postgres`/`postgres` y `feathersforall_app`/`cambiar`) son solo de desarrollo y ya coinciden con `.env.example`. Falta completar `JWT_SECRET` en `.env`.
+
+El contenedor se levanta solo al encender el equipo (`restart: unless-stopped`) y los datos viven en el volumen `feathersforall_pgdata`, así que después del primer `up` basta con `npm run dev`.
+
+**Si `docker compose up` falla con "address already in use" en el 5432:** otro PostgreSQL ocupa el puerto (por ejemplo, uno instalado en el sistema). Revisa con `ss -ltnp | grep 5432` y elige una opción:
+
+- detener el otro (`sudo systemctl disable --now postgresql`) y luego `docker compose up -d --force-recreate` (el `--force-recreate` hace falta si el contenedor ya intentó arrancar: si no, puede quedar sin el puerto publicado);
+- o usar otro puerto: `DB_PORT=5433 docker compose up -d` y cambiar `5432` por `5433` en las URLs de `.env`.
+
+Comprueba con `docker port feathersforall-db-1`: debe mostrar `5432/tcp -> 127.0.0.1:5432`.
+
+### Credenciales demo (datos sintéticos)
+
+Contraseña de todos: **`demo1234`**. Login: `POST /v1/auth/login` con `{ "rbd", "email", "password" }`.
+
+| Colegio | RBD | Correo | Rol |
+|---|---|---|---|
+| Colegio Demo A | `99901` | camila@demo-a.cl · benjamin@demo-a.cl · sofia@demo-a.cl · tomas@demo-a.cl | estudiante |
+| Colegio Demo A | `99901` | ana.rojas@demo-a.cl (Matemáticas) · luis.perez@demo-a.cl (Historia) | docente |
+| Colegio Demo A | `99901` | marta.soto@demo-a.cl | admin_colegio |
+| Colegio Demo B | `99902` | javiera@demo-b.cl | estudiante |
+| Colegio Demo B | `99902` | pedro.lagos@demo-b.cl | docente |
+
+```bash
+curl -s localhost:3000/v1/auth/login -H 'content-type: application/json' \
+     -d '{"rbd":"99901","email":"camila@demo-a.cl","password":"demo1234"}'
+```
+
+### Base de datos local sin Docker
 
 ```bash
 createdb feathersforall
 cd db
-# Esquema (01 + 02 + 03) + usuario de la API feathersforall_app + datos demo, en un paso:
+# Esquema (01 a 05) + usuario de la API feathersforall_app y sus permisos + datos demo, en un paso:
 psql -d feathersforall -v app_password='cambiar' -v demo=1 -f crear_bdd.sql
 ```
 
@@ -52,6 +90,14 @@ curl -H "Authorization: Bearer $TOKEN" \
      localhost:3000/v1/courses/c0000000-0000-0000-0000-000000000001/grades/summary
 ```
 
+### Probar en Postman
+
+Importa `requests/postman/FeathersForAll.postman_collection.json` y el environment `FeathersForAll.local.postman_environment.json`, elige el environment y ejecuta la carpeta **1 · Login** (guarda los tokens). Después corre cualquier carpeta o todo con el Runner: cada request tiene tests y la matriz de permisos queda en verde ([permisos.md](../../FeathersForAll/Documentos/api/permisos.md)). Desde la terminal:
+
+```bash
+npm run test:postman        # Newman; la carpeta 6 (tutor) necesita ollama serve y apuntes cargados
+```
+
 ### Probar desde VS Code
 
 El repo recomienda dos extensiones (`.vscode/extensions.json`; VS Code ofrece instalarlas al abrir la carpeta):
@@ -62,7 +108,7 @@ El repo recomienda dos extensiones (`.vscode/extensions.json`; VS Code ofrece in
 Pruebas de integración contra PostgreSQL real (crean y borran una base temporal):
 
 ```bash
-TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 ```
 
 ## Tutor con RAG
@@ -95,6 +141,8 @@ TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test
 
 ```bash
 npm run ingest -- samples/fracciones.md            # al curso DEFAULT_COURSE_ID (con BD: actúa como su docente)
+# Colegio B (otro tenant): su propio curso y apuntes distintos
+DEFAULT_TENANT_ID=22222222-2222-2222-2222-222222222222 npm run ingest -- c0000000-0000-0000-0000-0000000000b1 samples/geometria.md
 npm run rag:search -- "¿qué indica el numerador?"   # puntajes: USA / DESCARTA
 npm run dev
 ```
@@ -116,9 +164,17 @@ Para subir apuntes por API con PostgreSQL: `POST /v1/dev/courses/{courseId}/docu
 | Método | Ruta | Quién | Qué hace |
 |---|---|---|---|
 | GET | `/health` | — | `{ status, llm: "up" \| "down", db: "up" \| "down" \| "disabled", rag: "postgres" \| "archivo" \| "disabled" }` |
+| GET | `/v1/courses/{id}/tutor-conversations?limit=` | estudiante | Mis conversaciones guardadas con el tutor en ese curso, la más reciente primero (ADR 0008). Docente y admin: 403. |
+| POST | `/v1/courses/{id}/tutor-conversations/{convId}/messages` | estudiante | `{ content, mode? }` → streaming `text/plain` con las mismas cabeceras que el chat. El id lo genera el cliente: el primer mensaje crea la conversación. El servidor usa el historial guardado y guarda pregunta + respuesta cuando la respuesta termina. |
+| GET | `/v1/tutor-conversations/{convId}` | estudiante (dueño) | La conversación con sus mensajes. 404 para cualquier otro usuario. |
+| DELETE | `/v1/tutor-conversations/{convId}` | estudiante (dueño) | Borra la conversación. Retención: `npm run tutor:purgar` borra las de años anteriores (job anual o diario). |
 | POST | `/v1/dev/chat` | token opcional en desarrollo (obligatorio en producción) | `{ mode?: "tutor" \| "pruebas", course_id?: uuid, messages: [{ role, content }] }` → streaming `text/plain`. Cabeceras `X-Tutor-Turn`, `X-Rag-Grounded`, `X-Rag-Sources`. Con token, 404 si el usuario no participa en el curso. Fuera del contrato OpenAPI. |
 | POST / GET / DELETE | `/v1/dev/courses/{courseId}/documents[/{docId}]` | docente del curso, admin (GET: también estudiantes del curso) | Subir (201), listar o borrar (204) apuntes. No existe con `NODE_ENV=production`. |
-| GET | `/v1/me/grades?course_id=` | estudiante | Mis notas agrupadas por curso, con el promedio ponderado de cada curso. |
+| POST | `/v1/auth/login` | pública | `{ rbd, email, password }` → `{ access_token, token_type, expires_in, user }`. Cualquier fallo: el mismo 401; 5 fallos seguidos de una cuenta: 429 con `Retry-After`. |
+| GET | `/v1/me` | cualquier rol | Mi perfil y mi colegio. |
+| GET | `/v1/courses?period=&limit=&cursor=` | cualquier rol | Cursos visibles: el estudiante ve sus asignaturas, el docente sus clases, el admin todo el colegio. Incluye `teacher_name`, `tutor_available` y `tutor_documents`. Paginación por cursor. |
+| GET | `/v1/courses/{courseId}` | quien participa | Un curso; 404 si no participas o es de otro colegio. |
+| GET | `/v1/me/grades?course_id=` | estudiante | **Todas** mis asignaturas (también sin notas), con promedio ponderado, docente y `tutor_available`. Solo lectura. |
 | GET | `/v1/me/grades/{assessmentId}` | estudiante | Detalle de una evaluación entregada: respuesta elegida, si fue correcta y la retroalimentación. |
 | GET | `/v1/courses/{courseId}/gradebook` | docente del curso, admin | Libro de notas: evaluaciones × estudiantes, promedio por estudiante y del curso. |
 | GET | `/v1/courses/{courseId}/grades/summary?threshold=4.0` | docente del curso, admin | Por evaluación: entregas, pendientes, promedio, mínima, máxima, aprobados y reprobados. Además, los estudiantes con promedio bajo el umbral (`at_risk`). |
@@ -126,7 +182,7 @@ Para subir apuntes por API con PostgreSQL: `POST /v1/dev/courses/{courseId}/docu
 | GET | `/v1/assessments/{assessmentId}/results?student_id=` | docente del curso, admin | Dashboard H3 (contrato S05): entregas, puntaje y nota promedio, tasa de acierto por pregunta y detalle por estudiante. |
 | PATCH | `/v1/assessments/{assessmentId}/grading` | docente del curso, admin | `{ pass_threshold?: 1–99, weight?: > 0 }`: cambia la exigencia (% para el 4.0) o la ponderación. Las notas se recalculan solas. |
 
-Las rutas de notas exigen `Authorization: Bearer <JWT>` HS256 con `sub`, `tenant_id` y `role` (contrato S05). Cada request corre en una transacción con `app.colegio_id` = `tenant_id`, así que el RLS impide ver datos de otro colegio (un curso ajeno responde 404).
+Todas las rutas con datos exigen `Authorization: Bearer <JWT>` HS256 con `sub`, `tenant_id` y `role` (contrato S05; lo entrega `POST /v1/auth/login`, y para pruebas `npm run dev:token`). Matriz completa: [permisos.md](../../FeathersForAll/Documentos/api/permisos.md). Cada request corre en una transacción con `app.colegio_id` = `tenant_id`, así que el RLS impide ver datos de otro colegio (un curso ajeno responde 404).
 
 **Cómo se calcula la nota:** el puntaje (0–100 % de logro) se convierte con la exigencia de la evaluación (60 % por defecto): bajo la exigencia va de 1.0 a 4.0 y sobre ella de 4.0 a 7.0, redondeado a un decimal. Los promedios se ponderan por `weight` y solo consideran evaluaciones entregadas.
 
@@ -136,7 +192,10 @@ Los errores usan RFC 7807 (`application/problem+json`, con `trace_id`). Si Ollam
 
 ```text
 db/
-  01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql   # esquema (aplicar en orden)
+  01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql, 04_privacidad_login.sql,
+  05_conversaciones_tutor.sql                                                  # esquema (aplicar en orden)
+  permisos_app.sql          # GRANT del rol de la API (sin lectura de password_hash)
+  docker-init.sh            # lo usa compose.yaml en el primer arranque
   crear_bdd.sql             # crea todo en un paso: esquema + usuario de la API (+ demo)
   90_seed_demo.sql          # datos demo (2 colegios, cursos, notas)
   queries.js                # todas las consultas SQL
@@ -150,6 +209,8 @@ src/
     llm-client.js           # única pieza que conoce a Ollama (chat)
     embeddings-client.js    # única pieza que conoce los embeddings de Ollama
     tutor.routes.js         # POST /v1/dev/chat
+    conversaciones.routes.js # conversaciones guardadas del estudiante (ADR 0008)
+    turn.js                 # atiende un turno (RAG + streaming); lo comparten las dos rutas
     system-prompt.js        # prompts por modo (tutor, pruebas)
     rag/
       chunker.js            # divide apuntes en fragmentos

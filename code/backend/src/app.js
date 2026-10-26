@@ -4,14 +4,20 @@ import { notFound, problemHandler } from './platform/problem.js';
 import { optionalAuth, requireAuth } from './platform/auth.js';
 import { createTutorRouter } from './modules/tutor/tutor.routes.js';
 import { createRagRouter } from './modules/tutor/rag/rag.routes.js';
+import { createConversacionesRouter } from './modules/tutor/conversaciones.routes.js';
 import { createNotasRouter } from './modules/notas/notas.routes.js';
+import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
+import { createCursosRouter } from './modules/cursos/cursos.routes.js';
+import { createLoginLimiter } from './platform/login-limiter.js';
 
 /**
  * @param {object} deps
  * @param {import('pino').Logger} deps.logger
  * @param {{chat: Function, ping: Function}} deps.llm
- * @param {ReturnType<import('./platform/db.js').createDb>} [deps.db] sin db no se montan las rutas de notas
+ * @param {ReturnType<import('./platform/db.js').createDb>} [deps.db] sin db no se montan login, cursos ni notas
  * @param {string} [deps.jwtSecret]         secreto HS256 del JWT
+ * @param {number} [deps.jwtTtlSeconds]     duración del JWT que emite el login (8 h = una jornada escolar)
+ * @param {ReturnType<typeof createLoginLimiter>} [deps.loginLimiter] freno de fuerza bruta del login
  * @param {object} [deps.rag]               servicio RAG (omitir = tutor sin apuntes)
  * @param {string} [deps.tenantId]          colegio del chat cuando la petición NO trae token (solo desarrollo)
  * @param {string} [deps.defaultCourseId]   curso usado si el chat no envía `course_id`
@@ -21,6 +27,7 @@ import { createNotasRouter } from './modules/notas/notas.routes.js';
 export function createApp({
   logger, llm, db, jwtSecret, rag, tenantId = 'dev', defaultCourseId,
   enableIngestApi = true, chatRequiresAuth = false,
+  jwtTtlSeconds = 8 * 3600, loginLimiter = createLoginLimiter(),
 }) {
   const app = express();
   app.disable('x-powered-by');
@@ -59,9 +66,14 @@ export function createApp({
   app.use(createTutorRouter({ llm, rag, tenantId, defaultCourseId }));
 
   if (db) {
-    // Las rutas con datos de colegio exigen JWT.
-    app.use(['/v1/me', '/v1/courses', '/v1/assessments'], requireAuth(jwtSecret));
+    // Las rutas con datos de colegio exigen JWT. La única excepción es POST /v1/auth/login,
+    // donde el colegio sale del RBD (nunca de un header ni del token).
+    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
+    app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
+    app.use(createCursosRouter({ db }));
     app.use(createNotasRouter({ db }));
+    // Conversaciones guardadas del tutor (ADR 0008): necesitan el RAG en PostgreSQL.
+    if (rag?.backend === 'postgres') app.use(createConversacionesRouter({ db, llm, rag }));
   }
 
   app.use(notFound);

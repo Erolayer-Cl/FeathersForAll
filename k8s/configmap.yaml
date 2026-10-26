@@ -17,6 +17,8 @@ data:
   LLM_TIMEOUT_MS: "120000"
   LLM_TEMPERATURE: "0.6"
   LLM_NUM_CTX: "4096"
+  # Modelos en memoria entre preguntas: sin esto Ollama los descarga a los 5 min y la siguiente pregunta tarda ~19 s.
+  LLM_KEEP_ALIVE: "30m"
   EMBEDDING_MODEL: "bge-m3"
   RAG_TOP_K: "4"
   RAG_MIN_SCORE: "0.5"

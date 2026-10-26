@@ -1,15 +1,13 @@
 // Pruebas de integración del RAG contra un PostgreSQL REAL (pgvector + RLS + permisos por rol).
-// Se saltan si no hay TEST_DATABASE_URL (superusuario de una base de pruebas):
+// Se saltan si no hay TEST_DATABASE_URL (ver test/pg-fixture.js):
 //
-//   TEST_DATABASE_URL=postgres://postgres@localhost:5432/postgres npm test
+//   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 //
-// Crean una base temporal con 01 + 02 + 03 + 90_seed_demo.sql y conectan como feathersforall_app
-// (sin BYPASSRLS). El almacén NO revisa roles: si un estudiante logra escribir, es la BASE la que falla.
+// Crean una base temporal con el esquema completo (01–04) + datos demo y conectan con los permisos
+// de feathersforall_app (sin BYPASSRLS). El almacén NO revisa roles: si un estudiante logra
+// escribir, es la BASE la que falla.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
-import pg from 'pg';
 import pino from 'pino';
 import { createApp } from '../src/app.js';
 import { createDb } from '../src/platform/db.js';
@@ -19,8 +17,8 @@ import { createRagService } from '../src/modules/tutor/rag/rag-service.js';
 import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError } from '../src/modules/tutor/rag/errors.js';
 import { NO_INFO_REPLY } from '../src/modules/tutor/rag/rag-prompt.js';
 import { fakeEmbedder } from './fake-embedder.js';
+import { createTestDatabase, DEMO, SKIP } from './pg-fixture.js';
 
-const ADMIN_URL = process.env.TEST_DATABASE_URL;
 const SECRET = 'secreto-de-pruebas-con-mas-de-32-caracteres';
 const logger = pino({ level: 'silent' });
 
@@ -32,6 +30,8 @@ const LUIS = { id: 'a0000000-0000-0000-0000-000000000002', rol: 'docente' };   /
 const MARTA = { id: 'a0000000-0000-0000-0000-000000000003', rol: 'admin_colegio' };
 const CAMILA = { id: 'e0000000-0000-0000-0000-000000000001', rol: 'estudiante' };
 const PEDRO = { id: 'b0000000-0000-0000-0000-000000000001', rol: 'docente' };  // colegio B
+const JAVIERA = { id: DEMO.javiera, rol: 'estudiante' };                          // colegio B
+const MATE_B = DEMO.mateB;                                                        // curso de Pedro (B)
 
 const NOTES = `# Fracciones
 
@@ -39,54 +39,29 @@ Una fracción representa una parte de un todo. El numerador indica cuántas part
 
 El denominador indica en cuántas partes iguales se divide el todo.`;
 
-describe('RAG sobre PostgreSQL', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }, () => {
-  const dbName = `ffa_rag_${randomBytes(4).toString('hex')}`;
-  let admin;
+describe('RAG sobre PostgreSQL', { skip: SKIP }, () => {
+  let testDb;
   let db;
   let rag;
   const inA = { tenantId: A, courseId: MATE };
 
   before(async () => {
-    admin = new pg.Client({ connectionString: ADMIN_URL });
-    await admin.connect();
-    await admin.query(`CREATE DATABASE ${dbName}`);
-    await admin.query(`DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'feathersforall_app') THEN CREATE ROLE feathersforall_app; END IF;
-      END $$`);
-    await admin.query(`ALTER ROLE feathersforall_app LOGIN NOBYPASSRLS PASSWORD 'test'`);
-
-    const testUrl = new URL(ADMIN_URL);
-    testUrl.pathname = `/${dbName}`;
-    const setup = new pg.Client({ connectionString: testUrl.href });
-    await setup.connect();
-    for (const f of ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '90_seed_demo.sql']) {
-      await setup.query(await readFile(new URL(`../db/${f}`, import.meta.url), 'utf8'));
-    }
-    await setup.query(`GRANT USAGE ON SCHEMA public TO feathersforall_app;
-                       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO feathersforall_app`);
-    await setup.end();
-
-    const appUrl = new URL(testUrl);
-    appUrl.username = 'feathersforall_app';
-    appUrl.password = 'test';
-    db = createDb({ connectionString: appUrl.href, max: 4 });
+    testDb = await createTestDatabase('ffa_rag');
+    db = createDb({ connectionString: testDb.appUrl, max: 4 });
     rag = createRagService({ embedder: fakeEmbedder(1024), store: createPgVectorStore({ db }), minScore: 0.2 });
   });
 
   after(async () => {
     await db?.end();
-    await admin?.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
-    await admin?.end();
+    await testDb?.drop();
   });
 
   describe('quién puede subir apuntes (lo decide la base)', () => {
     test('el docente del curso sube: queda el apunte, sus fragmentos y subido_por = el docente', async () => {
       assert.deepEqual(await rag.ingest({ ...inA, docId: 'fracciones.md', text: NOTES, actor: ANA }), { doc_id: 'fracciones.md', chunks: 1 });
       assert.deepEqual(await rag.listDocuments(inA), [{ doc_id: 'fracciones.md', chunks: 1 }]);
-      const check = new pg.Client({ connectionString: Object.assign(new URL(ADMIN_URL), { pathname: `/${dbName}` }).href });
-      await check.connect();
-      const r = await check.query("SELECT subido_por, colegio_id FROM apuntes_curso WHERE titulo = 'fracciones.md'");
-      await check.end();
+      // Superusuario (sin RLS): confirma lo que quedó realmente guardado.
+      const r = await testDb.superuser.query("SELECT subido_por, colegio_id FROM apuntes_curso WHERE titulo = 'fracciones.md'");
       assert.equal(r.rows[0].subido_por, ANA.id);
       assert.equal(r.rows[0].colegio_id, A);
     });
@@ -240,6 +215,51 @@ describe('RAG sobre PostgreSQL', { skip: !ADMIN_URL && 'sin TEST_DATABASE_URL' }
     });
     test('/health informa rag postgres', async () => {
       assert.equal((await (await fetch(`${url}/health`)).json()).rag, 'postgres');
+    });
+
+    describe('multi-tenant: cada colegio con sus propios apuntes', () => {
+      const getJson = async (path, user, tenant) => {
+        const res = await fetch(url + path, { headers: { authorization: `Bearer ${tok(user, tenant)}` } });
+        assert.equal(res.status, 200, path);
+        return res.json();
+      };
+
+      before(async () => {
+        const geometria = 'El teorema de Pitágoras relaciona los catetos y la hipotenusa de un triángulo rectángulo.';
+        const res = await post(`/v1/dev/courses/${MATE_B}/documents`, { name: 'geometria.md', text: geometria }, PEDRO, B);
+        assert.equal(res.status, 201);
+      });
+
+      test('la estudiante de B recibe respuestas solo con los apuntes de B', async () => {
+        const res = await ask('¿Qué relaciona el teorema de Pitágoras?', JAVIERA, { course_id: MATE_B }, B);
+        assert.equal(res.headers.get('x-tutor-turn'), 'grounded');
+        const prompt = llm.calls.at(-1)[0].content;
+        assert.match(prompt, /Pitágoras/);
+        assert.doesNotMatch(prompt, /numerador/); // nada de los apuntes del colegio A
+      });
+
+      test('la misma pregunta de fracciones en B no encuentra los apuntes de A', async () => {
+        const res = await ask('¿Qué indica el numerador?', JAVIERA, { course_id: MATE_B }, B);
+        assert.equal(await res.text(), NO_INFO_REPLY);
+      });
+
+      test('y la estudiante de A no encuentra los apuntes de B', async () => {
+        const res = await ask('¿Qué relaciona el teorema de Pitágoras?', CAMILA);
+        assert.equal(await res.text(), NO_INFO_REPLY);
+      });
+
+      test('la estudiante de B no puede usar el tutor de un curso de A (404)', async () => {
+        assert.equal((await ask('hola', JAVIERA, { course_id: MATE }, B)).status, 404);
+      });
+
+      test('cada estudiante ve en sus ramos si el tutor tiene apuntes', async () => {
+        const camila = await getJson('/v1/me/grades', CAMILA);
+        const porCurso = Object.fromEntries(camila.courses.map((c) => [c.subject, c.tutor_available]));
+        assert.deepEqual(porCurso, { Historia: false, Matemática: true });
+
+        const javiera = await getJson('/v1/courses', JAVIERA, B);
+        assert.deepEqual(javiera.data.map((c) => [c.id, c.tutor_available, c.tutor_documents]), [[MATE_B, true, 1]]);
+      });
     });
   });
 });
