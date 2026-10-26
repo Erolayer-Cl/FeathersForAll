@@ -11,6 +11,8 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "dev": "node --watch --env-file-if-exists=.env src/server.js",
     "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude='test/**' --test-coverage-lines=70",
+    "lint": "eslint .",
     "ingest": "node --env-file-if-exists=.env scripts/ingest.js",
     "rag:search": "node --env-file-if-exists=.env scripts/search.js",
     "db:setup": "node --env-file-if-exists=.env scripts/db-setup.js",
@@ -23,5 +25,10 @@
     "express": "^5.1.0",
     "pg": "^8.23.1",
     "pino": "^9.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0"
   }
 }

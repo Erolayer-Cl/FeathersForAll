@@ -1,10 +1,10 @@
-# models.md — Taller de Ingeniería de Software (S01–S07)
+# models.md — Taller de Ingeniería de Software (S01–S08)
 
 Conversión de las PPT de la carpeta AULAVIVA a Markdown, para usar como contexto al construir AulaViva (FeathersForAll). Cada sesión = un módulo del taller; cada mini-lab define un entregable en el repo.
 
 **Iniciativa nuestra: AulaViva** — plataforma SaaS multi-tenant con tutor IA (MVP: multi-tenancy real 1 colegio = 1 tenant, cursos/docentes/estudiantes con RBAC, evaluaciones auto-corregidas, tutor IA con RAG por curso, panel del apoderado). Restricciones: aislamiento por tenant, datos de menores, picos estacionales, RAG con currículum MINEDUC, FinOps del LLM por tenant.
 
-**Estructura:** Parte 1 = contenido de las PPT S01–S07. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
+**Estructura:** Parte 1 = contenido de las PPT S01–S08. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
 
 **Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`, `Dockerfile`, `k8s/*.yaml`, `terraform/main.tf`, ADR de plataforma K8s (en el repo: 0006).
 
@@ -1707,6 +1707,223 @@ spec:
 
 ---
 
+# S08 — CI/CD y GitOps
+
+## Slide 1
+- Sesión 08 · 2h 30 min
+- CI/CD
+- y GitOps.
+- De commit a producción, sin intervención humana en el camino crítico. Pipelines con quality gates, ramas que reflejan una estrategia de negocio y despliegues reversibles por diseño.
+- BLOQUE B · AUTOMATIZACIÓN Y DEVSECOPS
+- Pregrado · Ingeniería de Software Avanzada
+- MÓDULO
+- 08
+- de 18 sesiones
+- BLOQUE
+- Automatización
+- y DevSecOps
+
+## Slide 2
+- Agenda
+- Qué haremos hoy
+- 01
+- Warm-up · Anatomía de un pipeline
+- Etapas, jobs, artefactos, caché y matrices. · 20 min
+- 02
+- Comparación de plataformas CI/CD
+- GitHub Actions, GitLab CI, Azure DevOps. · 25 min
+- 03
+- Branching y quality gates
+- Trunk-based, GitFlow, GitHub Flow. Gates de tests, cobertura, SAST. · 30 min
+- 04
+- GitOps con Argo CD / Flux
+- Push-based vs. pull-based reconciliation. · 25 min
+- 05
+- Estrategias de despliegue
+- Blue/green, canary, feature flags progresivos. · 20 min
+- 06
+- Mini-lab + retro
+- Pipeline funcional + ADR 0005 GitOps. · 30 min
+- DURACIÓN TOTAL · 2 h 30 min · incluye 10 min de descanso y 10 min de retrospectiva
+
+## Slide 3
+- Objetivos de la sesión
+- Al terminar, tu equipo será capaz de…
+- OBJETIVO 01 · CONSTRUIR
+- Diseñar un pipeline CI/CD con quality gates
+- Estructurar jobs paralelos, caché de dependencias, matrices de stacks y publicación de artefactos. Definir gates de tests, cobertura, SAST y aprobación humana para producción.
+- OBJETIVO 02 · RAMIFICAR
+- Adoptar una estrategia de branching consciente
+- Elegir entre trunk-based, GitFlow y GitHub Flow según el tamaño del equipo y la cadencia de release. Aplicar reglas de protección de rama y revisión obligatoria.
+- OBJETIVO 03 · RECONCILIAR
+- Operar despliegues con GitOps
+- Distinguir push vs. pull reconciliation. Configurar Argo CD sobre un repo gitops separado del app, con estrategias blue/green o canary auditables por PR.
+
+## Slide 4
+- Contenido 01 · Pipelines + branching
+- Comparación de plataformas y estrategias de rama
+- PLATAFORMAS CI/CD
+- PLATAFORMA
+- FORTALEZA
+- TRADE-OFF PRINCIPAL
+- GitHub Actions
+- Nativa en repo, marketplace enorme, matrices simples.
+- Menos control fino de runners.
+- GitLab CI
+- Todo en uno (repo+CI+registry+deploy), DAG explícito.
+- Configuración YAML densa.
+- Azure DevOps
+- Integración enterprise, pipelines YAML o clásicos, approvals robustos.
+- UI menos ágil.
+- ESTRATEGIAS DE BRANCHING
+- ESTRATEGIA
+- CUÁNDO FUNCIONA
+- RIESGO SI MAL APLICADA
+- Trunk-based
+- Equipo maduro, CI rápido, feature flags disponibles.
+- Producto inestable si faltan tests.
+- GitHub Flow
+- SaaS con release continua, PRs cortos.
+- Deriva si PRs viven > 48 h.
+- GitFlow
+- Producto con versiones concurrentes en soporte.
+- Overhead alto, merges dolorosos.
+- QUALITY GATES · MÍNIMOS
+- Lint + format — falla si ruff/eslint/checkstyle reporta errores.
+- Unit tests — cobertura mínima ≥ 70%.
+- SAST — sin hallazgos High/Critical.
+- SCA — sin CVE High en dependencias directas.
+- Build container — imagen firmable, escaneada.
+- Aprobación humana — release a prod requiere dos revisores.
+- DAST smoke — al menos ZAP baseline en staging.
+- Regla: si un gate no bloquea, es un log, no un gate.
+
+## Slide 5
+- Contenido 02 · GitOps y despliegue
+- Push vs. pull, y despliegues sin miedo
+- GITOPS · PUSH VS PULL
+- La verdad vive en Git, el cluster se reconcilia solo
+- Push-based (CI clásico): el pipeline hace kubectl apply o helm upgrade. Simple pero requiere credenciales del cluster en CI, y el estado real puede desviarse silenciosamente del repo.
+- Pull-based (GitOps): un agente en el cluster (Argo CD o Flux) observa el repo gitops y reconcilia el estado. Ventajas: sin credenciales fuera del cluster, drift detectable, rollback = revert de commit.
+- ARGO CD VS FLUX
+- Argo CD: UI rica, ApplicationSets, projects RBAC, ideal para equipos que necesitan visibilidad multi-cluster.
+- Flux: ligero, modular (Kustomize/Helm controllers), Flux CLI first, encaja mejor en workflows 100% Git.
+- Patrón recomendado: repo app (código + Dockerfile) separado del repo gitops (manifiestos/Kustomize). CI publica imagen y hace PR al gitops.
+- ESTRATEGIAS DE DESPLIEGUE
+- ESTRATEGIA
+- CÓMO
+- RIESGO
+- Rolling update
+- Reemplazo gradual pod a pod (default K8s).
+- Bajo, sin control fino.
+- Blue/green
+- Dos entornos idénticos; switch de tráfico atómico.
+- Requiere doble capacidad.
+- Canary
+- 1–5% del tráfico a la nueva versión, escalar si SLOs se mantienen.
+- Complejo sin service mesh.
+- Feature flags
+- Deploy ≠ release. Toggle por usuario/tenant.
+- Deuda técnica si no se limpian.
+- Combinación típica: canary a nivel de infra + feature flags a nivel de negocio. Rollback en canary es automático; el toggle es una decisión de producto.
+
+## Slide 6
+- Caso de uso · MediTriage (HealthTech)
+- Pipeline completo con quality gates
+- .github/workflows/ci.yml — MediTriage
+
+```yaml
+name: ci-meditriage
+on: { pull_request: {}, push: { branches: [main] } }
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: pytest --cov=src --cov-fail-under=70
+      - uses: returntocorp/semgrep-action@v1
+  build-and-push:
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions: { contents: read, packages: write, id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/build-push-action@v5
+        with:
+          tags: ghcr.io/meditriage/triage:${{ github.sha }}
+          push: true
+  promote-to-gitops:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr create --repo org/meditriage-gitops
+```
+- DECISIONES DEL EQUIPO
+- Por qué esta forma para MediTriage
+- Compliance Ley 19.628 / 21.719: aprobación humana obligatoria antes de prod; logs de pipeline conservados 5 años.
+- Alta disponibilidad 99.5%: canary 5 → 25 → 100% sobre 30 min; rollback automático si error rate > 1%.
+- Datos sensibles: secretos vía OIDC federation con AWS (sin PAT largos); scan de secretos como gate.
+- GitOps con Argo CD: repo meditriage-gitops separado; cada release = PR reviewable.
+- RAMA DE PROD
+- Trunk-based con protección: 2 revisores, checks obligatorios, sin push directo. Feature flags via LaunchDarkly o Unleash self-hosted.
+
+## Slide 7
+- Mini-lab de la sesión · 30 min
+- Pipeline CI + estrategia GitOps
+- Repo del equipo con Dockerfile + K8s manifests (S07).
+- Cuenta GHCR (o registry equivalente) configurada.
+- Cluster local o de dev accesible por el equipo.
+- Crear .github/workflows/ci.yml con jobs quality, build-and-push, promote.
+- Configurar gates: lint, tests con cobertura ≥ 70%, SAST (Semgrep).
+- Publicar imagen a GHCR tagueada por ${{ github.sha }}.
+- Crear repo separado <equipo>-gitops con Kustomize base + overlays por ambiente.
+- Instalar Argo CD en el cluster y crear Application apuntando al repo gitops.
+- Redactar docs/adr/0005-gitops-strategy.md justificando push vs pull y elección de herramienta.
+- Verificar que un PR merged mueve automáticamente la app a la nueva versión.
+- Prerrequisitos
+- Pasos
+- Dos Pull Requests coordinados:
+- Repo app: .github/workflows/ci.yml funcional (al menos una run verde en main).
+- Repo gitops: estructura Kustomize base/ + overlays/{dev,prod}/.
+- docs/adr/0005-gitops-strategy.md con contexto, decisión, consecuencias.
+- Screenshot de Argo CD mostrando la app Synced/Healthy.
+- Bonus (+10 pts): configurar despliegue canary con Argo Rollouts.
+- Entregable
+- RÚBRICA · 100 PUNTOS
+- Pipeline con jobs y gates completos
+- 25
+- Cobertura de tests ≥ 70%
+- 15
+- Publicación de imagen automatizada
+- 15
+- Repo GitOps + Argo CD Synced
+- 25
+- ADR 0005 clara y argumentada
+- 15
+- Puntualidad
+- 5
+- Deadline: antes del inicio de la S09.
+
+## Slide 8
+- Cierre y próximos pasos
+- Nos vemos
+- en la S09.
+- Compromisos hasta la próxima clase
+- Entregar el pipeline CI + repo GitOps con al menos una run verde en main.
+- Configurar reglas de protección de rama y política de dos revisores.
+- Definir en el equipo qué gates son bloqueantes hoy y cuáles serán bloqueantes en S09.
+- Leer Accelerate cap. 3 (Lead time, Deploy frequency, MTTR, Change fail rate) — DORA metrics.
+- S09 · PRÓXIMA SESIÓN
+- DevSecOps I: shift-left security
+- SAST, SCA, SBOM y secret scanning integrados en el pipeline que acabas de construir. La seguridad deja de ser una etapa final.
+
+---
+
 # PARTE 2 — Estado real del repo FeathersForAll (contexto de lo ya construido)
 
 Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 2026-09-28; actualizado el 2026-10-07 con S04–S06 y el código en `code/`). Los documentos están en `FeathersForAll/Documentos/`. Última actividad en el repo: "Tercera Semana" (S03). Lo que sigue es el contenido de esos documentos, más el estado y los pendientes respecto a las PPT (Parte 1).
@@ -2524,4 +2741,21 @@ Estado previo del repo (2026-10-14): `main` con S01–S06; rama `feature/rag-tut
   - captura `kubectl get all` → `FeathersForAll/Documentos/infra/kubectl-get-all.png`.
   - prueba de HPA con `k8s/tools/carga.yaml`.
 - Deadline: antes de la S08 (CI/CD y GitOps: Argo CD / Flux). Para la S08: instalar la extensión Kubernetes de VS Code.
+
+### [entregables] S08 — CI/CD y GitOps (rama `Ignacio`, 2026-10-26)
+
+Guía completa: `FeathersForAll/Documentos/infra/ci-cd.md`. Decisión: ADR 0009 (la PPT lo llama 0005, pero ese número ya era del frontend).
+
+- `.github/workflows/ci.yml`: jobs `contrato`, `backend`, `frontend`, `sast`, `e2e-newman` → `build-and-push` (matriz api/web) → `promote`.
+  - Gates bloqueantes: Spectral + cliente TS regenerado sin diferencias; ESLint (nuevo en el backend); cobertura de líneas ≥ 70 % (backend 98,9 % con PostgreSQL + pgvector reales; frontend 91 % sobre `src/**/*.js`, sin `.jsx` ni hooks/contextos); `npm audit --omit=dev --audit-level=high`; Semgrep `p/javascript` + `p/nodejs`; Newman sin Ollama (carpetas 0–5 y 7: 40 requests, 69 aserciones); Trivy High/Critical con arreglo.
+  - Imágenes `ghcr.io/erolayer-cl/feathersforall-{api,web}:<sha>` publicadas solo desde `main` con `GITHUB_TOKEN`. `promote` cambia los digest en `overlays/dev` del repo gitops con `sed` (no reformatea el archivo) y abre el PR `deploy(dev): ...` con el secret `GITOPS_TOKEN`.
+- `.github/workflows/promote-prod.yml`: manual; Environment `production` (revisores) + PR con 2 revisores; copia a prod los digest de dev.
+- Repo gitops `Erolayer-Cl/feathersforall-gitops` (armado en local en `../feathersforall-gitops`; falta crearlo en GitHub y hacer push): `base/` (copia de `k8s/`), `overlays/dev` (HPA hasta 3), `overlays/prod` (sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`), `argocd/` (AppProject sin Secrets ni recursos de clúster; Application dev automática con prune + selfHeal; prod manual). Renderizado con kustomize v5.8.3.
+- Hallazgos de los gates (`Documentos/seguridad/vulnerabilidades.md`, con CVE, CWE y CVSS):
+  - VULN-001: `body-parser` 2.3.0 → 2.4.0 (CVE-2026-111181, CWE-248, CVSS 7.5).
+  - VULN-002: runtime de la API `distroless/nodejs22-debian12` → `debian13` (OpenSSL, CVE-2026-31789, CVSS 9.8; 0 High/Critical después).
+  - VULN-003: web `nginx-unprivileged:1.27-alpine` → `1.30-alpine` + `apk upgrade` (43 CVE → 0).
+- Bug arreglado: `test/dockerfile.test.js` fallaba dentro de `docker build --target test`, porque `.dockerignore` excluye el Dockerfile. Ahora se salta en ese caso.
+- Pendiente del equipo: crear el repo gitops y hacer push; `GITOPS_TOKEN`; Environment `production`; protección de rama (2 revisores + checks); paquetes GHCR públicos; instalar Argo CD v3.5.6 en kind; screenshot Synced/Healthy; primera run verde en `main`.
+- Deadline: antes de la S09 (DevSecOps I: SAST, SCA, SBOM y secret scanning).
 

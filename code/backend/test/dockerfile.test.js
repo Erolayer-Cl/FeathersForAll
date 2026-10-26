@@ -4,7 +4,7 @@
 // Esta prueba arma el mismo árbol de archivos que la imagen y carga la app en un proceso aparte.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,8 +24,11 @@ function runtimeCopies(dockerfile) {
     });
 }
 
+// Dentro de `docker build --target test` el Dockerfile no está (.dockerignore lo excluye del contexto).
+const SKIP = !existsSync(join(root, 'Dockerfile')) && 'sin Dockerfile (corriendo dentro del build de la imagen)';
+
 describe('imagen de la API (Dockerfile, etapa runtime)', () => {
-  test('la app carga solo con los archivos que copia la imagen', () => {
+  test('la app carga solo con los archivos que copia la imagen', { skip: SKIP }, () => {
     const copies = runtimeCopies(readFileSync(join(root, 'Dockerfile'), 'utf8'));
     assert.ok(copies.some((c) => c.src === 'src'), 'el runtime debe copiar src/');
 

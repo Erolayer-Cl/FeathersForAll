@@ -4,7 +4,7 @@
 > Proyecto del **Taller de Ingeniería de Software** · 18 sesiones · Semestre 2026.
 > Construido sobre la iniciativa **AulaViva** del taller; FeathersForAll es la marca propia del producto.
 
-[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S07-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
+[![Sesión](https://img.shields.io/badge/sesi%C3%B3n-S08-informational)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Iniciativa](https://img.shields.io/badge/iniciativa-AulaViva-success)](FeathersForAll/Documentos/adr/0001-eleccion-iniciativa.md)
 [![Charter](https://img.shields.io/badge/charter-v1.0-blue)](FeathersForAll/Documentos/Entregables/Charter.md)
 
@@ -74,7 +74,8 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 │   │   ├── requests/postman/           # Colección Postman con la matriz de permisos
 │   │   └── db/                         # Esquema PostgreSQL (01–04 + permisos), consultas y pruebas
 │   └── frontend/                       # React + Vite (ADR 0005): chat + portal por rol (portal.html) + Dockerfile (S07)
-├── k8s/                                # Manifiestos Kubernetes con Kustomize + clúster kind (S07)
+├── .github/workflows/                  # CI/CD: quality gates, imágenes a GHCR y promoción GitOps (S08)
+├── k8s/                                # Manifiestos Kubernetes con Kustomize + clúster kind (S07); desde S08 el despliegue vive en el repo gitops
 ├── terraform/                          # IaC: namespace, cuota y Secret del equipo (S07)
 └── FeathersForAll/
     ├── .spectral.yaml                  # Reglas de lint del contrato (S05)
@@ -86,7 +87,7 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
     └── Documentos/
         ├── Entregables/
         │   └── Charter.md              # Acta del equipo: roles, DoD, política de IA
-        ├── adr/                        # Architecture Decision Records (0001–0007)
+        ├── adr/                        # Architecture Decision Records (0001–0008)
         ├── arch/
         │   └── atributos-calidad.md    # Top 3 NFRs con métricas
         ├── c4/                         # l1-context y l2-container (.puml + .png)
@@ -107,8 +108,8 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 
 | Pieza | Dónde | Resumen |
 |---|---|---|
-| Imagen de la API | `code/backend/Dockerfile` | Multi-stage: `deps` → `test` (corre `npm test`) → runtime **distroless** `nodejs22-debian12:nonroot`. Sin shell, sin root, < 200 MB |
-| Imagen del frontend | `code/frontend/Dockerfile` | Build con Vite → `nginx-unprivileged` (uid 101, puerto 8080) |
+| Imagen de la API | `code/backend/Dockerfile` | Multi-stage: `deps` → `test` (corre `npm test`) → runtime **distroless** `nodejs22-debian13:nonroot`. Sin shell, sin root (211 MB; meta < 200 MB pendiente) |
+| Imagen del frontend | `code/frontend/Dockerfile` | Build con Vite → `nginx-unprivileged:1.30-alpine` + parches de Alpine (uid 101, puerto 8080) |
 | Manifiestos | `k8s/` | Kustomize: Deployment, Service, Ingress, ConfigMap, HPA (2–6 réplicas, CPU 65 %), PDB. Imágenes por **digest** |
 | Infraestructura | `terraform/` | Namespace con Pod Security `restricted`, ResourceQuota, LimitRange y Secret. State remoto con locking (backend `pg`), un workspace por ambiente |
 | Decisión | [ADR 0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | kind + Kustomize + Terraform; base images distroless / nginx-unprivileged |
@@ -122,6 +123,18 @@ kubectl get all -n feathersforall                        # → http://localhost:
 ```
 
 Paso a paso completo (con la prueba del HPA): [`k8s/README.md`](k8s/README.md).
+
+### CI/CD y GitOps (S08)
+
+| Pieza | Dónde | Resumen |
+|---|---|---|
+| Pipeline | `.github/workflows/ci.yml` | Gates bloqueantes: contrato, lint, pruebas con cobertura ≥ 70 % (backend con PostgreSQL real), SCA, SAST (Semgrep), e2e (Compose + Newman) y Trivy. En `main`: imágenes a GHCR por `sha` y PR al repo gitops |
+| Promoción a prod | `.github/workflows/promote-prod.yml` | Manual, con aprobación del Environment `production` y PR con 2 revisores |
+| Repo gitops | [`Erolayer-Cl/feathersforall-gitops`](https://github.com/Erolayer-Cl/feathersforall-gitops) | Kustomize `base/` + `overlays/{dev,prod}/` y Applications de Argo CD |
+| Vulnerabilidades | [`Documentos/seguridad/vulnerabilidades.md`](FeathersForAll/Documentos/seguridad/vulnerabilidades.md) | Hallazgos de los gates con CVE, CWE y CVSS |
+| Decisión | [ADR 0009](FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md) | GitHub Actions + GitHub Flow + GitOps pull-based con Argo CD |
+
+Puesta en marcha (repo gitops, token, Environment, protección de rama y Argo CD): [`Documentos/infra/ci-cd.md`](FeathersForAll/Documentos/infra/ci-cd.md).
 
 **Evidencia — `kubectl get all -n feathersforall`:**
 
@@ -181,6 +194,8 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0005](FeathersForAll/Documentos/adr/0005-frontend-react.md) | Frontend con React + Vite (reemplaza la línea de frontend del ADR 0002) | Propuesta | 07-10-2026 |
 | [0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | Contenedores, Kubernetes e IaC: distroless, kind, Kustomize y Terraform | Propuesta | 14-10-2026 |
 | [0007](FeathersForAll/Documentos/adr/0007-autenticacion-y-privacidad.md) | Autenticación propia por RBD y privacidad de lectura por usuario | Propuesta | 16-10-2026 |
+| [0008](FeathersForAll/Documentos/adr/0008-conversaciones-del-tutor.md) | Conversaciones del tutor IA guardadas y privadas del estudiante | Propuesta | 19-10-2026 |
+| [0009](FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md) | CI/CD con GitHub Actions y GitOps pull-based con Argo CD (repo gitops separado) | Propuesta | 26-10-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 

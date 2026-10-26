@@ -38,10 +38,11 @@
 | Pieza | Dónde | Notas |
 |---|---|---|
 | API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
-| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01`, `02`, `03` y `04`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
+| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `05`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
 | Frontend | `code/frontend/` | React 19 + Vite (ADR 0005). `index.html` = chat del tutor; `portal.html` = portal por rol (`src/portal/`, router por hash `#/portal/<id>`) |
 | Contrato | `FeathersForAll/api/` | OpenAPI 3.1 con ejemplos ejecutables contra Prism |
 | Infra | `k8s/`, `terraform/` | Laboratorio S07: kind + Kustomize + Terraform (ADR 0006) |
+| CI/CD | `.github/workflows/`, repo `Erolayer-Cl/feathersforall-gitops` | S08 (ADR 0009): gates bloqueantes en cada PR, imágenes a GHCR por sha y GitOps con Argo CD. Guía: `Documentos/infra/ci-cd.md` |
 | Documentos | `FeathersForAll/Documentos/` | ADRs, C4, backlog, escenarios Gherkin, datos (DER, eventos, bounded contexts) y prototipo del portal (`diseno/prototipo-portal.html`) |
 
 ## Seguridad multi-tenant (no romper)
@@ -54,6 +55,7 @@
 - `01`: aislamiento por colegio, que falla cerrado si la sesión no tiene colegio.
 - `02` §9: quién puede escribir, según el rol.
 - `04`: quién puede leer. El estudiante ve solo lo suyo, el docente solo sus cursos y una sesión sin rol no ve nada.
+- `05`: conversaciones del tutor (ADR 0008). Solo el estudiante dueño las lee, escribe y borra; ni el docente ni el admin. Se purgan al terminar el año escolar (`npm run tutor:purgar`).
 
 **Contraseñas**
 - La API no puede leer `password_hash`: tiene permisos por columna (`permisos_app.sql`).
@@ -87,9 +89,9 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 ## Estado
 
 - **Sesiones S01–S07:** hechas (detalle en `readme.md` y `models.md`).
-- **S08 (CI/CD y GitOps):** pendiente; su PPT todavía no está en `models.md`.
+- **S08 (CI/CD y GitOps):** preparada el 26-10-2026 en la rama `Ignacio` (detalle abajo). Su PPT ya está en `models.md`.
 
-### Etapa 1 — rol estudiante (cerrada el 16-10-2026, rama `feat/estudiante-asignaturas-notas`, sin commitear)
+### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
 **Objetivo:** que cada estudiante inicie sesión en el portal y vea sus asignaturas y sus notas, solo en modo lectura, con privacidad por usuario y el RAG funcionando multi-tenant.
 
@@ -110,9 +112,18 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - libro de notas;
   - evaluaciones.
 - **Admin:** gestión de usuarios.
-- **Tutor IA dentro del portal.**
+- ~~**Tutor IA dentro del portal.**~~ Hecho el 16-10-2026 en la rama `Ignacio`: pantalla `est-tutor[/<curso>]` con modos Estudiar y Practicar una prueba, selector de curso, fuente de cada respuesta y enlaces desde Inicio y Curso. Verificado con Ollama y Brave headless (escritorio, 360 px y tema oscuro).
+  - 19-10-2026: el selector de asignatura pasó al cuadro donde se escribe (flecha hacia abajo).
+  - 19-10-2026: **conversaciones guardadas** (ADR 0008, contrato v1.2.0, `db/05_conversaciones_tutor.sql`): historial "Mis conversaciones" por curso, retomar y borrar; el servidor guarda el historial. Pruebas: backend 123 sin base / 221 con integración, frontend 84, Postman carpeta 8 (58 requests y 102 aserciones en total). Retención: CronJob diario `k8s/cronjob-purga.yaml` con Secret aparte `ffa-jobs-secrets` (Terraform), job en `src/jobs/purgar-conversaciones.js`. Verificado con Brave headless (privacidad entre estudiantes incluida).
+- **Auditoría de rendimiento y base de datos** (23-10-2026): informe en `FeathersForAll/Documentos/auditoria/rendimiento-y-base-de-datos.md`. La base no es el cuello de botella (endpoints < 12 ms con 6 000 estudiantes y 96 000 fragmentos; búsqueda de apuntes ~5 ms, recall 100 %); el tiempo del tutor lo domina el LLM en CPU. Aplicado: log `tutor` con tiempos por fase, `LLM_KEEP_ALIVE=30m` (primera pregunta tras una pausa: 18,8 s → 8,4 s) y `shm_size` en el compose. Propuestas P1–P8 pendientes de decidir en equipo.
+- **Currículum Mineduc en el RAG:** pendiente. Está en los requisitos (`readme.md`), pero hoy el RAG solo usa los apuntes del docente. Ignacio buscará una fuente confiable; no cargar contenido del Mineduc hasta entonces. Diseño conversado: un corpus compartido de solo lectura por asignatura y nivel, sin `colegio_id`.
 - **Demo pública gratuita:** investigada (informe PDF enviado el 16-10-2026): Vercel Hobby + Render Free + Neon Free + Cloudflare Workers AI (bge-m3). Falta: adaptadores LLM/embeddings compatibles con OpenAI, `vercel.json`, `render.yaml` y banner de datos sintéticos. Ya corregido: `ALTER ROLE` sin `NOSUPERUSER` (fallaba en Postgres gestionados).
-- **S08:** CI/CD con quality gates (Newman y Compose).
+- **S08 — CI/CD y GitOps** (26-10-2026, ADR 0009, guía `FeathersForAll/Documentos/infra/ci-cd.md`):
+  - `ci.yml`: contrato, lint, cobertura ≥ 70 % (en rojo bajo 70 %; backend 98,9 %, frontend 91 % sobre `src/**/*.js`), SCA, Semgrep, Newman con Compose (sin tutor) y Trivy; en `main`, push a GHCR y PR al repo gitops. `promote-prod.yml` con Environment `production`.
+  - Repo gitops armado en `../feathersforall-gitops` (`git init`, sin commit).
+  - Los gates encontraron 3 vulnerabilidades, ya corregidas y registradas con CVE, CWE y CVSS en `FeathersForAll/Documentos/seguridad/vulnerabilidades.md`: body-parser 2.4.0, API en `distroless/nodejs22-debian13` y web en `nginx-unprivileged:1.30-alpine` + `apk upgrade`.
+  - **Falta (equipo):** crear el repo en GitHub y hacer push, `GITOPS_TOKEN`, Environment `production`, protección de rama con 2 revisores, paquetes GHCR públicos, Argo CD v3.5.6 en kind con screenshot Synced/Healthy y la primera run verde en `main`.
+  - Gates para S09: cobertura de `.jsx`/hooks (Testing Library), gitleaks, SBOM + cosign, ZAP baseline y Dependabot.
 
 ## Pendientes y deuda conocida
 
@@ -120,6 +131,11 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - el Dockerfile ahora copia `db/queries.js`;
   - arreglos del chat y del almacén JSON;
   - el rebrand a FeathersForAll.
-- **Contrato S05 sin implementar:** evaluaciones (crear, publicar, rendir) y tutor asíncrono (`tutor-questions`).
+- **Contrato S05 sin implementar:** evaluaciones (crear, publicar, rendir) y tutor asíncrono (`tutor-questions`). El Tutor IA del portal ya usa las rutas del contrato v1.2 (`tutor-conversations`); `POST /v1/dev/chat` queda para desarrollo y docentes.
+- **CORS:** el backend no tiene. Hoy no hace falta (Vite y NGINX sirven todo desde un solo origen), pero la demo pública (Vercel + Render) sí lo necesita, exponiendo `X-Tutor-Turn`, `X-Rag-Sources` y `X-Conversation-Mode` con `Access-Control-Expose-Headers`.
+- **Propuestas de la auditoría sin decidir** (detalle en el informe): LLM con GPU o proveedor externo, reordenar el prompt del tutor (~2 s menos), quitar el índice HNSW que no se usa (750 MB), RLS del docente sin consulta por fila y `UV_THREADPOOL_SIZE` (login ~25/s por proceso).
+- **Imagen de la API: 211 MB**, sobre la meta de < 200 MB del ADR 0006 (la base distroless debian13 ya pesa 203 MB).
+- **`k8s/` duplicado con `base/` del repo gitops:** desde S08 manda el repo gitops; si se cambia un manifiesto, hay que cambiarlo en ambos lados (o borrar `k8s/` cuando el equipo lo decida).
+- **Puerto 5432:** si hay un PostgreSQL nativo instalado, el contenedor no arranca (ver README del backend).
 - **Limitador del login:** guarda los intentos en memoria, así que cada pod cuenta los suyos. En producción iría en Redis o en el Ingress.
 - **Funciones `SECURITY DEFINER`** (`colegio_por_rbd`, `credenciales_login`): en producción su dueño debe ser `feathersforall_plataforma`. Hoy, en local, es el superusuario.

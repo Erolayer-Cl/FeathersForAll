@@ -3,6 +3,9 @@
 Imagen Docker → clúster local **kind** → plataforma con **Terraform** → aplicación con **Kustomize** → **HPA** probado con carga.
 Las decisiones y su justificación están en el [ADR 0006](../FeathersForAll/Documentos/adr/0006-plataforma-k8s.md).
 
+> **Desde S08** el despliegue no se hace desde esta carpeta: los manifiestos viven en el repo [`feathersforall-gitops`](https://github.com/Erolayer-Cl/feathersforall-gitops) (`base/` + `overlays/{dev,prod}/`). **Argo CD** los aplica y CI publica las imágenes y abre el PR con los digest ([ADR 0009](../FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md), guía en [`Documentos/infra/ci-cd.md`](../FeathersForAll/Documentos/infra/ci-cd.md)).
+> Esta carpeta queda como referencia del laboratorio S07. `tools/publicar-imagenes.ps1` sirve como respaldo manual si GitHub Actions no está disponible. Si cambias un manifiesto aquí, cámbialo también en `base/` del repo gitops.
+
 ```text
 PC (Windows)                                   clúster kind "feathersforall"
 ──────────────                                 ───────────────────────────────────────────────
@@ -17,6 +20,7 @@ localhost:8088 ──▶ ingress-nginx ─────────┼──▶ �
 |---|---|
 | `kustomization.yaml` | Lista de recursos, namespace e imágenes por digest |
 | `configmap.yaml` | Configuración no secreta de la API |
+| `cronjob-purga.yaml` | Job diario que borra las conversaciones del tutor de años anteriores (ADR 0008). Misma imagen de la API, Secret aparte `ffa-jobs-secrets`. Probarlo sin esperar: `kubectl create job --from=cronjob/ffa-purga-conversaciones purga-manual -n feathersforall` |
 | `deployment.yaml` | API (distroless, nonroot) y frontend (nginx-unprivileged), con sondas y recursos |
 | `service.yaml` | ClusterIP de cada uno |
 | `ingress.yaml` | Ruteo HTTP (streaming del chat sin buffer) |
@@ -63,6 +67,8 @@ $env:PG_CONN_STR = "postgres://postgres:postgres@localhost:5433/terraform_state?
 # Secretos de la API DENTRO del clúster: la BD se ve como host.docker.internal
 $env:TF_VAR_database_url = "postgres://feathersforall_app:clave-app-123@host.docker.internal:5433/feathersforall"
 $env:TF_VAR_jwt_secret   = "<el mismo JWT_SECRET de code/backend/.env>"
+# Conexión de plataforma SOLO para los jobs (purga de conversaciones del tutor, ADR 0008); la API no la ve
+$env:TF_VAR_database_admin_url = "postgres://postgres:postgres@host.docker.internal:5433/feathersforall"
 
 cd terraform
 terraform init
