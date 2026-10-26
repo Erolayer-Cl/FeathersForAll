@@ -3,7 +3,7 @@
 //   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 //
 // TEST_DATABASE_URL es un superusuario (con `docker compose up -d`, el del compose). Cada archivo
-// de pruebas crea su propia base, aplica el esquema completo (01–04), los permisos del rol de la API
+// de pruebas crea su propia base, aplica el esquema completo (01–05), los permisos del rol de la API
 // (permisos_app.sql) y los datos demo, y la borra al terminar.
 //
 // La API se conecta como `feathersforall_app_test`: un rol de LOGIN que HEREDA los permisos de
@@ -19,7 +19,7 @@ export const SKIP = !ADMIN_URL && 'sin TEST_DATABASE_URL';
 
 const TEST_ROLE = 'feathersforall_app_test';
 const TEST_PASSWORD = 'test';
-const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', 'permisos_app.sql', '90_seed_demo.sql'];
+const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', '05_conversaciones_tutor.sql', 'permisos_app.sql', '90_seed_demo.sql'];
 
 const readSql = (file) => readFile(new URL(`../db/${file}`, import.meta.url), 'utf8');
 

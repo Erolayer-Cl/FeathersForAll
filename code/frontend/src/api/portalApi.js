@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.1.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.2.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { requestJson } from './http.js';
 
@@ -40,4 +40,22 @@ export function getMyGrades(token, opts) {
 /** GET /v1/me/grades/{assessmentId} → detalle de una evaluación entregada, con retroalimentación. */
 export function getGradeDetail(token, assessmentId, opts) {
   return requestJson(`/v1/me/grades/${encodeURIComponent(assessmentId)}`, { token, ...opts });
+}
+
+// --- Conversaciones guardadas del Tutor IA (v1.2, ADR 0008): solo las ve el propio estudiante.
+// El envío de mensajes responde en streaming: está en chatApi.js (streamTutorMessage).
+
+/** GET /v1/courses/{id}/tutor-conversations → mis conversaciones del curso { data: [...] }, la más reciente primero. */
+export function getTutorConversations(token, courseId, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/tutor-conversations?limit=50`, { token, ...opts });
+}
+
+/** GET /v1/tutor-conversations/{id} → la conversación con sus mensajes en orden. */
+export function getTutorConversation(token, conversationId, opts) {
+  return requestJson(`/v1/tutor-conversations/${encodeURIComponent(conversationId)}`, { token, ...opts });
+}
+
+/** DELETE /v1/tutor-conversations/{id} → null (204). */
+export function deleteTutorConversation(token, conversationId, opts) {
+  return requestJson(`/v1/tutor-conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE', token, ...opts });
 }

@@ -118,8 +118,9 @@ export function CursoPage({ param: courseId }) {
                     <p className={styles.sub}>
                       Tu docente subió {curso.tutor_documents} {curso.tutor_documents === 1 ? 'apunte' : 'apuntes'}: el tutor responde con ese material.
                     </p>
-                    {/* El tutor dentro del portal llega en una próxima etapa. */}
-                    <p className={styles.soon}>Muy pronto podrás preguntarle desde aquí.</p>
+                    <Button variant="accent" size="sm" href={routeHref('est-tutor', courseId)}>
+                      Preguntar sobre este curso
+                    </Button>
                   </>
                 ) : (
                   <p className={styles.sub}>Tu docente aún no sube apuntes de este curso. Cuando lo haga, podrás preguntarle al tutor.</p>

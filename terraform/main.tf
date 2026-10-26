@@ -57,3 +57,19 @@ module "feathersforall" {
     }
   }
 }
+
+# Secret APARTE para los jobs de plataforma (k8s/cronjob-purga.yaml, ADR 0008). Lleva la conexión de
+# plataforma, que puede ejecutar purgar_conversaciones_tutor(); el Deployment de la API no lo monta.
+resource "kubernetes_secret_v1" "jobs" {
+  metadata {
+    name      = "ffa-jobs-secrets"
+    namespace = module.feathersforall.namespace
+    labels = {
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+  type = "Opaque"
+  data = {
+    DATABASE_ADMIN_URL = var.database_admin_url
+  }
+}

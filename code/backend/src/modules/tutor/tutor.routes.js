@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { MODES, SYSTEM_PROMPTS } from './system-prompt.js';
+import { MODES } from './system-prompt.js';
 import { HttpProblem } from '../../platform/problem.js';
-import { prepareTurn } from './rag/rag-prompt.js';
 import { COURSE_ID_PATTERN, UUID_PATTERN } from './rag/rag.routes.js';
+import { streamTurn } from './turn.js';
 
-const MAX_MESSAGES = 50;
-const MAX_CONTENT_LENGTH = 4000;
+export const MAX_MESSAGES = 50;
+export const MAX_CONTENT_LENGTH = 4000;
 const ALLOWED_ROLES = new Set(['user', 'assistant']);
 
 function validateBody(body, coursePattern) {
@@ -33,13 +33,8 @@ function validateBody(body, coursePattern) {
 
 /**
  * Ruta de desarrollo (fuera del contrato OpenAPI): chat con el tutor.
- * El endpoint oficial POST /courses/{courseId}/tutor-questions reutilizará la misma lógica.
- *
- * Cómo responde (ver prepareTurn en rag/rag-prompt.js):
- *  - charla (saludo, gracias, "¿quién eres?", "estoy nervioso"…) → conversa con el LLM, sin contenidos.
- *  - pregunta de materia con apuntes relevantes → LLM anclado SOLO a esos apuntes, con fuentes [n].
- *  - pregunta de materia sin apuntes relevantes → "No encuentro eso…" fijo, SIN llamar al LLM (no inventa).
- *  - curso sin apuntes → aviso fijo, SIN llamar al LLM.
+ * El cliente manda toda la conversación y nada se guarda. El portal del estudiante usa las
+ * conversaciones guardadas (conversaciones.routes.js), que comparten la misma lógica (turn.js).
  *
  * Colegio: si hay JWT, sale del token (claim tenant_id) y se verifica que el usuario pueda usar el curso
  * (estudiante matriculado, docente del curso o admin). Sin token se usa `tenantId` de la config (solo desarrollo).
@@ -62,67 +57,7 @@ export function createTutorRouter({ llm, rag, tenantId = 'dev', defaultCourseId 
       throw new HttpProblem(404, 'No encontrado', 'El curso no existe o no participas en él', 'not-found');
     }
 
-    const turn = await prepareTurn({
-      rag,
-      tenantId: tenant,
-      courseId,
-      messages: req.body.messages,
-      systemPrompt: SYSTEM_PROMPTS[mode],
-    });
-
-    if (turn.kind !== 'plain') {
-      // Solo el tipo de turno y el puntaje: nunca el contenido de la pregunta (menores de edad).
-      req.log.info({ rag: turn.kind, best_score: turn.best ?? null }, 'tutor');
-      res.set('X-Tutor-Turn', turn.kind);
-      res.set('X-Rag-Grounded', String(turn.kind === 'grounded'));
-    }
-
-    // Respuestas fijas: no se llama al LLM, así no hay nada que pueda inventar.
-    if (turn.kind === 'no-info' || turn.kind === 'no-notes') {
-      res.status(200).type('text/plain; charset=utf-8').send(turn.reply);
-      return;
-    }
-    if (turn.kind === 'grounded') {
-      res.set('X-Rag-Sources', encodeURIComponent(JSON.stringify(turn.sources)));
-    }
-
-    const system = turn.kind === 'plain' ? SYSTEM_PROMPTS[mode] : turn.system;
-    const history = turn.kind === 'plain' ? req.body.messages : turn.messages;
-    const messages = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
-
-    // Si el cliente cierra la conexión, se corta también la generación en el LLM.
-    const abort = new AbortController();
-    res.on('close', () => {
-      if (!res.writableFinished) abort.abort();
-    });
-
-    const stream = llm.chat(messages, { signal: abort.signal });
-
-    // Se espera el primer fragmento antes de enviar cabeceras: si el LLM está
-    // caído, todavía se puede responder un 503 RFC 7807 en vez de un 200 vacío.
-    let first;
-    try {
-      first = await stream.next();
-    } catch (err) {
-      // El cliente se fue antes del primer fragmento (p. ej. "nueva conversación"): no es un error del servidor.
-      if (abort.signal.aborted) return;
-      throw err;
-    }
-
-    res.status(200);
-    res.type('text/plain; charset=utf-8');
-    res.set('Cache-Control', 'no-cache');
-    res.set('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-
-    try {
-      if (!first.done) res.write(first.value);
-      for await (const chunk of stream) res.write(chunk);
-      res.end();
-    } catch (err) {
-      if (!abort.signal.aborted) req.log.warn({ err: err.message }, 'respuesta del LLM interrumpida');
-      res.destroy();
-    }
+    await streamTurn({ req, res, llm, rag, tenantId: tenant, courseId, mode, messages: req.body.messages });
   });
 
   return router;

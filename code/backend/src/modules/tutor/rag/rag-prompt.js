@@ -38,7 +38,10 @@ export function normalizeText(text) {
 
 // Cada patrón describe el mensaje COMPLETO (anclado con ^…$): "hola" es charla,
 // "hola, ¿qué es una fracción?" no lo es y va a los apuntes.
-const SALUDO = '(hola+|holi+s?|hey|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|que onda|wena+s?|saludos)';
+// Incluye cómo lo escriben los estudiantes en el chat: sin hache ("ola", "oli"), con letras repetidas
+// ("holaaa") o abreviado ("hla"). Como el patrón describe el mensaje completo, "ola" sola es saludo,
+// pero "¿qué es una ola?" sigue yendo a los apuntes.
+const SALUDO = '(h?o+la+s?|h?oli+s?|hla|alo+|hey|buenas|buena|buen dia|buenos dias|buenas tardes|buenas noches|que tal|que onda|wena+s?|saludos)';
 const VOCATIVO = '( (pluma|tutor|profe|profesor|profesora))?';
 const ACK = '(ok|oka|okey|okay|vale|ya|listo|perfecto|genial|bacan|buena|super|entiendo|entendi|ya entendi|ahora entendi|claro|de acuerdo|dale|bueno)';
 const SMALL_TALK = [
@@ -172,12 +175,18 @@ export async function prepareTurn({ rag, tenantId, courseId, messages, systemPro
     return { kind: 'chat', system: withSmallTalk(systemPrompt), messages: dropNoInfoTurns(messages) };
   }
 
-  if (!(await rag.hasCourse({ tenantId, courseId }))) return { kind: 'no-notes', reply: NO_NOTES_REPLY };
+  const t0 = performance.now();
+  if (!(await rag.hasCourse({ tenantId, courseId }))) {
+    return { kind: 'no-notes', reply: NO_NOTES_REPLY, timings: { has_notes_ms: Math.round(performance.now() - t0) } };
+  }
+  const hasNotesMs = Math.round(performance.now() - t0);
 
-  const { hits, best } = await rag.retrieve({ tenantId, courseId, query: buildQuery(messages) });
-  if (hits.length === 0) return { kind: 'no-info', reply: NO_INFO_REPLY, best };
+  const { hits, best, timings: found } = await rag.retrieve({ tenantId, courseId, query: buildQuery(messages) });
+  const timings = { has_notes_ms: hasNotesMs, ...found };
+  if (hits.length === 0) return { kind: 'no-info', reply: NO_INFO_REPLY, best, timings };
   return {
     kind: 'grounded',
+    timings,
     system: withContext(systemPrompt, hits),
     messages: dropNoInfoTurns(messages),
     sources: summarizeSources(hits),

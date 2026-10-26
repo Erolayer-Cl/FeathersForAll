@@ -82,4 +82,4 @@ build: { rollupOptions: { input: { main: 'index.html', portal: 'portal.html' } }
 ## Pendiente
 - Las otras 27 pantallas del Figma (hoy marcador).
 - ~~Conectar login y datos a la API~~ (etapa 1, hecho para el estudiante): el login usa `POST /v1/auth/login` y la sesión vive en `session/`; las pantallas piden sus datos con `hooks/useApiData.js` y `api/portalApi.js`. Pendiente: pantallas de docente y administrador con datos reales.
-- El Tutor IA del estudiante (`est-tutor`) debería reutilizar `features/chat` de la app existente.
+- ~~Tutor IA del estudiante~~ (hecho): `est-tutor[/<curso>]` (`pages/estudiante/TutorPage.jsx`) conversa con `POST /v1/dev/chat` enviando el JWT y el `course_id`; reutiliza `toApiMessages` de `features/chat` y `api/chatApi.js`, con estilos propios del portal. Lógica pura en `utils/tutorChat.js`, streaming y sesión en `hooks/useTutorChat.js`. Inicio y Curso enlazan a esta pantalla.

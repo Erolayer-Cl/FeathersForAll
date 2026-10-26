@@ -24,6 +24,7 @@
 \ir 02_s06_ajustes.sql
 \ir 03_notas.sql
 \ir 04_privacidad_login.sql
+\ir 05_conversaciones_tutor.sql
 
 -- Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
 -- El rol es del servidor (no de la base): puede existir de otra base.

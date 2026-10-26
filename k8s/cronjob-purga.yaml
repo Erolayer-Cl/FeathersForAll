@@ -1,0 +1,54 @@
+# Retención de las conversaciones del Tutor IA (ADR 0008): borra las de años escolares anteriores.
+# Corre a diario (es idempotente: solo encuentra algo que borrar a partir del 1 de enero), así que
+# si el clúster estuvo apagado ese día, igual se borran al día siguiente.
+#
+# Usa la MISMA imagen de la API (el job está en src/jobs/) con otro comando, y un Secret APARTE
+# (ffa-jobs-secrets, lo crea Terraform) con DATABASE_ADMIN_URL: la credencial de plataforma no la ve
+# el Deployment de la API, que sigue conectándose como feathersforall_app (sin BYPASSRLS).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ffa-purga-conversaciones
+  labels:
+    app.kubernetes.io/name: ffa-purga-conversaciones
+    app.kubernetes.io/component: job
+spec:
+  schedule: "30 4 * * *"                 # 04:30 todos los días
+  timeZone: "America/Santiago"           # misma zona que usa purgar_conversaciones_tutor()
+  concurrencyPolicy: Forbid              # nunca dos purgas a la vez
+  startingDeadlineSeconds: 3600          # si se atrasa más de 1 h, espera al día siguiente
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ffa-purga-conversaciones
+            app.kubernetes.io/component: job
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532                   # "nonroot" de distroless, como la API
+            runAsGroup: 65532
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: purga
+              image: feathersforall-api        # Kustomize lo reemplaza por ghcr.io/...@sha256:...
+              args: ["src/jobs/purgar-conversaciones.js"]   # el ENTRYPOINT de distroless ya es "node"
+              env:
+                - name: DATABASE_ADMIN_URL
+                  valueFrom:
+                    secretKeyRef: { name: ffa-jobs-secrets, key: DATABASE_ADMIN_URL }
+              resources:
+                requests: { cpu: "20m", memory: "64Mi" }
+                limits: { cpu: "200m", memory: "128Mi" }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: ["ALL"] }

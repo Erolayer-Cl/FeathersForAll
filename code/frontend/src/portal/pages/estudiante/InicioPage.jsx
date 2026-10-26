@@ -1,6 +1,7 @@
 import { getMyGrades } from '../../../api/portalApi.js';
-import { Card, Chip, EmptyState, Kpi, LoadState } from '../../components/ui/index.js';
+import { Button, Card, Chip, EmptyState, Kpi, LoadState } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
+import { routeHref } from '../../router/parseRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { contarNotas, formatNota, periodosDe, primerNombre, promedioGeneral, tonoNota } from '../../utils/notas.js';
 import styles from './InicioPage.module.css';
@@ -60,8 +61,9 @@ export function EstudianteInicioPage() {
               {conApuntes ? `Con apuntes en ${conApuntes} de ${ramos.length} asignaturas` : 'Sin apuntes todavía'}
             </Chip>
           )}
-          {/* El tutor dentro del portal llega en una próxima etapa: no se ofrece un botón que no lleva a nada. */}
-          <span className={styles.soon}>Muy pronto podrás preguntarle desde aquí.</span>
+          <Button variant="accent" href={routeHref('est-tutor')}>
+            Preguntarle al tutor
+          </Button>
         </div>
       </section>
 

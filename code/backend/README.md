@@ -36,12 +36,21 @@ npm test                     # no necesita Ollama (LLM simulado) ni PostgreSQL
 ### Base de datos local con Docker (recomendado)
 
 ```bash
-docker compose up -d        # PostgreSQL 16 + pgvector con esquema 01–04, usuario de la API y datos demo
+docker compose up -d        # PostgreSQL 16 + pgvector con esquema 01–05, usuario de la API y datos demo
 docker compose ps           # "healthy" = lista
 docker compose down -v      # borrar todo y empezar de cero
 ```
 
 Las claves del compose (`postgres`/`postgres` y `feathersforall_app`/`cambiar`) son solo de desarrollo y ya coinciden con `.env.example`. Falta completar `JWT_SECRET` en `.env`.
+
+El contenedor se levanta solo al encender el equipo (`restart: unless-stopped`) y los datos viven en el volumen `feathersforall_pgdata`, así que después del primer `up` basta con `npm run dev`.
+
+**Si `docker compose up` falla con "address already in use" en el 5432:** otro PostgreSQL ocupa el puerto (por ejemplo, uno instalado en el sistema). Revisa con `ss -ltnp | grep 5432` y elige una opción:
+
+- detener el otro (`sudo systemctl disable --now postgresql`) y luego `docker compose up -d --force-recreate` (el `--force-recreate` hace falta si el contenedor ya intentó arrancar: si no, puede quedar sin el puerto publicado);
+- o usar otro puerto: `DB_PORT=5433 docker compose up -d` y cambiar `5432` por `5433` en las URLs de `.env`.
+
+Comprueba con `docker port feathersforall-db-1`: debe mostrar `5432/tcp -> 127.0.0.1:5432`.
 
 ### Credenciales demo (datos sintéticos)
 
@@ -65,7 +74,7 @@ curl -s localhost:3000/v1/auth/login -H 'content-type: application/json' \
 ```bash
 createdb feathersforall
 cd db
-# Esquema (01 a 04) + usuario de la API feathersforall_app y sus permisos + datos demo, en un paso:
+# Esquema (01 a 05) + usuario de la API feathersforall_app y sus permisos + datos demo, en un paso:
 psql -d feathersforall -v app_password='cambiar' -v demo=1 -f crear_bdd.sql
 ```
 
@@ -155,6 +164,10 @@ Para subir apuntes por API con PostgreSQL: `POST /v1/dev/courses/{courseId}/docu
 | Método | Ruta | Quién | Qué hace |
 |---|---|---|---|
 | GET | `/health` | — | `{ status, llm: "up" \| "down", db: "up" \| "down" \| "disabled", rag: "postgres" \| "archivo" \| "disabled" }` |
+| GET | `/v1/courses/{id}/tutor-conversations?limit=` | estudiante | Mis conversaciones guardadas con el tutor en ese curso, la más reciente primero (ADR 0008). Docente y admin: 403. |
+| POST | `/v1/courses/{id}/tutor-conversations/{convId}/messages` | estudiante | `{ content, mode? }` → streaming `text/plain` con las mismas cabeceras que el chat. El id lo genera el cliente: el primer mensaje crea la conversación. El servidor usa el historial guardado y guarda pregunta + respuesta cuando la respuesta termina. |
+| GET | `/v1/tutor-conversations/{convId}` | estudiante (dueño) | La conversación con sus mensajes. 404 para cualquier otro usuario. |
+| DELETE | `/v1/tutor-conversations/{convId}` | estudiante (dueño) | Borra la conversación. Retención: `npm run tutor:purgar` borra las de años anteriores (job anual o diario). |
 | POST | `/v1/dev/chat` | token opcional en desarrollo (obligatorio en producción) | `{ mode?: "tutor" \| "pruebas", course_id?: uuid, messages: [{ role, content }] }` → streaming `text/plain`. Cabeceras `X-Tutor-Turn`, `X-Rag-Grounded`, `X-Rag-Sources`. Con token, 404 si el usuario no participa en el curso. Fuera del contrato OpenAPI. |
 | POST / GET / DELETE | `/v1/dev/courses/{courseId}/documents[/{docId}]` | docente del curso, admin (GET: también estudiantes del curso) | Subir (201), listar o borrar (204) apuntes. No existe con `NODE_ENV=production`. |
 | POST | `/v1/auth/login` | pública | `{ rbd, email, password }` → `{ access_token, token_type, expires_in, user }`. Cualquier fallo: el mismo 401; 5 fallos seguidos de una cuenta: 429 con `Retry-After`. |
@@ -179,7 +192,8 @@ Los errores usan RFC 7807 (`application/problem+json`, con `trace_id`). Si Ollam
 
 ```text
 db/
-  01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql, 04_privacidad_login.sql   # esquema (aplicar en orden)
+  01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql, 04_privacidad_login.sql,
+  05_conversaciones_tutor.sql                                                  # esquema (aplicar en orden)
   permisos_app.sql          # GRANT del rol de la API (sin lectura de password_hash)
   docker-init.sh            # lo usa compose.yaml en el primer arranque
   crear_bdd.sql             # crea todo en un paso: esquema + usuario de la API (+ demo)
@@ -195,6 +209,8 @@ src/
     llm-client.js           # única pieza que conoce a Ollama (chat)
     embeddings-client.js    # única pieza que conoce los embeddings de Ollama
     tutor.routes.js         # POST /v1/dev/chat
+    conversaciones.routes.js # conversaciones guardadas del estudiante (ADR 0008)
+    turn.js                 # atiende un turno (RAG + streaming); lo comparten las dos rutas
     system-prompt.js        # prompts por modo (tutor, pruebas)
     rag/
       chunker.js            # divide apuntes en fragmentos

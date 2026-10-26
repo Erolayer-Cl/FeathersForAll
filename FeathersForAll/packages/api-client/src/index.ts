@@ -17,6 +17,13 @@ export type MyGrades = Schemas["MyGrades"];
 export type MyCourseGrades = Schemas["MyCourseGrades"];
 export type GradeEntry = Schemas["GradeEntry"];
 export type GradeDetail = Schemas["GradeDetail"];
+// v1.2.0 — conversaciones guardadas del tutor (ADR 0008). El envío de mensajes responde en
+// streaming (text/plain): para leerlo por fragmentos, usar fetch directo (ver chatApi.js del frontend).
+export type TutorConversation = Schemas["TutorConversation"];
+export type TutorConversationDetail = Schemas["TutorConversationDetail"];
+export type TutorMessage = Schemas["TutorMessage"];
+export type TutorMessageInput = Schemas["TutorMessageInput"];
+export type TutorSource = Schemas["TutorSource"];
 
 export interface ClientOptions {
   /** Ej: "http://localhost:3000/v1" o el mock de Prism "http://127.0.0.1:4010" (sin /v1). */

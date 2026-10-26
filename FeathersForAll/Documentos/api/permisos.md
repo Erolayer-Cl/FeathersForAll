@@ -1,10 +1,10 @@
-# Matriz de permisos — API v1.1.0 (etapa 1, rol estudiante)
+# Matriz de permisos — API v1.2.0 (etapa 1, rol estudiante)
 
 Quién puede hacer qué en la API, y qué hace la base de datos si la API se equivocara. Cada fila está probada:
 - en el backend (`code/backend/test/*.pg.test.js`);
 - en Postman (`code/backend/requests/postman/`), cuyo Runner muestra la matriz en verde.
 
-Decisión de diseño: [ADR 0007](../adr/0007-autenticacion-y-privacidad.md).
+Decisión de diseño: [ADR 0007](../adr/0007-autenticacion-y-privacidad.md); conversaciones del tutor: [ADR 0008](../adr/0008-conversaciones-del-tutor.md).
 
 ## Reglas generales
 
@@ -59,16 +59,30 @@ Se documentan aquí por el permiso del estudiante, que **solo lee**.
 | `POST /v1/dev/chat` con `course_id` | 200, respuesta solo con los apuntes de **ese curso** | 200 | 200 | **404** |
 | Indicador `tutor_available` del ramo | visible | visible | visible | — |
 
+### Conversaciones guardadas del tutor (v1.2, ADR 0008)
+
+Son **privadas del estudiante**: ni el docente ni el admin las leen. Se borran al terminar el año escolar.
+
+| Endpoint | Estudiante (lo suyo) | Otro estudiante | Docente del curso | Admin | Otro colegio |
+|---|---|---|---|---|---|
+| `GET /v1/courses/{id}/tutor-conversations` | 200, **sus** conversaciones del curso | 200, solo las suyas (no ve las ajenas) | **403** | **403** | 404 |
+| `GET /v1/tutor-conversations/{id}` | 200 | **404** | **403** | **403** | 404 |
+| `DELETE /v1/tutor-conversations/{id}` | 204 | **404** | **403** | **403** | 404 |
+| `POST /v1/courses/{id}/tutor-conversations/{convId}/messages` | 200 (streaming) si está matriculado | con un id ajeno no agrega nada a esa conversación | **403** | **403** | 404 |
+
+Probado en `test/conversaciones.pg.test.js`.
+
 Cada colegio tiene sus propios apuntes. Una pregunta en el curso del colegio B nunca recibe fragmentos del colegio A: se ve en `test/rag.pg.test.js` y en la carpeta 6 de Postman.
 
 ## Segunda línea: lo que aplica la base de datos
 
-Esto vale aunque la API tuviera un error. Lo implementan `01` + `02` + `04` + `permisos_app.sql`.
+Esto vale aunque la API tuviera un error. Lo implementan `01` + `02` + `04` + `05` + `permisos_app.sql`.
 
 | Capa | Regla |
 |---|---|
 | Colegio (RLS de `01`) | Sin `app.colegio_id` no se ve ninguna fila; con él, solo las de ese colegio |
 | Escritura por rol (`02` §9) | Solo el docente del curso o el admin escriben evaluaciones, apuntes y matrículas; el estudiante no puede cambiar exigencias, ponderaciones ni intentos entregados |
 | Lectura por usuario (`04`) | El estudiante ve solo sus matrículas, intentos, notas, respuestas y consultas; el docente, solo las de sus cursos; sin `app.rol`, nada |
+| Conversaciones del tutor (`05`) | Solo el estudiante dueño lee, crea y borra sus conversaciones y mensajes; docente y admin no ven nada. La purga anual (`purgar_conversaciones_tutor()`) no la puede ejecutar la API |
 | Usuarios (`04`) | El estudiante ve su fila y al personal, no a otros estudiantes |
 | Contraseñas (`permisos_app.sql`) | La API no puede leer `password_hash` (permiso por columna); solo existe `credenciales_login()` |

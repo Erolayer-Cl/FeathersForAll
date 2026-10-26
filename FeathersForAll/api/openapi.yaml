@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FeathersForAll API
-  version: 1.1.0
+  version: 1.2.0
   summary: API pública del monolito modular de FeathersForAll.
   description: |
     Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
@@ -15,6 +15,10 @@ info:
     **Privacidad (v1.1):** cada rol ve solo lo suyo. El estudiante ve sus asignaturas y sus notas
     (solo lectura), el docente los cursos que dicta y el admin su colegio. Lo aplica la API y,
     además, la base de datos (RLS de lectura por usuario).
+
+    **Conversaciones del tutor (v1.2, ADR 0008):** el estudiante guarda sus conversaciones con el
+    tutor IA por curso y las retoma en cualquier dispositivo. Solo las ve el propio estudiante (ni el
+    docente ni el admin) y se borran al terminar el año escolar.
 
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
     (claim `tenant_id`) y el backend lo fija por transacción en PostgreSQL (RLS, ADR 0002 D1).
@@ -55,7 +59,7 @@ tags:
   - name: Resultados
     description: Dashboard de resultados para el docente (H3).
   - name: Tutor IA
-    description: Consultas al tutor IA con RAG por curso/tenant (H5). Procesamiento asíncrono vía SQS.
+    description: Consultas al tutor IA con RAG por curso/tenant (H5). Preguntas sueltas asíncronas vía SQS y conversaciones guardadas del estudiante con respuesta en streaming (ADR 0008).
 paths:
   /auth/login:
     post:
@@ -495,6 +499,134 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/tutor-conversations:
+    get:
+      tags: [Tutor IA]
+      summary: Mis conversaciones con el tutor en un curso
+      description: |
+        Conversaciones guardadas del estudiante autenticado en el curso, de la más reciente a la más antigua.
+        Solo el rol `estudiante`; el docente y el admin reciben `403` (las conversaciones son privadas, ADR 0008).
+      operationId: listTutorConversations
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Conversaciones del estudiante en el curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TutorConversationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/tutor-conversations/{conversationId}/messages:
+    post:
+      tags: [Tutor IA]
+      summary: Enviar un mensaje al tutor
+      description: |
+        Envía una pregunta en una conversación y recibe la respuesta del tutor en streaming (`text/plain`, por fragmentos).
+        El id de la conversación lo genera el cliente: si no existe, el primer mensaje la crea con el `mode` indicado
+        (en una conversación existente manda el modo guardado). El servidor usa el historial guardado; el cliente
+        solo envía la pregunta nueva.
+
+        La pregunta y la respuesta se guardan juntas solo cuando la respuesta termina: si el LLM falla o el cliente
+        corta la conexión, no se guarda nada. Por eso no usa `Idempotency-Key` (excepción documentada en ADR 0008):
+        reintentar un turno fallido no duplica nada.
+
+        Solo el rol `estudiante`, en un curso donde está matriculado. Las respuestas se basan en los apuntes del curso.
+      operationId: sendTutorMessage
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ConversationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TutorMessageInput'
+      responses:
+        '200':
+          description: Respuesta del tutor, en streaming.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+            X-Conversation-Mode:
+              description: Modo de la conversación (`tutor` o `pruebas`).
+              schema: { type: string, enum: [tutor, pruebas] }
+            X-Tutor-Turn:
+              description: "Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes)."
+              schema: { type: string, enum: [grounded, chat, no-info, no-notes] }
+            X-Rag-Sources:
+              description: Solo si `X-Tutor-Turn = grounded`. Arreglo JSON de `TutorSource`, codificado con encodeURIComponent.
+              schema: { type: string }
+          content:
+            text/plain:
+              schema: { type: string }
+              example: "El denominador indica en cuántas partes iguales se divide el todo [1]."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /tutor-conversations/{conversationId}:
+    get:
+      tags: [Tutor IA]
+      summary: Ver una conversación con el tutor
+      description: La conversación con todos sus mensajes en orden. Solo la ve su dueño; para cualquier otro usuario responde `404`.
+      operationId: getTutorConversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '200':
+          description: Conversación con sus mensajes.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TutorConversationDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Tutor IA]
+      summary: Borrar una conversación con el tutor
+      description: Borra la conversación y sus mensajes. Solo su dueño; para cualquier otro usuario responde `404`.
+      operationId: deleteTutorConversation
+      parameters:
+        - $ref: '#/components/parameters/ConversationId'
+      responses:
+        '204':
+          description: Conversación borrada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
@@ -514,6 +646,12 @@ components:
       in: path
       required: true
       description: Identificador del curso.
+      schema: { type: string, format: uuid }
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      description: Identificador de la conversación con el tutor (UUID que genera el cliente).
       schema: { type: string, format: uuid }
     AssessmentId:
       name: assessmentId
@@ -828,6 +966,60 @@ components:
               title: { type: string }
         created_at: { type: string, format: date-time }
         answered_at: { type: [string, 'null'], format: date-time }
+    TutorSource:
+      type: object
+      required: [doc_id, score]
+      properties:
+        doc_id: { type: string, description: "Apunte del curso usado como fuente.", example: "fracciones.md" }
+        score: { type: number, minimum: 0, maximum: 1, description: "Similitud del fragmento con la pregunta.", example: 0.82 }
+    TutorMessageInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 4000, example: "¿Qué indica el denominador de una fracción?" }
+        mode:
+          type: string
+          enum: [tutor, pruebas]
+          default: tutor
+          description: "Solo al crear la conversación: `tutor` (estudiar) o `pruebas` (practicar una prueba)."
+    TutorConversation:
+      type: object
+      required: [id, course_id, mode, title, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        course_id: { type: string, format: uuid }
+        mode: { type: string, enum: [tutor, pruebas] }
+        title: { type: string, maxLength: 60, description: "Inicio de la primera pregunta.", example: "¿Qué indica el denominador de una fracción?" }
+        messages_count: { type: integer, minimum: 0, description: "Solo en la lista." }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time, description: "Último mensaje. La retención se cuenta desde aquí." }
+    TutorConversationList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TutorConversation' }
+    TutorMessage:
+      type: object
+      required: [role, content, sources, created_at]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        sources:
+          type: array
+          description: Apuntes usados en la respuesta (vacío en las preguntas y en la charla).
+          items: { $ref: '#/components/schemas/TutorSource' }
+        created_at: { type: string, format: date-time }
+    TutorConversationDetail:
+      allOf:
+        - $ref: '#/components/schemas/TutorConversation'
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items: { $ref: '#/components/schemas/TutorMessage' }
   responses:
     BadRequest:
       description: Solicitud mal formada (por ejemplo, falta Idempotency-Key).
@@ -876,6 +1068,11 @@ components:
           $ref: '#/components/headers/Retry-After'
         X-RateLimit-Remaining:
           $ref: '#/components/headers/X-RateLimit-Remaining'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: Un servicio del que depende la operación (por ejemplo, el proveedor LLM) no está disponible.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

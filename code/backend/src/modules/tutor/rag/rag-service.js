@@ -52,13 +52,17 @@ export function createRagService({ embedder, store, topK = 4, minScore = 0.5, ch
 
     /**
      * Busca en los apuntes del curso.
-     * @returns {Promise<{hits: {doc_id: string, chunk_index: number, text: string, score: number}[], best: number | null}>}
-     *   `hits` ya filtrados por `minScore`; `best` es la mejor similitud encontrada (útil para ajustar el umbral).
+     * @returns {Promise<{hits: {doc_id: string, chunk_index: number, text: string, score: number}[], best: number | null, timings: {embed_ms: number, search_ms: number}}>}
+     *   `hits` ya filtrados por `minScore`; `best` es la mejor similitud encontrada (útil para ajustar el umbral);
+     *   `timings`: cuánto tardó el embedding de la pregunta y la búsqueda en el almacén.
      */
     async retrieve({ tenantId, courseId, query }) {
+      const t0 = performance.now();
       const [embedding] = await embedder.embed([query]);
+      const t1 = performance.now();
       const found = await store.search({ tenantId, courseId, embedding, topK });
-      return { hits: found.filter((h) => h.score >= minScore), best: found[0]?.score ?? null };
+      const timings = { embed_ms: Math.round(t1 - t0), search_ms: Math.round(performance.now() - t1) };
+      return { hits: found.filter((h) => h.score >= minScore), best: found[0]?.score ?? null, timings };
     },
   };
 }

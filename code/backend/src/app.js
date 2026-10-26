@@ -4,6 +4,7 @@ import { notFound, problemHandler } from './platform/problem.js';
 import { optionalAuth, requireAuth } from './platform/auth.js';
 import { createTutorRouter } from './modules/tutor/tutor.routes.js';
 import { createRagRouter } from './modules/tutor/rag/rag.routes.js';
+import { createConversacionesRouter } from './modules/tutor/conversaciones.routes.js';
 import { createNotasRouter } from './modules/notas/notas.routes.js';
 import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
 import { createCursosRouter } from './modules/cursos/cursos.routes.js';
@@ -67,10 +68,12 @@ export function createApp({
   if (db) {
     // Las rutas con datos de colegio exigen JWT. La única excepción es POST /v1/auth/login,
     // donde el colegio sale del RBD (nunca de un header ni del token).
-    app.use(['/v1/me', '/v1/courses', '/v1/assessments'], requireAuth(jwtSecret));
+    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
     app.use(createCursosRouter({ db }));
     app.use(createNotasRouter({ db }));
+    // Conversaciones guardadas del tutor (ADR 0008): necesitan el RAG en PostgreSQL.
+    if (rag?.backend === 'postgres') app.use(createConversacionesRouter({ db, llm, rag }));
   }
 
   app.use(notFound);

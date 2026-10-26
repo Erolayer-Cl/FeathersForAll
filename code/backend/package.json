@@ -15,6 +15,7 @@
     "rag:search": "node --env-file-if-exists=.env scripts/search.js",
     "db:setup": "node --env-file-if-exists=.env scripts/db-setup.js",
     "dev:token": "node --env-file-if-exists=.env scripts/dev-token.js",
+    "tutor:purgar": "node --env-file-if-exists=.env src/jobs/purgar-conversaciones.js",
     "hash:password": "node scripts/hash-password.js",
     "test:postman": "npx --yes newman@6 run requests/postman/FeathersForAll.postman_collection.json -e requests/postman/FeathersForAll.local.postman_environment.json"
   },

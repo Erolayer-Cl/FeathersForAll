@@ -112,6 +112,7 @@ describe('el cliente cancela antes del primer fragmento', () => {
     const llmFinished = new Promise((resolve) => { finished = resolve; });
     // LLM lento: no entrega nada hasta que se aborta la señal (como Ollama cargando el modelo).
     const llm = {
+      // eslint-disable-next-line require-yield -- a propósito: nunca entrega un token
       async *chat(_messages, { signal }) {
         try {
           started();
@@ -209,6 +210,37 @@ describe('createOllamaClient', () => {
       stream: true,
       options: { temperature: 0.6 },
     });
+  });
+
+  test('con keepAlive lo envía como keep_alive (modelo en memoria entre preguntas)', async () => {
+    let body;
+    const client = createOllamaClient({
+      endpoint: 'http://ollama.test',
+      model: 'm',
+      timeoutMs: 1000,
+      keepAlive: '30m',
+      fetchImpl: async (_url, init) => {
+        body = JSON.parse(init.body);
+        return ndjsonFetch(['{"message":{"content":"ok"},"done":true}\n'])();
+      },
+    });
+    for await (const _ of client.chat([{ role: 'user', content: 'x' }]));
+    assert.equal(body.keep_alive, '30m');
+  });
+
+  test('onStats recibe las métricas de Ollama en milisegundos (solo números)', async () => {
+    const client = createOllamaClient({
+      endpoint: 'http://ollama.test',
+      model: 'm',
+      timeoutMs: 1000,
+      fetchImpl: ndjsonFetch([
+        '{"message":{"content":"Hola"},"done":false}\n',
+        '{"message":{"content":""},"done":true,"load_duration":19000000000,"prompt_eval_count":594,"prompt_eval_duration":6830460000,"eval_count":24,"eval_duration":1780840000}\n',
+      ]),
+    });
+    let stats;
+    for await (const _ of client.chat([{ role: 'user', content: 'x' }], { onStats: (s) => { stats = s; } }));
+    assert.deepEqual(stats, { load_ms: 19000, prompt_tokens: 594, prompt_ms: 6830, eval_tokens: 24, eval_ms: 1781 });
   });
 
   test('convierte un error HTTP del proveedor en LlmUnavailableError', async () => {

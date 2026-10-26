@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "4d62adb6-612e-4bbf-8f29-0f27425fc73f",
     "name": "FeathersForAll · Etapa 1 (estudiante)",
-    "description": "API de FeathersForAll v1.1.0: login por RBD, mis asignaturas, mis notas (solo lectura), privacidad entre usuarios y colegios, y tutor RAG multi-tenant.\n\n1. Importa esta colección y el environment FeathersForAll.local.\n2. Levanta la base (docker compose up -d) y la API (npm run dev) en code/backend.\n3. Ejecuta la carpeta \"1 · Login\" (guarda los tokens) y luego cualquier otra, o todo con el Runner.\n\nCada request trae tests: el Runner muestra en verde la matriz de permisos.\nDatos sintéticos; contraseña demo: demo1234.",
+    "description": "API de FeathersForAll v1.2.0: login por RBD, mis asignaturas, mis notas (solo lectura), privacidad entre usuarios y colegios, tutor RAG multi-tenant y conversaciones guardadas del tutor (privadas del estudiante).\n\n1. Importa esta colección y el environment FeathersForAll.local.\n2. Levanta la base (docker compose up -d) y la API (npm run dev) en code/backend.\n3. Ejecuta la carpeta \"1 · Login\" (guarda los tokens) y luego cualquier otra, o todo con el Runner.\n\nCada request trae tests: el Runner muestra en verde la matriz de permisos.\nDatos sintéticos; contraseña demo: demo1234.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -1617,6 +1617,543 @@
                 "v1",
                 "auth",
                 "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 · Conversaciones del tutor (v1.2, ADR 0008; requiere Ollama y apuntes cargados)",
+      "description": "Conversaciones guardadas del Tutor IA: solo las ve, sigue y borra el propio estudiante. Otro estudiante recibe 404; el docente y el admin, 403. Ejecutar en orden (el primer request genera el id de la conversación).",
+      "item": [
+        {
+          "name": "[Camila] Primer mensaje: crea la conversación",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// El id de la conversación lo genera el cliente (ADR 0008).",
+                  "pm.environment.set(\"conv_camila\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST .../messages → 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"modo tutor\", () => pm.expect(pm.response.headers.get(\"X-Conversation-Mode\")).to.eql(\"tutor\"));",
+                  "pm.test(\"X-Tutor-Turn: grounded (con apuntes)\", () => pm.expect(pm.response.headers.get(\"X-Tutor-Turn\")).to.eql(\"grounded\"));",
+                  "pm.test(\"responde texto\", () => pm.expect(pm.response.text().length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations/{{conv_camila}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations",
+                "{{conv_camila}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"¿Qué indica el denominador de una fracción?\",\n  \"mode\": \"tutor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Seguir la conversación (el servidor usa el historial)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"POST .../messages → 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"responde texto\", () => pm.expect(pm.response.text().length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations/{{conv_camila}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations",
+                "{{conv_camila}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"¿Y qué indica el numerador?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Mis conversaciones de Matemáticas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET .../tutor-conversations → 200\", () => pm.response.to.have.status(200));",
+                  "const conv = pm.response.json().data.find((c) => c.id === pm.environment.get(\"conv_camila\"));",
+                  "pm.test(\"aparece la conversación nueva\", () => pm.expect(conv).to.be.an(\"object\"));",
+                  "pm.test(\"título = inicio de la primera pregunta\", () => pm.expect(conv.title).to.eql(\"¿Qué indica el denominador de una fracción?\"));",
+                  "pm.test(\"4 mensajes guardados (2 preguntas + 2 respuestas)\", () => pm.expect(conv.messages_count).to.eql(4));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Ver la conversación",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET /v1/tutor-conversations/{id} → 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"mensajes en orden\", () => pm.expect(body.messages.map((m) => m.role)).to.eql([\"user\", \"assistant\", \"user\", \"assistant\"]));",
+                  "pm.test(\"la respuesta trae sus fuentes\", () => pm.expect(body.messages[1].sources.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Tomás · mismo curso] Ver la conversación de Camila → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"otro estudiante → 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tomas}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Tomás · mismo curso] Borrar la conversación de Camila → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"otro estudiante → 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tomas}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Tomás] Su lista no muestra la de Camila",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"GET .../tutor-conversations → 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"no ve conversaciones ajenas\", () => pm.expect(pm.response.json().data.some((c) => c.id === pm.environment.get(\"conv_camila\"))).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_tomas}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Ana · docente] Lista de conversaciones → 403 (privadas del estudiante)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"docente → 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_ana}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Marta · admin] Ver la conversación → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"admin → 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Javiera · B] Mensaje en un curso del colegio A → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"otro colegio → 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_javiera}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations/{{$guid}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations",
+                "{{$guid}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"¿Qué indica el denominador?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Mensaje vacío → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"contenido vacío → 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{curso_mate}}/tutor-conversations/{{conv_camila}}/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{curso_mate}}",
+                "tutor-conversations",
+                "{{conv_camila}}",
+                "messages"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"   \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Borrar su conversación → 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"DELETE /v1/tutor-conversations/{id} → 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] La conversación borrada ya no existe → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"conversación borrada → 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/tutor-conversations/{{conv_camila}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "tutor-conversations",
+                "{{conv_camila}}"
               ]
             }
           }

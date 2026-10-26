@@ -280,6 +280,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{courseId}/tutor-conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mis conversaciones con el tutor en un curso
+         * @description Conversaciones guardadas del estudiante autenticado en el curso, de la más reciente a la más antigua.
+         *     Solo el rol `estudiante`; el docente y el admin reciben `403` (las conversaciones son privadas, ADR 0008).
+         */
+        get: operations["listTutorConversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/tutor-conversations/{conversationId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enviar un mensaje al tutor
+         * @description Envía una pregunta en una conversación y recibe la respuesta del tutor en streaming (`text/plain`, por fragmentos).
+         *     El id de la conversación lo genera el cliente: si no existe, el primer mensaje la crea con el `mode` indicado
+         *     (en una conversación existente manda el modo guardado). El servidor usa el historial guardado; el cliente
+         *     solo envía la pregunta nueva.
+         *
+         *     La pregunta y la respuesta se guardan juntas solo cuando la respuesta termina: si el LLM falla o el cliente
+         *     corta la conexión, no se guarda nada. Por eso no usa `Idempotency-Key` (excepción documentada en ADR 0008):
+         *     reintentar un turno fallido no duplica nada.
+         *
+         *     Solo el rol `estudiante`, en un curso donde está matriculado. Las respuestas se basan en los apuntes del curso.
+         */
+        post: operations["sendTutorMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tutor-conversations/{conversationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver una conversación con el tutor
+         * @description La conversación con todos sus mensajes en orden. Solo la ve su dueño; para cualquier otro usuario responde `404`.
+         */
+        get: operations["getTutorConversation"];
+        put?: never;
+        post?: never;
+        /**
+         * Borrar una conversación con el tutor
+         * @description Borra la conversación y sus mensajes. Solo su dueño; para cualquier otro usuario responde `404`.
+         */
+        delete: operations["deleteTutorConversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -574,6 +648,65 @@ export interface components {
             /** Format: date-time */
             answered_at?: string | null;
         };
+        TutorSource: {
+            /**
+             * @description Apunte del curso usado como fuente.
+             * @example fracciones.md
+             */
+            doc_id: string;
+            /**
+             * @description Similitud del fragmento con la pregunta.
+             * @example 0.82
+             */
+            score: number;
+        };
+        TutorMessageInput: {
+            /** @example ¿Qué indica el denominador de una fracción? */
+            content: string;
+            /**
+             * @description Solo al crear la conversación: `tutor` (estudiar) o `pruebas` (practicar una prueba).
+             * @default tutor
+             * @enum {string}
+             */
+            mode: "tutor" | "pruebas";
+        };
+        TutorConversation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            course_id: string;
+            /** @enum {string} */
+            mode: "tutor" | "pruebas";
+            /**
+             * @description Inicio de la primera pregunta.
+             * @example ¿Qué indica el denominador de una fracción?
+             */
+            title: string;
+            /** @description Solo en la lista. */
+            messages_count?: number;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: date-time
+             * @description Último mensaje. La retención se cuenta desde aquí.
+             */
+            updated_at: string;
+        };
+        TutorConversationList: {
+            data: components["schemas"]["TutorConversation"][];
+        };
+        TutorMessage: {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string;
+            /** @description Apuntes usados en la respuesta (vacío en las preguntas y en la charla). */
+            sources: components["schemas"]["TutorSource"][];
+            /** Format: date-time */
+            created_at: string;
+        };
+        TutorConversationDetail: components["schemas"]["TutorConversation"] & {
+            messages: components["schemas"]["TutorMessage"][];
+        };
     };
     responses: {
         /** @description Solicitud mal formada (por ejemplo, falta Idempotency-Key). */
@@ -657,12 +790,23 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Un servicio del que depende la operación (por ejemplo, el proveedor LLM) no está disponible. */
+        ServiceUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         /** @description UUID generado por el cliente. Misma clave en 24 h = misma respuesta, sin duplicar. */
         IdempotencyKey: string;
         /** @description Identificador del curso. */
         CourseId: string;
+        /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
+        ConversationId: string;
         /** @description Identificador de la evaluación. */
         AssessmentId: string;
         /** @description Cursor opaco devuelto en `next_cursor`. */
@@ -1109,6 +1253,132 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listTutorConversations: {
+        parameters: {
+            query?: {
+                /** @description Tamaño de página. */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversaciones del estudiante en el curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TutorConversationList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    sendTutorMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
+                conversationId: components["parameters"]["ConversationId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TutorMessageInput"];
+            };
+        };
+        responses: {
+            /** @description Respuesta del tutor, en streaming. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    /** @description Modo de la conversación (`tutor` o `pruebas`). */
+                    "X-Conversation-Mode"?: "tutor" | "pruebas";
+                    /** @description Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes). */
+                    "X-Tutor-Turn"?: "grounded" | "chat" | "no-info" | "no-notes";
+                    /** @description Solo si `X-Tutor-Turn = grounded`. Arreglo JSON de `TutorSource`, codificado con encodeURIComponent. */
+                    "X-Rag-Sources"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    /** @example El denominador indica en cuántas partes iguales se divide el todo [1]. */
+                    "text/plain": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getTutorConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
+                conversationId: components["parameters"]["ConversationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversación con sus mensajes. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TutorConversationDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTutorConversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
+                conversationId: components["parameters"]["ConversationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conversación borrada. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
         };
     };

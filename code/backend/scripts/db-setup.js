@@ -1,5 +1,5 @@
 // Crea la base de desarrollo SIN psql (alternativa a db/crear_bdd.sql).
-//   npm run db:setup              → esquema (01 a 04), usuario feathersforall_app y sus permisos
+//   npm run db:setup              → esquema (01 a 05), usuario feathersforall_app y sus permisos
 //   npm run db:setup -- --demo    → además los datos demo (90_seed_demo.sql), si la base está vacía
 //
 // Requiere en .env:
@@ -45,6 +45,10 @@ try {
   const { rows: v } = await client.query("SELECT to_regprocedure('puede_ver_curso(uuid)') IS NOT NULL AS hay");
   if (v[0].hay) console.log('· 04_privacidad_login.sql ya estaba aplicado');
   else await apply('04_privacidad_login.sql');
+  // 05 (conversaciones del tutor, ADR 0008): igual, si su tabla todavía no existe.
+  const { rows: v5 } = await client.query("SELECT to_regclass('public.conversaciones_tutor') IS NOT NULL AS hay");
+  if (v5[0].hay) console.log('· 05_conversaciones_tutor.sql ya estaba aplicado');
+  else await apply('05_conversaciones_tutor.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN

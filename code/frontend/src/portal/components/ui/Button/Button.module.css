@@ -13,7 +13,7 @@
 .sm { padding: 8px 18px; font-size: 13px; }
 .block { display: block; width: 100%; }
 .primary { background: var(--fp-brand); color: var(--fp-on-brand); }
-.accent { background: var(--fp-accent); color: #fff; }
+.accent { background: var(--fp-accent-solid); color: #fff; } /* el acento puro no llega a 4,5:1 con blanco */
 .ghost { background: var(--fp-surface); color: var(--fp-brand-text); border-color: var(--fp-brand-text); }
 .soft { background: var(--fp-accent-soft); color: var(--fp-brand-text); }
 .warn { background: var(--fp-warning-soft); color: var(--fp-warning-ink); }

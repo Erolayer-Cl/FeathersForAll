@@ -35,7 +35,6 @@
 .tutor { background: var(--fp-success-soft); }
 .tutor h2 { margin: 6px 0 2px; }
 .tutor .sub { margin-bottom: 16px; }
-.soon { color: var(--fp-success-ink); font-size: 13.5px; font-weight: 600; }
 .eyebrow { color: var(--fp-success-ink); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 
 @media (max-width: 980px) { .split { grid-template-columns: minmax(0, 1fr); } }

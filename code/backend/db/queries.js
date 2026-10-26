@@ -480,3 +480,49 @@ UPDATE outbox_eventos SET publicado_at = now() WHERE id = $1`;
 
 export const OUTBOX_REINTENTO = `
 UPDATE outbox_eventos SET intentos = intentos + 1 WHERE id = $1`;
+
+// --- Conversaciones del Tutor IA (05_conversaciones_tutor.sql, ADR 0008) ---------------
+// Solo el estudiante dueño las ve y escribe: lo exige el RLS, así que estas consultas
+// no filtran por estudiante a mano (otro usuario simplemente obtiene 0 filas).
+
+// Mis conversaciones de un curso, la más reciente primero. $2 = máximo de filas.
+export const CONVERSACIONES_CURSO = `
+SELECT c.id, c.curso_id, c.modo, c.titulo, c.created_at, c.updated_at,
+       (SELECT count(*) FROM mensajes_tutor m WHERE m.conversacion_id = c.id) AS mensajes
+FROM conversaciones_tutor c
+WHERE c.curso_id = $1
+ORDER BY c.updated_at DESC
+LIMIT $2`;
+
+export const CONVERSACION = `
+SELECT id, curso_id, modo, titulo, created_at, updated_at
+FROM conversaciones_tutor
+WHERE id = $1`;
+
+// Historial en orden; $2 = cuántos mensajes como máximo (los más recientes).
+export const MENSAJES_CONVERSACION = `
+SELECT rol, contenido, fuentes, created_at
+FROM (SELECT * FROM mensajes_tutor WHERE conversacion_id = $1 ORDER BY orden DESC LIMIT $2) m
+ORDER BY orden`;
+
+// Primer mensaje: crea la conversación. colegio_id y estudiante_id los pone la base (DEFAULT).
+// ON CONFLICT DO NOTHING: si el id ya existe (de este u otro usuario) no se toca nada.
+export const CREAR_CONVERSACION = `
+INSERT INTO conversaciones_tutor (id, curso_id, modo, titulo)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (id) DO NOTHING
+RETURNING id`;
+
+export const INSERTAR_MENSAJE = `
+INSERT INTO mensajes_tutor (conversacion_id, rol, contenido, fuentes)
+VALUES ($1, $2, $3, $4::jsonb)`;
+
+export const TOCAR_CONVERSACION = `
+UPDATE conversaciones_tutor SET updated_at = now() WHERE id = $1`;
+
+export const BORRAR_CONVERSACION = `
+DELETE FROM conversaciones_tutor WHERE id = $1`;
+
+// [plataforma] Job de retención (fin del año escolar): ver src/jobs/purgar-conversaciones.js.
+export const CONVERSACIONES_PURGAR = `
+SELECT purgar_conversaciones_tutor() AS borradas`;

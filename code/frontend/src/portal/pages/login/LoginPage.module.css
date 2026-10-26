@@ -23,8 +23,9 @@
 .roles { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 26px; }
 .roles a { padding: 11px 30px; border-radius: 99px; background: var(--fp-accent-soft); color: var(--fp-brand-text); font-size: 13px; font-weight: 600; transition: transform 0.2s var(--fp-ease); }
 .roles a:hover { transform: translateY(-2px); }
-/* El prototipo usa --success (#10b981): con texto blanco da 2,5:1. --fp-success-ink da 5,5:1. */
-.roles a.roleOn { background: var(--fp-success-ink); color: #fff; }
+/* El prototipo usa --success (#10b981): con texto blanco da 2,5:1. Con --fp-success-ink y el color de la
+   superficie como texto: 5,5:1 en tema claro (blanco sobre verde oscuro) y 10:1 en oscuro (azul noche sobre verde claro). */
+.roles a.roleOn { background: var(--fp-success-ink); color: var(--fp-surface); }
 @media (max-width: 860px) {
   .hero { padding: 44px 20px 170px; }
   .box { margin-top: -110px; padding: 28px 20px 24px; }

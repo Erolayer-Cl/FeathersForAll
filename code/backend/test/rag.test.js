@@ -316,6 +316,21 @@ describe('createOllamaEmbedder', () => {
     assert.deepEqual(body, { model: 'bge-m3', input: ['a', 'b'] });
   });
 
+  test('con keepAlive lo envía como keep_alive', async () => {
+    let body;
+    const embedder = createOllamaEmbedder({
+      endpoint: 'http://ollama.test',
+      model: 'bge-m3',
+      keepAlive: '30m',
+      fetchImpl: async (_u, init) => {
+        body = JSON.parse(init.body);
+        return ok([[1, 0]])();
+      },
+    });
+    await embedder.embed(['a']);
+    assert.deepEqual(body, { model: 'bge-m3', input: ['a'], keep_alive: '30m' });
+  });
+
   test('modelo no descargado (404) → LlmUnavailableError con la pista de ollama pull', async () => {
     const embedder = createOllamaEmbedder({
       endpoint: 'http://ollama.test',
@@ -343,9 +358,11 @@ describe('createOllamaEmbedder', () => {
 describe('isSmallTalk', () => {
   const charla = ['hola', 'Hola!!', 'buenas tardes', 'hola pluma', '¿cómo estás?', 'gracias', 'muchas gracias profe',
     'ok', 'vale, ya entendí', 'chao', 'nos vemos', '¿quién eres?', '¿qué puedes hacer?', 'ayuda',
-    'estoy nervioso por la prueba', 'tengo prueba mañana', 'no entiendo nada'];
+    'estoy nervioso por la prueba', 'tengo prueba mañana', 'no entiendo nada',
+    'ola', 'Ola!', 'olaaa', 'holaaa', 'oli', 'holis', 'hla', 'alo', 'wenas', 'ola pluma', 'ola, ¿cómo estás?'];
   const materia = ['hola, ¿qué es una fracción?', '¿qué indica el numerador?', 'dame un ejemplo', 'sí',
-    'no entiendo el denominador', '¿cuál es la capital de Francia?', 'explícame la fotosíntesis'];
+    'no entiendo el denominador', '¿cuál es la capital de Francia?', 'explícame la fotosíntesis',
+    '¿qué es una ola?', 'ola de calor', 'olas del mar'];
 
   for (const t of charla) test(`charla: "${t}"`, () => assert.equal(isSmallTalk(t), true));
   for (const t of materia) test(`materia: "${t}"`, () => assert.equal(isSmallTalk(t), false));

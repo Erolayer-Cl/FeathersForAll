@@ -13,8 +13,10 @@ import {
   Monitor,
   Moon,
   Palette,
+  SendHorizontal,
   SlidersHorizontal,
   Sun,
+  Trash2,
   TrendingUp,
   Users,
   X,
@@ -39,6 +41,8 @@ const ICONS = {
   moon: Moon,
   monitor: Monitor,
   palette: Palette,
+  send: SendHorizontal,
+  trash: Trash2,
 };
 
 /** @param {{name: keyof typeof ICONS, size?: number}} props */
