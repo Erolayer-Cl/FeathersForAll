@@ -11,6 +11,11 @@ name: feathersforall
 services:
   db:
     image: pgvector/pgvector:0.8.7-pg16
+    # Vuelve a levantarse sola al reiniciar el equipo o Docker (salvo que la detengas con "docker compose stop").
+    restart: unless-stopped
+    # Docker da 64 MB de /dev/shm por defecto: PostgreSQL lo usa para las tareas en paralelo (por ejemplo,
+    # construir el índice HNSW de los apuntes) y con 64 MB falla con "could not resize shared memory segment".
+    shm_size: 256mb
     environment:
       POSTGRES_DB: feathersforall
       POSTGRES_USER: postgres
