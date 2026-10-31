@@ -1,0 +1,25 @@
+/* Tarjetas de curso del prototipo (.cgrid / .course): franja de color arriba, profesor y barra. */
+.search { width: 260px; max-width: 100%; padding: 11px 20px; border: 1px solid transparent; border-radius: var(--fp-radius-pill); background: var(--fp-surface); box-shadow: var(--fp-shadow-sm); font-size: 13.5px; }
+.search::placeholder { color: var(--fp-placeholder); }
+.search:focus { border-color: var(--fp-accent); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+
+.course { --franja: var(--fp-accent); position: relative; display: flex; flex-direction: column; overflow: hidden; padding: 30px 24px 24px; border-radius: var(--fp-radius-md); background: var(--fp-surface); box-shadow: var(--fp-shadow-sm); transition: transform var(--fp-duration) var(--fp-ease), box-shadow var(--fp-duration) ease; }
+.course::before { content: ""; position: absolute; top: 0; right: 0; left: 0; height: 6px; background: var(--franja); }
+.course:hover { box-shadow: var(--fp-shadow-md); transform: translateY(-3px); }
+.course h2 { font-size: 21px; }
+.meta { margin: 6px 0 0; color: var(--fp-muted); font-size: 13px; }
+
+.promedio { display: flex; justify-content: space-between; margin-top: 16px; color: var(--fp-muted); font-size: 12.5px; }
+.promedio b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.success { color: var(--fp-success-ink); }
+.danger { color: var(--fp-danger-ink); }
+.neutral { color: var(--fp-muted); }
+
+.track { height: 7px; margin-top: 6px; overflow: hidden; border-radius: 9px; background: var(--fp-track); }
+.track i { display: block; height: 100%; border-radius: 9px; background: var(--franja); }
+
+.foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 18px; }
+.enter { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 18px; border-radius: var(--fp-radius-pill); background: var(--fp-brand); color: var(--fp-on-brand); font-family: var(--fp-font-heading); font-size: 13px; transition: filter 0.2s ease; }
+.enter:hover { filter: brightness(1.12); }

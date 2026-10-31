@@ -18,8 +18,10 @@
 }
 .success { --tone: var(--fp-success); }
 .warning { --tone: var(--fp-warning); }
+.danger { --tone: var(--fp-danger); }
 .label { color: var(--fp-muted); font-size: 13px; }
 .value { font-family: var(--fp-font-heading); font-size: 30px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .hint { color: var(--fp-muted); font-size: 12.5px; }
 .success .hint { color: var(--fp-success-ink); }
 .warning .hint { color: var(--fp-warning-ink); }
+.danger .hint { color: var(--fp-danger-ink); }

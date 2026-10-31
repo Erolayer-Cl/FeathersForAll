@@ -15,7 +15,7 @@ System_Boundary(aulaviva, "FeathersForAll (Aplicación)") {
   Container(tutor, "Servicio Tutor IA", "RAG + pgvector", "Tutor por curso/tenant (hosting por confirmar, ADR 0003)")
   Container(worker, "Worker", "Node.js · Render", "Relay de la outbox (rol plataforma) y consumidor de SQS: tutor IA, indexación de apuntes y notificaciones")
   ContainerQueue(sqs, "Cola de eventos", "AWS SQS", "Eventos de dominio, entrega at-least-once")
-  ContainerDb(db, "Base de datos", "PostgreSQL 16 + pgvector · Render", "colegio_id + FKs compuestas + RLS fail-closed; embeddings vector(768) HNSW; outbox_eventos; claves_idempotencia")
+  ContainerDb(db, "Base de datos", "PostgreSQL 16 + pgvector · Render", "colegio_id + FKs compuestas + RLS fail-closed; embeddings vector(1024) HNSW (bge-m3); permisos por rol; outbox_eventos; claves_idempotencia")
 }
 
 System_Ext(llm, "Proveedor LLM", "API externa (Ollama en desarrollo)")

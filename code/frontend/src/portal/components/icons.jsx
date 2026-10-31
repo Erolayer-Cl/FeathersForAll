@@ -1,11 +1,10 @@
 // Íconos del portal en un solo lugar (lucide-react, ya instalado). Los menús usan el nombre, no el componente.
 import {
-  ArrowUp,
   BarChart3,
   BookOpen,
   Check,
+  ChevronDown,
   ClipboardCheck,
-  Copy,
   FileText,
   GraduationCap,
   House,
@@ -14,11 +13,10 @@ import {
   Monitor,
   Moon,
   Palette,
-  Plus,
-  RotateCcw,
+  SendHorizontal,
   SlidersHorizontal,
-  Square,
   Sun,
+  Trash2,
   TrendingUp,
   Users,
   X,
@@ -38,19 +36,17 @@ const ICONS = {
   menu: Menu,
   close: X,
   tick: Check,
+  chevron: ChevronDown,
   sun: Sun,
   moon: Moon,
   monitor: Monitor,
   palette: Palette,
-  send: ArrowUp,
-  stop: Square,
-  copy: Copy,
-  retry: RotateCcw,
-  plus: Plus,
+  send: SendHorizontal,
+  trash: Trash2,
 };
 
 /** @param {{name: keyof typeof ICONS, size?: number}} props */
-export function Icon({ name, size = 20 }) {
+export function Icon({ name, size = 20, className }) {
   const Cmp = ICONS[name];
-  return Cmp ? <Cmp size={size} strokeWidth={2.4} aria-hidden="true" /> : null;
+  return Cmp ? <Cmp size={size} strokeWidth={2.4} className={className} aria-hidden="true" /> : null;
 }

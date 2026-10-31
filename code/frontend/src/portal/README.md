@@ -30,22 +30,22 @@ src/portal/
     PreferencesPanel/            panel «Personalizar»
   dev/                           DevPageJumper (solo pruebas, detrás de SHOW_DEV_TOOLS)
   config/
-    devFlags.js                  interruptores de pruebas (herramientas y datos de ejemplo)
+    devFlags.js                  interruptor de las herramientas de prueba
     roles.js                     menú de cada rol (agregar una sección = una línea)
     routes.js (+ .test.js)       las 34 pantallas del Figma (solo datos)
-  router/                        usePortalRoute, PortalLink, useMediaQuery
-  layout/                        PortalFrame (aplica preferencias) y PortalShell (menú + barra superior)
-  components/                    ui/ (Button, Card, Chip, Kpi, PageHead, Switch), PortalLogo, icons.jsx
-  data/mock.js                   datos de ejemplo (se elimina cuando haya API)
-  api/tutorApi.js (+ .test.js)   ÚNICO punto de contacto con la IA (streaming, /health, modo demo)
-  tutor/                         estado del chat: tutorReducer (+ test), useTutorChat, useTutorStatus, textos
+  router/                        usePortalRoute, PortalLink, useMediaQuery, access.js (guardia de rutas)
+  layout/                        PortalFrame (preferencias + guardia de rutas) y PortalShell (menú + barra superior)
+  components/                    ui/ (Button, Card, Chip, EmptyState, Kpi, LoadState, PageHead, Switch), PortalLogo, icons.jsx
+  session/                       sesión: login, token, rol del portal (SessionProvider, useSession)
+  hooks/useApiData.js            pide datos a la API con el token (carga, error, 401 → login)
+  utils/notas.js                 formato es-CL de notas y tabla N1…Nk
   pages/
     index.jsx                    registro: id de ruta → pantalla
-    login/, estudiante/, shared/ pantallas hechas: Login ×3, Estudiante · Inicio, Estudiante · Tutor IA, Configuración ×3
+    login/, estudiante/, shared/ pantallas hechas: Login ×3, Estudiante · Inicio, Mis cursos, Curso, Mis notas, Configuración ×3
 ```
 
 ## Herramientas solo para pruebas (no son del producto final)
-`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el **selector de rol** de la barra superior y el botón flotante **«Pantallas»** para saltar a cualquier pantalla. Por defecto se ven con `npm run dev` y desaparecen en `npm run build`. Ahí mismo está `SHOW_DEMO_DATA` (datos de ejemplo).
+`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el **selector de rol** de la barra superior y el botón flotante **«Pantallas»** para saltar a cualquier pantalla. Por defecto se ven con `npm run dev` y desaparecen en `npm run build`.
 En el producto, el rol se decide al iniciar sesión.
 
 ## Contenido que crece (cursos, evaluaciones, colegios…)
@@ -53,7 +53,7 @@ En el producto, el rol se decide al iniciar sesión.
 - **Las listas salen de los datos**, no del código: se dibujan con `.map()` sobre lo que entregue la API. Con 0, 3 o 300 elementos el código es el mismo.
 - **Vacío:** toda lista debe mostrar `<EmptyState>` cuando no hay elementos (ya lo usa Estudiante · Inicio).
 - **El menú no cambia** con los datos: sus secciones son fijas por rol. Lo que cambia es el contenido de cada sección.
-- **Id que no existe:** cada pantalla de detalle debe mostrar un aviso «no encontrado» (pendiente de construir con la API).
+- **Id que no existe:** cada pantalla de detalle muestra un aviso «no encontrado» con `<LoadState notFound={{ title, action }}>` (ejemplo: `pages/estudiante/CursoPage.jsx`).
 - Cuando haya muchos elementos (cientos de usuarios, por ejemplo) hará falta paginación o búsqueda en el servidor; se agrega en cada lista.
 
 ## Personalización incluida
@@ -81,13 +81,5 @@ build: { rollupOptions: { input: { main: 'index.html', portal: 'portal.html' } }
 
 ## Pendiente
 - Las otras 27 pantallas del Figma (hoy marcador).
-- Conectar login y datos a la API (`TODO(auth)` en `LoginPage.jsx`; reemplazar `data/mock.js`). Cursos, evaluaciones y notas los crean admin y docentes: por eso las pantallas arrancan vacías (`SHOW_DEMO_DATA = false` en `config/devFlags.js`; ponlo en `true` solo para ver el diseño con ejemplos). El usuario del menú y el perfil (`DEMO_USER`, `PERFIL_DEMO`) también son de ejemplo hasta que haya sesión.
-
-## Tutor IA (`est-tutor`) — cómo se conecta con la IA
-La pantalla (`pages/estudiante/TutorPage.jsx`) ya funciona contra el backend actual. No importa nada de `features/chat`: el portal sigue aislado.
-- **Contrato** (en `api/tutorApi.js`): `POST /v1/dev/chat` con `{ mode: 'tutor' | 'pruebas', messages: [{role: 'user'|'assistant', content}] }` → respuesta en streaming de texto. Errores RFC 7807 (`detail`). `GET /health` → `{ llm: 'up' | 'down' }` (alimenta el chip «IA disponible / sin conexión»).
-- **Si el backend cambia** (otra ruta, autenticación, `POST /courses/{courseId}/tutor-questions`): se edita solo `api/tutorApi.js`; la pantalla y el estado no se tocan. Hay un `TODO(api)` ahí.
-- **En desarrollo**, el proxy de Vite (`/v1`, `/health` → `localhost:3000`) ya existe en `vite.config.js`. En producción define `VITE_API_URL`.
-- **Sin backend** (para trabajar el diseño): crea `.env.local` con `VITE_TUTOR_MOCK=1` y el tutor responde con un texto de ejemplo en streaming.
-- Incluye: dos conversaciones independientes (Modo estudio / Pruebas), enviar con Enter (Shift+Enter = salto de línea), botón Detener, Copiar, Reintentar tras un error, «Nueva conversación», puntos de «escribiendo…» y seguimiento del final mientras llega la respuesta.
-- Las conversaciones viven en memoria (se pierden al recargar), igual que en la app del chat. Guardarlas requiere endpoints de historial.
+- ~~Conectar login y datos a la API~~ (etapa 1, hecho para el estudiante): el login usa `POST /v1/auth/login` y la sesión vive en `session/`; las pantallas piden sus datos con `hooks/useApiData.js` y `api/portalApi.js`. Pendiente: pantallas de docente y administrador con datos reales.
+- ~~Tutor IA del estudiante~~ (hecho): `est-tutor[/<curso>]` (`pages/estudiante/TutorPage.jsx`) conversa con `POST /v1/dev/chat` enviando el JWT y el `course_id`; reutiliza `toApiMessages` de `features/chat` y `api/chatApi.js`, con estilos propios del portal. Lógica pura en `utils/tutorChat.js`, streaming y sesión en `hooks/useTutorChat.js`. Inicio y Curso enlazan a esta pantalla.

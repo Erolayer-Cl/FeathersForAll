@@ -31,6 +31,11 @@
   --fp-line: color-mix(in srgb, var(--fp-ink) 48%, var(--fp-bg));
   --fp-placeholder: color-mix(in srgb, var(--fp-ink) 70%, var(--fp-bg));
 }
+/* …y las superficies llevan contorno, como en el prototipo */
+.fp-root[data-fp-contrast="high"] :is([data-fp-surface], input, select) {
+  outline: 1px solid var(--fp-line);
+  outline-offset: -1px;
+}
 
 /* Movimiento reducido (además de respetar prefers-reduced-motion del sistema) */
 .fp-root[data-fp-motion="reduce"] *,
@@ -41,6 +46,15 @@
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
+}
+/* Sin animación tampoco hay "salto" al pasar el mouse sobre tarjetas */
+.fp-root[data-fp-motion="reduce"] [data-fp-lift]:hover {
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-root [data-fp-lift]:hover {
+    transform: none;
+  }
 }
 
 .fp-root[data-fp-density="compact"] { --fp-gap: 14px; --fp-card-pad: 16px 20px; }

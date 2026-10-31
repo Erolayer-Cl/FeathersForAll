@@ -1,0 +1,14 @@
+# Nada de esto debe entrar al contexto de build (ni a la imagen).
+node_modules
+npm-debug.log*
+.env
+.env.*
+!.env.example
+data/
+coverage/
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.md
+requests/

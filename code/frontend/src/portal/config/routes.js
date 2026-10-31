@@ -18,7 +18,8 @@ export const PORTAL_ROUTES = [
   { id: 'est-curso', title: 'Curso', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-contenido', title: 'Curso · Contenido', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-notas', title: 'Mis notas', group: 'Estudiante', role: 'est', nav: 'notas' },
-  { id: 'est-tutor', title: 'Tutor IA (chat y aprendizaje guiado)', group: 'Estudiante', role: 'est', nav: 'tutor' },
+  // El id (opcional) es el curso cuyos apuntes usa el tutor: #/portal/est-tutor/<curso>.
+  { id: 'est-tutor', title: 'Tutor IA (chat y aprendizaje guiado)', group: 'Estudiante', role: 'est', nav: 'tutor', detail: true },
   { id: 'est-progreso', title: 'Progreso', group: 'Estudiante', role: 'est', nav: 'progreso' },
   { id: 'est-config', title: 'Configuración', group: 'Estudiante', role: 'est', nav: 'config' },
 

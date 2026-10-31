@@ -14,12 +14,18 @@ const getHash = () => window.location.hash;
 
 export { routeHref };
 
-/** @returns {{route: import('../config/routes.js').PortalRoute, param: string | null, navigate: (id: string, param?: string | number) => void}} */
+/**
+ * `navigate(id, param, { replace: true })` reemplaza la entrada del historial en vez de agregar otra
+ * (la usa la guardia de rutas, para que "Atrás" no vuelva a una pantalla protegida).
+ * @returns {{route: import('../config/routes.js').PortalRoute, param: string | null, navigate: (id: string, param?: string | number, opts?: {replace?: boolean}) => void}}
+ */
 export function usePortalRoute() {
   const hash = useSyncExternalStore(subscribe, getHash, () => '');
   const { id, param } = parsePortalHash(hash);
-  const navigate = useCallback((to, toParam) => {
-    window.location.hash = routeHref(to, toParam);
+  const navigate = useCallback((to, toParam, { replace = false } = {}) => {
+    const href = routeHref(to, toParam);
+    if (replace) window.location.replace(href);
+    else window.location.hash = href;
   }, []);
   return { route: findRoute(id ?? DEFAULT_ROUTE), param, navigate };
 }

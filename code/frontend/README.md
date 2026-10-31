@@ -47,3 +47,17 @@ src/
 - Pantallas de Inicio, Mis cursos, Notas y Configuración (en el menú son marcadores).
 - El historial vive en memoria; se persistirá en el backend cuando esté la BD.
 - Las respuestas se muestran como texto plano (sin renderizar Markdown).
+
+## Portal del estudiante (etapa 1)
+
+El portal (`portal.html`) ya usa la API real:
+
+- **Login** con RBD del colegio, correo y contraseña: `POST /v1/auth/login`. El RBD no está en el prototipo, pero hace falta porque un mismo correo puede existir en dos colegios.
+- **Guardia de rutas:** sin sesión, cualquier pantalla de un rol lleva a su login (`src/portal/router/access.js`).
+- **Pantallas del estudiante con datos reales:** Inicio, Mis cursos, Curso (evaluaciones con retroalimentación) y Mis notas (N1…Nk, escala 1,0–7,0, solo lectura).
+- **Sesión** en `sessionStorage`, o en `localStorage` con "Recordar sesión". Se cierra sola al vencer el token o con un 401.
+
+```bash
+# con la API corriendo en :3000 (code/backend: docker compose up -d && npm run dev)
+npm run dev      # http://localhost:5173/portal.html  →  RBD 99901 · camila@demo-a.cl · demo1234
+```

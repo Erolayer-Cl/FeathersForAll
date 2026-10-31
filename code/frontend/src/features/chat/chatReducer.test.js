@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { activeChatKey, chatReducer, initialState, toApiMessages } from './chatReducer.js';
+import { activeChatKey, chatReducer, initialState, MAX_API_CONTENT, MAX_API_MESSAGES, toApiMessages } from './chatReducer.js';
 
 const reduce = (actions, state = initialState) => actions.reduce(chatReducer, state);
 
@@ -111,5 +111,19 @@ describe('toApiMessages', () => {
       { role: 'user', content: 'hola' },
       { role: 'assistant', content: 'Hola, ¿en qué te ayudo?' },
     ]);
+  });
+
+  test('un chat largo envía solo los últimos 50 mensajes y termina en la pregunta actual', () => {
+    let state = initialState;
+    for (let n = 1; n <= 30; n++) state = sendAndReply(state, 'tutor', `pregunta ${n}`, `respuesta ${n}`, n);
+    const messages = toApiMessages([...state.chats.tutor, { id: 'u31', role: 'user', text: 'pregunta 31' }]);
+
+    expect(messages).toHaveLength(MAX_API_MESSAGES);
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'pregunta 31' });
+  });
+
+  test('recorta una respuesta más larga que el máximo que acepta la API', () => {
+    const [long] = toApiMessages([{ id: '1', role: 'ai', text: 'x'.repeat(MAX_API_CONTENT + 500) }]);
+    expect(long.content).toHaveLength(MAX_API_CONTENT);
   });
 });

@@ -19,6 +19,10 @@
 --   6. claves_idempotencia                     -> Idempotency-Key del contrato S05 (24 h).
 --   7. colegio_por_rbd()                       -> resolver el colegio ANTES del login sin abrir
 --                                                 el RLS de colegios.
+--   8. embedding vector(1024)                  -> bge-m3, el modelo de embeddings del RAG con Ollama.
+--   9. Permisos por rol (RLS RESTRICTIVE)      -> solo el docente del curso o el admin suben
+--                                                 material y crean evaluaciones; el estudiante
+--                                                 solo rinde y pregunta a su nombre.
 -- =============================================================================
 
 
@@ -209,6 +213,168 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION colegio_por_rbd(TEXT) FROM PUBLIC;
+
+
+-- -----------------------------------------------------------------------------
+-- 8. Embeddings: bge-m3 (Ollama) genera vectores de 1024 dimensiones
+-- -----------------------------------------------------------------------------
+-- 01_schema.sql asumía nomic-embed-text (768). El RAG del equipo usa bge-m3.
+-- Si cambian de modelo: cambiar este número y volver a indexar todos los apuntes.
+
+DROP INDEX idx_embeddings_hnsw;
+ALTER TABLE apuntes_embeddings
+    ALTER COLUMN embedding TYPE vector(1024) USING embedding::text::vector(1024);
+CREATE INDEX idx_embeddings_hnsw
+    ON apuntes_embeddings USING hnsw (embedding vector_cosine_ops);
+
+
+-- -----------------------------------------------------------------------------
+-- 9. Permisos por ROL (además del aislamiento por colegio)
+-- -----------------------------------------------------------------------------
+-- El RLS de 01 responde "¿de qué colegio es?". Esto agrega "¿QUIÉN puede escribir?".
+-- La API, después de VERIFICAR el JWT, fija en cada transacción:
+--     SET LOCAL app.colegio_id = '<uuid>';
+--     SET LOCAL app.usuario_id = '<uuid del usuario>';
+--     SET LOCAL app.rol        = 'docente' | 'estudiante' | 'admin_colegio';
+-- El worker (indexar apuntes, responder al tutor) usa app.rol = 'servicio'.
+-- El master opera con feathersforall_plataforma (BYPASSRLS).
+--
+-- Son políticas RESTRICTIVE: se suman (AND) a "aislamiento_colegio".
+-- Leer no cambia; escribir exige el rol correcto. Fail-closed: sin app.rol
+-- no se puede escribir en estas tablas.
+--
+-- Ojo: la base confía en lo que la API pone en app.rol / app.usuario_id. Esos
+-- valores deben salir SOLO del JWT verificado, nunca de datos del cliente.
+
+CREATE FUNCTION app_usuario_id() RETURNS uuid
+LANGUAGE sql STABLE AS $$
+    SELECT NULLIF(current_setting('app.usuario_id', true), '')::uuid
+$$;
+
+CREATE FUNCTION app_rol() RETURNS text
+LANGUAGE sql STABLE AS $$
+    SELECT NULLIF(current_setting('app.rol', true), '')
+$$;
+
+-- Docente de ESE curso, o admin del colegio ("profesor o superior").
+CREATE FUNCTION puede_gestionar_curso(p_curso_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(
+        app_rol() = 'admin_colegio'
+        OR (app_rol() = 'docente' AND EXISTS (
+                SELECT 1 FROM cursos c
+                WHERE c.id = p_curso_id AND c.docente_id = app_usuario_id()))
+    , false)
+$$;
+
+CREATE FUNCTION puede_gestionar_evaluacion(p_evaluacion_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+    SELECT puede_gestionar_curso((SELECT curso_id FROM evaluaciones WHERE id = p_evaluacion_id))
+$$;
+
+CREATE FUNCTION puede_gestionar_pregunta(p_pregunta_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+    SELECT puede_gestionar_evaluacion((SELECT evaluacion_id FROM preguntas WHERE id = p_pregunta_id))
+$$;
+
+-- El estudiante de la sesión es dueño de ese intento y todavía no lo envió.
+CREATE FUNCTION es_mi_intento_abierto(p_intento_id uuid) RETURNS boolean
+LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(app_rol() = 'estudiante' AND EXISTS (
+        SELECT 1 FROM intentos_evaluacion i
+        WHERE i.id = p_intento_id
+          AND i.estudiante_id = app_usuario_id()
+          AND i.fecha_envio IS NULL), false)
+$$;
+
+-- Quién creó el material y la evaluación (auditoría). Se llena solo con el
+-- usuario de la sesión; NULL solo en operaciones de plataforma.
+ALTER TABLE usuarios ADD CONSTRAINT uq_usuarios_id_colegio UNIQUE (id, colegio_id);
+
+ALTER TABLE apuntes_curso
+    ADD COLUMN subido_por UUID DEFAULT app_usuario_id(),
+    ADD CONSTRAINT fk_apuntes_subido_por
+        FOREIGN KEY (subido_por, colegio_id) REFERENCES usuarios (id, colegio_id) ON DELETE RESTRICT;
+
+ALTER TABLE evaluaciones
+    ADD COLUMN creado_por UUID DEFAULT app_usuario_id(),
+    ADD CONSTRAINT fk_evaluaciones_creado_por
+        FOREIGN KEY (creado_por, colegio_id) REFERENCES usuarios (id, colegio_id) ON DELETE RESTRICT;
+
+-- Material, evaluaciones y matrículas: solo el docente del curso o el admin.
+-- (apuntes_embeddings también lo escribe el worker de indexación.)
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN SELECT * FROM (VALUES
+        ('apuntes_curso',      'puede_gestionar_curso(curso_id)'),
+        ('apuntes_embeddings', 'puede_gestionar_curso(curso_id) OR app_rol() = ''servicio'''),
+        ('evaluaciones',       'puede_gestionar_curso(curso_id)'),
+        ('preguntas',          'puede_gestionar_evaluacion(evaluacion_id)'),
+        ('alternativas',       'puede_gestionar_pregunta(pregunta_id)'),
+        ('matriculas',         'puede_gestionar_curso(curso_id)')
+    ) AS v(tabla, regla) LOOP
+        EXECUTE format('CREATE POLICY rol_insert ON %I AS RESTRICTIVE FOR INSERT WITH CHECK (%s)', r.tabla, r.regla);
+        EXECUTE format('CREATE POLICY rol_update ON %I AS RESTRICTIVE FOR UPDATE USING (%s) WITH CHECK (%s)', r.tabla, r.regla, r.regla);
+        EXECUTE format('CREATE POLICY rol_delete ON %I AS RESTRICTIVE FOR DELETE USING (%s)', r.tabla, r.regla);
+    END LOOP;
+END;
+$$;
+
+-- Cursos: el admin crea cualquiera; un docente solo cursos propios
+-- (no puede crear ni traspasar un curso a nombre de otro docente).
+CREATE POLICY rol_insert ON cursos AS RESTRICTIVE FOR INSERT
+    WITH CHECK (app_rol() = 'admin_colegio' OR (app_rol() = 'docente' AND docente_id = app_usuario_id()));
+CREATE POLICY rol_update ON cursos AS RESTRICTIVE FOR UPDATE
+    USING      (app_rol() = 'admin_colegio' OR (app_rol() = 'docente' AND docente_id = app_usuario_id()))
+    WITH CHECK (app_rol() = 'admin_colegio' OR (app_rol() = 'docente' AND docente_id = app_usuario_id()));
+CREATE POLICY rol_delete ON cursos AS RESTRICTIVE FOR DELETE
+    USING (app_rol() = 'admin_colegio');
+
+-- Usuarios: solo el admin del colegio los crea, edita o borra.
+CREATE POLICY rol_insert ON usuarios AS RESTRICTIVE FOR INSERT WITH CHECK (app_rol() = 'admin_colegio');
+CREATE POLICY rol_update ON usuarios AS RESTRICTIVE FOR UPDATE
+    USING (app_rol() = 'admin_colegio') WITH CHECK (app_rol() = 'admin_colegio');
+CREATE POLICY rol_delete ON usuarios AS RESTRICTIVE FOR DELETE USING (app_rol() = 'admin_colegio');
+
+-- Intentos: el estudiante abre y envía SOLO los suyos. Recorregir es del docente.
+CREATE POLICY rol_insert ON intentos_evaluacion AS RESTRICTIVE FOR INSERT
+    WITH CHECK (app_rol() = 'estudiante' AND estudiante_id = app_usuario_id());
+CREATE POLICY rol_update ON intentos_evaluacion AS RESTRICTIVE FOR UPDATE
+    USING      ((app_rol() = 'estudiante' AND estudiante_id = app_usuario_id() AND fecha_envio IS NULL)
+                OR puede_gestionar_curso(curso_id))
+    WITH CHECK ((app_rol() = 'estudiante' AND estudiante_id = app_usuario_id())
+                OR puede_gestionar_curso(curso_id));
+CREATE POLICY rol_delete ON intentos_evaluacion AS RESTRICTIVE FOR DELETE
+    USING (app_rol() = 'admin_colegio');
+
+-- Respuestas: el estudiante responde en SU intento mientras no lo envíe.
+CREATE POLICY rol_insert ON respuestas_estudiante AS RESTRICTIVE FOR INSERT
+    WITH CHECK (es_mi_intento_abierto(intento_id));
+CREATE POLICY rol_update ON respuestas_estudiante AS RESTRICTIVE FOR UPDATE
+    USING      (es_mi_intento_abierto(intento_id) OR puede_gestionar_evaluacion(evaluacion_id))
+    WITH CHECK (es_mi_intento_abierto(intento_id) OR puede_gestionar_evaluacion(evaluacion_id));
+CREATE POLICY rol_delete ON respuestas_estudiante AS RESTRICTIVE FOR DELETE
+    USING (app_rol() = 'admin_colegio');
+
+-- Tutor IA: el estudiante pregunta a su nombre; el worker responde y cita fuentes.
+CREATE POLICY rol_insert ON consultas_tutor_ia AS RESTRICTIVE FOR INSERT
+    WITH CHECK (app_rol() = 'estudiante' AND estudiante_id = app_usuario_id());
+CREATE POLICY rol_update ON consultas_tutor_ia AS RESTRICTIVE FOR UPDATE
+    USING (app_rol() = 'servicio') WITH CHECK (app_rol() = 'servicio');
+CREATE POLICY rol_delete ON consultas_tutor_ia AS RESTRICTIVE FOR DELETE
+    USING (app_rol() = 'admin_colegio');
+
+CREATE POLICY rol_insert ON consultas_fuentes AS RESTRICTIVE FOR INSERT WITH CHECK (app_rol() = 'servicio');
+CREATE POLICY rol_update ON consultas_fuentes AS RESTRICTIVE FOR UPDATE
+    USING (app_rol() = 'servicio') WITH CHECK (app_rol() = 'servicio');
+CREATE POLICY rol_delete ON consultas_fuentes AS RESTRICTIVE FOR DELETE USING (app_rol() = 'servicio');
+
+-- outbox_eventos y claves_idempotencia: las escribe la API en nombre de quien
+-- hace la petición; basta con una sesión con rol.
+CREATE POLICY rol_insert ON outbox_eventos AS RESTRICTIVE FOR INSERT WITH CHECK (app_rol() IS NOT NULL);
+CREATE POLICY rol_insert ON claves_idempotencia AS RESTRICTIVE FOR INSERT WITH CHECK (app_rol() IS NOT NULL);
 
 
 -- -----------------------------------------------------------------------------

@@ -19,7 +19,7 @@ describe('tabla de rutas', () => {
   });
 
   it('las pantallas «Ver …» y de curso son de detalle (reciben un id)', () => {
-    for (const id of ['est-curso', 'doc-curso', 'adm-colegio', 'adm-usuario', 'adm-curso', 'adm-evaluacion']) {
+    for (const id of ['est-curso', 'est-tutor', 'doc-curso', 'adm-colegio', 'adm-usuario', 'adm-curso', 'adm-evaluacion']) {
       expect(findRoute(id).detail).toBe(true);
     }
     expect(findRoute('adm-colegio-nuevo').detail).toBeUndefined();

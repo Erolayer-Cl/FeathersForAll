@@ -1,0 +1,32 @@
+# Configuración NO secreta de la API (12-Factor III). Los secretos (DATABASE_URL, JWT_SECRET)
+# van en el Secret ffa-api-secrets, que crea Terraform.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ffa-api-config
+  labels:
+    app.kubernetes.io/name: ffa-api
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  LOG_LEVEL: "info"
+  # Ollama corre en el PC (fuera del clúster): los modelos pesan ~3 GB y necesitan la GPU/RAM del host.
+  # host.docker.internal = el PC, visto desde los contenedores de Docker Desktop.
+  LLM_ENDPOINT: "http://host.docker.internal:11434"
+  LLM_MODEL: "qwen2.5:3b"
+  LLM_TIMEOUT_MS: "120000"
+  LLM_TEMPERATURE: "0.6"
+  LLM_NUM_CTX: "4096"
+  # Modelos en memoria entre preguntas: sin esto Ollama los descarga a los 5 min y la siguiente pregunta tarda ~19 s.
+  LLM_KEEP_ALIVE: "30m"
+  EMBEDDING_MODEL: "bge-m3"
+  RAG_TOP_K: "4"
+  RAG_MIN_SCORE: "0.5"
+  RAG_CHUNK_CHARS: "800"
+  # Chat sin token → colegio y curso demo (90_seed_demo.sql).
+  DEFAULT_TENANT_ID: "11111111-1111-1111-1111-111111111111"
+  DEFAULT_COURSE_ID: "c0000000-0000-0000-0000-000000000001"
+  # SOLO en el clúster local del laboratorio: el frontend aún no tiene login.
+  # En un ambiente real se eliminan estas dos líneas (por defecto: chat con token y sin rutas /v1/dev/courses).
+  ENABLE_DEV_ROUTES: "true"
+  CHAT_REQUIRE_AUTH: "false"

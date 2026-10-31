@@ -1,0 +1,7 @@
+{
+  "name": "Notas · Estudiante ve sus asignaturas y sus notas (solo lectura)",
+  "method": "GET",
+  "path": "/me/grades",
+  "headers": {},
+  "expect_status": 200
+}

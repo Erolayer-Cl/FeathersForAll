@@ -1,0 +1,16 @@
+# Clúster local de 1 nodo con kind (ADR 0006).   kind create cluster --config k8s/cluster/kind.yaml
+# El puerto 8088 del PC queda conectado al Ingress: http://localhost:8088
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: feathersforall
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - { containerPort: 80, hostPort: 8088, protocol: TCP }
+      - { containerPort: 443, hostPort: 8443, protocol: TCP }

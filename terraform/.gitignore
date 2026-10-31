@@ -1,0 +1,13 @@
+# Nunca al repo: el state puede contener secretos (el Secret de la API).
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+override.tf
+override.tf.json
+# Variables con secretos (envs/*.tfvars NO lleva secretos y sí se versiona)
+secret*.tfvars
+*.auto.tfvars
+# .terraform.lock.hcl SÍ se versiona (fija las versiones de providers)

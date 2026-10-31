@@ -1,0 +1,241 @@
+# CI/CD de FeathersForAll (S08, ADR 0009).
+#
+#   PR a main   → quality gates + build de imágenes (sin publicar)
+#   push a main → lo mismo + push a GHCR por ${{ github.sha }} + PR al repo gitops (overlays/dev)
+#
+# Argo CD (dentro del clúster) aplica el repo gitops: este pipeline NUNCA habla con Kubernetes.
+# Regla de la PPT: si un gate no bloquea, es un log, no un gate. Todos los jobs de abajo bloquean.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "22"
+  REGISTRY: ghcr.io/erolayer-cl
+
+jobs:
+  # --- Gate 1: contrato (contract-first) ---
+  contrato:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: FeathersForAll/packages/api-client/package-lock.json
+      - name: Lint OpenAPI (Spectral)
+        working-directory: FeathersForAll
+        run: npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml --fail-severity error
+      - name: Cliente TS al día con el contrato
+        working-directory: FeathersForAll/packages/api-client
+        run: |
+          npm ci
+          npm run generate
+          git diff --exit-code -- src/schema.d.ts || { echo "::error::schema.d.ts no coincide con openapi.yaml: corre 'npm run generate' y commitea"; exit 1; }
+          npm run typecheck
+
+  # --- Gate 2: backend (lint, pruebas con PostgreSQL real y cobertura ≥ 70 %, SCA) ---
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: code/backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: code/backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: Pruebas + integración (RLS) con cobertura ≥ 70 %
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: npm run test:coverage
+      - name: SCA (sin High/Critical en dependencias de producción)
+        run: npm audit --omit=dev --audit-level=high
+
+  # --- Gate 3: frontend (lint, cobertura ≥ 70 % de la lógica, build, SCA) ---
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code/frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: code/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:coverage
+      - run: npm run build
+      - name: SCA (sin High/Critical en dependencias de producción)
+        run: npm audit --omit=dev --audit-level=high
+
+  # --- Gate 4: SAST ---
+  sast:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.140.0
+    steps:
+      - uses: actions/checkout@v7
+      - name: Semgrep (falla con hallazgos de severidad ERROR)
+        run: semgrep scan --config p/javascript --config p/nodejs --severity ERROR --error --metrics=off code
+
+  # --- Gate 5: e2e con Compose + Newman (sin Ollama: la carpeta del tutor queda fuera) ---
+  e2e-newman:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: code/backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: code/backend/package-lock.json
+      - run: npm ci --omit=dev
+      - name: Base con esquema y datos demo (compose.yaml)
+        run: docker compose up -d --wait
+      - name: API contra la base (LLM inexistente, como en CI)
+        env:
+          DATABASE_URL: postgres://feathersforall_app:cambiar@localhost:5432/feathersforall
+          LLM_ENDPOINT: http://127.0.0.1:9
+          LOG_LEVEL: warn
+        run: |
+          JWT_SECRET="$(openssl rand -hex 32)" nohup node src/server.js > api.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://localhost:3000/livez && exit 0; sleep 1; done
+          cat api.log; exit 1
+      - name: Newman (salud, login, perfil, cursos, notas, privacidad, seguridad)
+        run: >-
+          npx --yes newman@6 run requests/postman/FeathersForAll.postman_collection.json
+          -e requests/postman/FeathersForAll.local.postman_environment.json
+          --folder "0 · Salud"
+          --folder "1 · Login (ejecutar primero)"
+          --folder "2 · Yo (perfil privado)"
+          --folder "3 · Mis asignaturas (cursos)"
+          --folder "4 · Mis notas (solo lectura)"
+          --folder "5 · Privacidad y permisos (deben fallar)"
+          --folder "7 · Seguridad"
+      - name: Log de la API si algo falló
+        if: failure()
+        run: cat api.log
+
+  # --- Build, escaneo y publicación de imágenes ---
+  build-and-push:
+    needs: [contrato, backend, frontend, sast, e2e-newman]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - { app: api, context: code/backend }
+          - { app: web, context: code/frontend }
+    env:
+      IMAGE: ghcr.io/erolayer-cl/feathersforall-${{ matrix.app }}
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build (queda en el daemon local para escanearla)
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Trivy (falla con CVE High/Critical que tengan arreglo)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
+          image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress
+          ${{ env.IMAGE }}:${{ github.sha }}
+      - name: Push a GHCR (solo main)
+        if: env.PUBLISH == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE:${{ github.sha }}"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:${{ github.sha }}" | cut -d@ -f2)"
+          echo "$digest" > digest-${{ matrix.app }}.txt
+          echo "### ${{ matrix.app }}: \`$IMAGE@$digest\`" >> "$GITHUB_STEP_SUMMARY"
+      - if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.app }}
+          path: digest-${{ matrix.app }}.txt
+          retention-days: 7
+
+  # --- Promoción a dev: PR al repo gitops (Argo CD lo aplica al mergear) ---
+  promote:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: promote-dev
+      cancel-in-progress: false
+    env:
+      GITOPS_REPO: ${{ vars.GITOPS_REPO || 'Erolayer-Cl/feathersforall-gitops' }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          merge-multiple: true
+      - name: Clonar repo gitops
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+      - name: Escribir digest en overlays/dev y abrir PR
+        working-directory: gitops
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          api="$(cat ../digest-api.txt)"; web="$(cat ../digest-web.txt)"
+          short="${SHA::7}"; branch="deploy/dev-$short"
+          # sed y no yq/kustomize: solo cambia la línea del digest (conserva comentarios y formato del archivo).
+          sed -i "/name: feathersforall-api$/,/digest:/ s#digest: .*#digest: $api#" overlays/dev/kustomization.yaml
+          sed -i "/name: feathersforall-web$/,/digest:/ s#digest: .*#digest: $web#" overlays/dev/kustomization.yaml
+          if git diff --quiet; then echo "dev ya tiene estos digest"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "deploy(dev): FeathersForAll $short"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "deploy(dev): FeathersForAll $short" \
+            --body "Imágenes del commit ${{ github.server_url }}/${{ github.repository }}/commit/$SHA (todos los quality gates en verde).
+
+          - api: \`ghcr.io/erolayer-cl/feathersforall-api@$api\`
+          - web: \`ghcr.io/erolayer-cl/feathersforall-web@$web\`
+
+          Al mergear, Argo CD sincroniza \`overlays/dev\`. Rollback: revertir este PR."

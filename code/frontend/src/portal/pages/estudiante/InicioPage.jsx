@@ -1,23 +1,53 @@
-import { Button, Card, Chip, EmptyState, Kpi } from '../../components/ui/index.js';
-import { EST_INICIO as data } from '../../data/mock.js';
+import { getMyGrades } from '../../../api/portalApi.js';
+import { Button, Card, Chip, EmptyState, Kpi, LoadState } from '../../components/ui/index.js';
+import { useApiData } from '../../hooks/useApiData.js';
+import { routeHref } from '../../router/parseRoute.js';
+import { useSession } from '../../session/useSession.js';
+import { contarNotas, formatNota, periodosDe, primerNombre, promedioGeneral, tonoNota } from '../../utils/notas.js';
 import styles from './InicioPage.module.css';
 
 const SIN_DATOS = 'Sin datos todavía';
 
-/** Estudiante · Inicio (Figma: «Estudiante / Inicio»). */
+/** Estudiante · Inicio (Figma: «Estudiante / Inicio»), con sus ramos y notas reales (GET /v1/me/grades). */
 export function EstudianteInicioPage() {
+  const { user } = useSession();
+  const { data, loading, error, reload } = useApiData(getMyGrades);
+  // Mismo criterio que Mis notas: el promedio general es el del período más reciente.
+  const todos = data?.courses ?? [];
+  const periodo = periodosDe(todos)[0];
+  const ramos = periodo ? todos.filter((r) => r.period === periodo) : todos;
+  const promedio = promedioGeneral(ramos);
+  const notas = contarNotas(ramos);
+  const conApuntes = ramos.filter((r) => r.tutor_available).length;
+
   return (
     <>
       <Card as="header" tight>
-        <h1 className={styles.hello}>{data.saludo}</h1>
+        <h1 className={styles.hello}>
+          Hola {primerNombre(user?.name)} <span aria-hidden="true">👋</span>
+        </h1>
         <p className={styles.sub}>Continúa avanzando en tu aprendizaje inteligente</p>
       </Card>
 
-      <div className={styles.kpis}>
-        <Kpi label="Promedio general" value={data.promedio?.value ?? '—'} hint={data.promedio?.hint ?? SIN_DATOS} tone="success" />
-        <Kpi label="Asistencia" value={data.asistencia?.value ?? '—'} hint={data.asistencia?.hint ?? SIN_DATOS} tone="success" />
-        <Kpi label="Cursos activos" value={data.cursosActivos?.value ?? '—'} hint={data.cursosActivos?.hint ?? 'Aún no estás inscrito en cursos'} tone="warning" />
-      </div>
+      {/* Mientras carga o si falló, LoadState reemplaza los KPI: así nunca dice "Aún no tienes notas" sin saberlo. */}
+      <LoadState loading={loading} error={error} onRetry={reload}>
+        <div className={styles.kpis}>
+          <Kpi
+            label="Promedio general"
+            value={formatNota(promedio)}
+            hint={promedio === null ? 'Aún no tienes notas' : `${notas} ${notas === 1 ? 'nota registrada' : 'notas registradas'}`}
+            tone={promedio === null ? 'accent' : tonoNota(promedio)}
+          />
+          {/* La asistencia todavía no existe en la base de datos. */}
+          <Kpi label="Asistencia" value="—" hint={SIN_DATOS} tone="success" />
+          <Kpi
+            label="Cursos activos"
+            value={String(ramos.length)}
+            hint={ramos.length ? 'Asignaturas actuales' : 'Aún no estás inscrito en cursos'}
+            tone="warning"
+          />
+        </div>
+      </LoadState>
 
       <section className={styles.promo}>
         <div>
@@ -26,8 +56,14 @@ export function EstudianteInicioPage() {
           <p className={styles.sub}>Pregunta sobre tus cursos y recibe explicaciones basadas en el material de aprendizaje.</p>
         </div>
         <div className={styles.promoAction}>
-          <Chip solid>IA disponible</Chip>
-          <Button href="#/portal/est-tutor">Preguntar al Tutor IA</Button>
+          {data && (
+            <Chip solid>
+              {conApuntes ? `Con apuntes en ${conApuntes} de ${ramos.length} asignaturas` : 'Sin apuntes todavía'}
+            </Chip>
+          )}
+          <Button variant="accent" href={routeHref('est-tutor')}>
+            Preguntarle al tutor
+          </Button>
         </div>
       </section>
 
@@ -35,40 +71,13 @@ export function EstudianteInicioPage() {
         <Card as="section">
           <h2>Próximas evaluaciones</h2>
           <p className={styles.sub}>Organiza tus próximas actividades</p>
-          {data.evaluaciones.length === 0 && (
-            <EmptyState>Aún no tienes evaluaciones. Aparecerán cuando tu profesor las publique.</EmptyState>
-          )}
-          <ul className={styles.rows}>
-            {data.evaluaciones.map((e) => (
-              <li key={e.curso} className={styles.row}>
-                <b>{e.curso}</b>
-                <span className={styles.grow} />
-                <Chip tone="neutral">{e.fecha}</Chip>
-                <Chip tone={e.tono}>{e.estado}</Chip>
-              </li>
-            ))}
-          </ul>
+          <EmptyState>Aún no tienes evaluaciones. Aparecerán cuando tu docente las publique.</EmptyState>
         </Card>
 
         <Card as="section">
-          <h2>
-            Notificaciones
-            {data.notificaciones.length > 0 && <span className={styles.count}>{data.notificaciones.length}</span>}
-          </h2>
+          <h2>Notificaciones</h2>
           <p className={styles.sub}>Mantente al día con tu actividad académica</p>
-          {data.notificaciones.length === 0 && <EmptyState>No tienes notificaciones nuevas.</EmptyState>}
-          <ul className={styles.rows}>
-            {data.notificaciones.map((n) => (
-              <li key={n.id} className={styles.row}>
-                <span className={`${styles.dot} ${styles[n.tono]}`} aria-hidden="true" />
-                <div className={styles.grow}>
-                  <b>{n.titulo}</b>
-                  <span className={styles.detail}>{n.detalle}</span>
-                </div>
-                <span className={styles.when}>{n.cuando}</span>
-              </li>
-            ))}
-          </ul>
+          <EmptyState>No tienes notificaciones nuevas.</EmptyState>
         </Card>
       </div>
     </>

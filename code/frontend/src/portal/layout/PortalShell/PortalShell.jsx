@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { SHOW_DEV_TOOLS } from '../../config/devFlags.js';
-import { DEMO_USER, ROLES, ROLE_IDS } from '../../config/roles.js';
+import { ROLES, ROLE_IDS } from '../../config/roles.js';
 import { Icon } from '../../components/icons.jsx';
 import { PortalLogo } from '../../components/PortalLogo/PortalLogo.jsx';
 import { usePreferences } from '../../preferences/usePreferences.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { useMediaQuery } from '../../router/useMediaQuery.js';
+import { useSession } from '../../session/useSession.js';
 import styles from './PortalShell.module.css';
 
 const COLLAPSED_KEY = 'fp:menu-collapsed';
@@ -25,7 +26,9 @@ function readCollapsed() {
  */
 export function PortalShell({ role, activeNav, children }) {
   const cfg = ROLES[role];
-  const user = DEMO_USER[role];
+  const { user } = useSession();
+  const nombre = user?.name ?? cfg.label;
+  const detalle = user ? `${cfg.label} · ${user.school.name}` : '';
   const isMobile = useMediaQuery('(max-width: 860px)');
   const { resolvedTheme, setPref, openPanel } = usePreferences();
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -65,10 +68,10 @@ export function PortalShell({ role, activeNav, children }) {
           <span className={styles.sbTitle}>Menú</span>
         </div>
         <div className={styles.sbUser}>
-          <span className={styles.sbAvatar} aria-hidden="true">{user.name[0]}</span>
+          <span className={styles.sbAvatar} aria-hidden="true">{nombre[0]}</span>
           <div className={styles.sbUserText}>
-            <b>{user.name}</b>
-            <small>{user.detail}</small>
+            <b>{nombre}</b>
+            <small>{detalle}</small>
           </div>
         </div>
         <nav className={styles.nav} aria-label="Principal">
@@ -133,7 +136,7 @@ export function PortalShell({ role, activeNav, children }) {
             </button>
           </div>
         </header>
-        <main className={styles.content}>
+        <main id="fp-main" tabIndex={-1} className={styles.content}>
           <div className={styles.wrap}>{children}</div>
         </main>
       </div>

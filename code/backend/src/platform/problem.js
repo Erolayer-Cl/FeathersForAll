@@ -1,4 +1,5 @@
 import { LlmUnavailableError } from '../modules/tutor/llm-client.js';
+import { DbUnavailableError } from './db.js';
 
 const TYPE_BASE = 'https://api.feathersforall.example/errors/';
 
@@ -27,11 +28,18 @@ function toProblem(err) {
   if (err instanceof LlmUnavailableError) {
     return new HttpProblem(503, 'Tutor no disponible', err.message, 'llm-unavailable');
   }
+  if (err instanceof DbUnavailableError) {
+    return new HttpProblem(503, 'Base de datos no disponible', err.message, 'db-unavailable');
+  }
   if (err.type === 'entity.parse.failed') {
     return new HttpProblem(400, 'Solicitud inválida', 'El cuerpo no es JSON válido', 'invalid-json');
   }
   if (err.type === 'entity.too.large') {
     return new HttpProblem(413, 'Solicitud demasiado grande', 'El cuerpo supera el tamaño permitido');
+  }
+  // Otros errores del cliente que detecta Express (charset o Content-Encoding no soportado → 415, etc.).
+  if (err.expose && err.status >= 400 && err.status < 500) {
+    return new HttpProblem(err.status, 'Solicitud inválida', err.message, 'invalid-request');
   }
   return new HttpProblem(500, 'Error interno', 'Ocurrió un error inesperado', 'internal-error');
 }

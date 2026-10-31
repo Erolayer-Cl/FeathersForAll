@@ -21,7 +21,7 @@ S06 pide elegir motores de persistencia y broker, y decidir qué patrones de dat
 | Necesidad | Motor | Por qué |
 |---|---|---|
 | Estado transaccional (colegios, usuarios, cursos, evaluaciones, intentos, consultas) | **PostgreSQL 16** (Render) | ACID, integridad referencial, RLS para el aislamiento por colegio. Regla del taller: empezar por PostgreSQL. |
-| Embeddings de apuntes (RAG) | **pgvector** en el mismo PostgreSQL (`vector(768)`, índice HNSW coseno) | Búsqueda vectorial con el mismo `colegio_id`, la misma RLS y la misma transacción; sin un servicio más. 768 = `nomic-embed-text` (Ollama). |
+| Embeddings de apuntes (RAG) | **pgvector** en el mismo PostgreSQL (`vector(1024)`, índice HNSW coseno) | Búsqueda vectorial con el mismo `colegio_id`, la misma RLS y la misma transacción; sin un servicio más. 1024 = `bge-m3` (Ollama), el modelo del RAG del equipo. |
 | Archivos (PDF de apuntes) | Fuera de la BD (almacenamiento de objetos, a definir en S07) | La BD guarda el texto extraído en `apuntes_curso.contenido`, que es lo que usa el RAG. |
 
 ### 2. Aislamiento por colegio (en la base, no solo en la API)
@@ -31,6 +31,13 @@ S06 pide elegir motores de persistencia y broker, y decidir qué patrones de dat
 - Rendir y consultar al tutor exige **matrícula** (FK a `matriculas(curso_id, estudiante_id)`).
 - **RLS fail-closed** con `ENABLE` + `FORCE`: sin `SET LOCAL app.colegio_id` la API no ve ninguna fila. La variable se llama `app.colegio_id` (reemplaza la mención `app.tenant_id` del ADR 0002).
 - Roles de BD: `feathersforall_app` (API, sin BYPASSRLS) y `feathersforall_plataforma` (BYPASSRLS: master, relay de la outbox, jobs).
+- **Permisos por rol** (políticas RLS `RESTRICTIVE`, se suman al aislamiento por colegio): la API fija también `app.usuario_id` y `app.rol` desde el JWT verificado.
+  - Material (apuntes y embeddings), evaluaciones, preguntas, alternativas y matrículas: solo el **docente de ese curso** o el **admin del colegio**. El master, por el rol de plataforma.
+  - Usuarios: solo el admin del colegio.
+  - Intentos, respuestas y consultas al tutor: solo el **propio estudiante**, a su nombre; un intento enviado ya no se modifica.
+  - El worker usa `app.rol = 'servicio'` para indexar apuntes y responder consultas.
+  - Fail-closed: sin `app.rol` no se escribe en ninguna de estas tablas. Leer no cambia.
+  - `apuntes_curso.subido_por` y `evaluaciones.creado_por` registran quién lo hizo.
 
 ### 3. Broker y eventos
 
@@ -64,8 +71,10 @@ S06 pide elegir motores de persistencia y broker, y decidir qué patrones de dat
 | Outbox e Idempotency-Key no existían | `outbox_eventos` y `claves_idempotencia`, con RLS |
 | Con RLS en `colegios`, la API no podía resolver el colegio antes del login | Función `colegio_por_rbd()` `SECURITY DEFINER`, dueña `feathersforall_plataforma`; devuelve solo el id |
 | Cada INSERT repetía el colegio | `colegio_id DEFAULT app_colegio_id()` (sigue siendo fail-closed) |
+| El esquema asumía embeddings de 768 (nomic-embed-text), pero el RAG usa bge-m3 | `embedding vector(1024)` |
+| Un estudiante podía subir material o crear evaluaciones si la API no lo frenaba | Permisos por rol con RLS RESTRICTIVE (ver punto 2) |
 
-Verificado en PostgreSQL 16 + pgvector: `98_test_s06_ajustes.sql` (23 pruebas), las 43 consultas de `queries.js` compilan, y el flujo H1→H5 corre completo con el rol de la API bajo RLS.
+Verificado en PostgreSQL 16 + pgvector: `98_test_s06_ajustes.sql` (52 pruebas, incluidas las de permisos por rol), las 43 consultas de `queries.js` compilan, y el flujo H1→H5 corre completo con el rol de la API bajo RLS.
 
 ## Consecuencias
 
@@ -78,7 +87,9 @@ Verificado en PostgreSQL 16 + pgvector: `98_test_s06_ajustes.sql` (23 pruebas), 
 **Pierde / se vuelve más difícil:**
 
 - Esquema más largo: FKs compuestas, columnas de rol generadas y `UNIQUE (id, …)` extra.
-- Toda consulta debe ir dentro de una transacción con `SET LOCAL app.colegio_id`; la API no puede usar un rol con BYPASSRLS.
+- Toda consulta debe ir dentro de una transacción con `SET LOCAL app.colegio_id`, `app.usuario_id` y `app.rol`; la API no puede usar un rol con BYPASSRLS.
+- La base confía en `app.rol` / `app.usuario_id`: la API debe tomarlos solo del JWT verificado.
+- Un UPDATE/DELETE sin permiso no da error (afecta 0 filas): la API debe traducirlo a 403/404.
 - Login en dos pasos (colegio por RBD, luego usuario por email).
 - Hay que operar el relay de la outbox y los jobs de limpieza (idempotencia y retención de consultas al tutor).
 - `RESTRICT` entre entidades independientes: no se borra, se desactiva (`activo = false`).
@@ -93,7 +104,7 @@ Verificado en PostgreSQL 16 + pgvector: `98_test_s06_ajustes.sql` (23 pruebas), 
 
 ## Decisiones a confirmar
 
-- Dimensión `vector(768)` según el modelo de embeddings final.
+- Dimensión `vector(1024)` si se cambia el modelo de embeddings (hoy bge-m3).
 - Escala de puntaje 0–100 (o nota 1.0–7.0).
 - Plazo de retención de `consultas_tutor_ia` (datos de menores).
 - Almacenamiento de archivos (S3 u otro) en S07.

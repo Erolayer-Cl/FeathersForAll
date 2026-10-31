@@ -1,4 +1,4 @@
-# @aulaviva/api-client
+# @feathersforall/api-client
 
 Cliente TypeScript generado desde `FeathersForAll/api/openapi.yaml` (contract-first, S05).
 

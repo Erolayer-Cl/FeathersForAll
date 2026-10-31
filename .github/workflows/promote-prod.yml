@@ -1,0 +1,60 @@
+# Promoción a prod (S08, ADR 0009): copia a overlays/prod los digest que YA corren en dev y abre un PR
+# en el repo gitops. Nunca construye imágenes: a prod solo llega lo que pasó por dev.
+#
+# Dos aprobaciones humanas, como pide la PPT para producción:
+#   1. Environment `production` (Settings → Environments): revisores obligatorios antes de que el job corra.
+#   2. PR en el repo gitops con 2 revisores (protección de rama de main).
+name: promote-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      motivo:
+        description: "Qué se lleva a prod (aparece en el PR)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-prod
+  cancel-in-progress: false
+
+jobs:
+  promote-prod:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GITOPS_REPO: ${{ vars.GITOPS_REPO || 'Erolayer-Cl/feathersforall-gitops' }}
+    steps:
+      - name: Clonar repo gitops
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+      - name: Copiar digest de dev a prod y abrir PR
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+          MOTIVO: ${{ inputs.motivo }}
+        run: |
+          digest_dev() { sed -n "/name: $1\$/,/digest:/ s/.*digest: //p" overlays/dev/kustomization.yaml; }
+          api="$(digest_dev feathersforall-api)"; web="$(digest_dev feathersforall-web)"
+          case "$api$web" in *sha256:0000000000*) echo "::error::dev todavía tiene digest de ejemplo"; exit 1;; esac
+          sed -i "/name: feathersforall-api$/,/digest:/ s#digest: .*#digest: $api#" overlays/prod/kustomization.yaml
+          sed -i "/name: feathersforall-web$/,/digest:/ s#digest: .*#digest: $web#" overlays/prod/kustomization.yaml
+          if git diff --quiet; then echo "prod ya tiene los digest de dev"; exit 0; fi
+          branch="deploy/prod-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -am "deploy(prod): $MOTIVO"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "deploy(prod): $MOTIVO" \
+            --body "Promoción a prod de lo que hoy corre en dev (aprobada en el Environment \`production\` por la run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
+
+          - api: \`ghcr.io/erolayer-cl/feathersforall-api@$api\`
+          - web: \`ghcr.io/erolayer-cl/feathersforall-web@$web\`
+
+          Requiere 2 revisores. Rollback: revertir este PR."
