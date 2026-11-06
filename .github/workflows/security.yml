@@ -1,0 +1,109 @@
+# DevSecOps I · shift-left (S09, ADR 0010).
+#
+# Cuatro gates de seguridad en paralelo, en cada PR a main (y en main):
+#   sast    → Semgrep: OWASP Top 10 + JS/Node + reglas propias de .semgrep/ (con sus pruebas)
+#   sca     → Trivy fs sobre los lockfiles: falla con CVE High/Critical que ya tengan parche (VEX en .vex/)
+#   sbom    → SBOM CycloneDX y SPDX de backend y frontend, publicados como artefacto del run
+#   secrets → gitleaks sobre TODO el historial (fetch-depth: 0)
+#
+# Además corre cada lunes: un CVE nuevo puede aparecer aunque nadie haga push (lección de VULN-001).
+# Triage y excepciones: FeathersForAll/Documentos/seguridad/triage-y-excepciones.md
+name: security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 10 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.76.1
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.28.0
+
+jobs:
+  # --- SAST ---
+  sast:
+    name: security-sast
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.140.0
+    steps:
+      - uses: actions/checkout@v7
+      - name: Pruebas de las reglas propias (cada regla con casos que deben y no deben saltar)
+        run: semgrep --test .semgrep/
+      - name: Semgrep (falla con hallazgos de severidad ERROR)
+        run: >-
+          semgrep scan
+          --config p/owasp-top-ten --config p/javascript --config p/nodejs --config .semgrep/
+          --severity ERROR --error --metrics=off code
+
+  # --- SCA ---
+  sca:
+    name: security-sca
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Trivy fs (falla con CVE High/Critical que tengan parche; respeta las excepciones VEX)
+        run: |
+          vex=()
+          for f in .vex/*.openvex.json; do [ -e "$f" ] && vex+=(--vex "/repo/$f"); done
+          docker run --rm -v "$PWD:/repo:ro" -w /repo "$TRIVY_IMAGE" \
+            fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+            "${vex[@]}" .
+
+  # --- SBOM ---
+  sbom:
+    name: security-sbom
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: SBOM CycloneDX y SPDX (dependencias de producción, desde los lockfiles)
+        run: |
+          mkdir -p sbom
+          for app in backend frontend; do
+            for fmt in cyclonedx:cdx spdx-json:spdx; do
+              docker run --rm -v "$PWD:/repo" -w /repo "$TRIVY_IMAGE" fs --no-progress \
+                --format "${fmt%%:*}" --output "sbom/feathersforall-$app.${fmt##*:}.json" "code/$app"
+            done
+          done
+      - name: Validar que los SBOM no estén vacíos
+        run: |
+          for f in sbom/*.cdx.json; do
+            jq -e '.bomFormat == "CycloneDX" and (.components | length) > 0' "$f" > /dev/null \
+              || { echo "::error::$f no es un SBOM CycloneDX válido o no tiene componentes"; exit 1; }
+            echo "$f: $(jq '.components | length' "$f") componentes"
+          done
+          for f in sbom/*.spdx.json; do
+            jq -e '(.spdxVersion | startswith("SPDX-")) and (.packages | length) > 0' "$f" > /dev/null \
+              || { echo "::error::$f no es un SBOM SPDX válido o no tiene paquetes"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom/
+          retention-days: 90
+
+  # --- Secret scanning ---
+  secrets:
+    name: security-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # todo el historial: un token borrado en un commit posterior sigue filtrado
+      - name: gitleaks (historial completo, secretos ocultos en el log)
+        # Imagen y no gitleaks-action: la acción pide licencia en repos de organizaciones.
+        # --user con el uid del runner: git no reclama "dubious ownership" del repo montado.
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo" "$GITLEAKS_IMAGE"
+          git /repo --config /repo/.gitleaks.toml --redact --verbose --exit-code 1

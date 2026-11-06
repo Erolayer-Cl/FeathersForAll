@@ -1,12 +1,12 @@
-# models.md — Taller de Ingeniería de Software (S01–S08)
+# models.md — Taller de Ingeniería de Software (S01–S09)
 
 Conversión de las PPT de la carpeta AULAVIVA a Markdown, para usar como contexto al construir AulaViva (FeathersForAll). Cada sesión = un módulo del taller; cada mini-lab define un entregable en el repo.
 
 **Iniciativa nuestra: AulaViva** — plataforma SaaS multi-tenant con tutor IA (MVP: multi-tenancy real 1 colegio = 1 tenant, cursos/docentes/estudiantes con RBAC, evaluaciones auto-corregidas, tutor IA con RAG por curso, panel del apoderado). Restricciones: aislamiento por tenant, datos de menores, picos estacionales, RAG con currículum MINEDUC, FinOps del LLM por tenant.
 
-**Estructura:** Parte 1 = contenido de las PPT S01–S08. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
+**Estructura:** Parte 1 = contenido de las PPT S01–S09. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
 
-**Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`, `Dockerfile`, `k8s/*.yaml`, `terraform/main.tf`, ADR de plataforma K8s (en el repo: 0006).
+**Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`, `Dockerfile`, `k8s/*.yaml`, `terraform/main.tf`, ADR de plataforma K8s (en el repo: 0006), `.github/workflows/security.yml`, `.semgrep/`, SBOM CycloneDX y `docs/threat-model.md` (en el repo: `Documentos/seguridad/threat-model.md`).
 
 ---
 
@@ -1924,6 +1924,167 @@ jobs:
 
 ---
 
+# S09 — DevSecOps I: shift-left security (SAST, SCA, secretos)
+
+## Slide 1
+- Sesión 09 · 2h 30 min
+- DevSecOps I: shift-left security.
+- La seguridad deja de ser una compuerta al final. En cada commit corren SAST, SCA, escaneo de secretos y generación de SBOM. Menos hallazgos en producción, más aprendizaje en el equipo.
+- BLOQUE B · AUTOMATIZACIÓN Y DEVSECOPS
+- MÓDULO 09 de 18 sesiones
+
+## Slide 2
+- Agenda
+- 01 Warm-up · Shift-left, ¿qué significa realmente? La cadena de responsabilidad dev / sec / ops. · 20 min
+- 02 SAST · análisis estático. Semgrep, SonarQube, CodeQL. Reglas y falsos positivos. · 30 min
+- 03 SCA + SBOM. Trivy, Snyk, Dependabot. CycloneDX y SPDX. · 25 min
+- 04 Secret scanning y rotación. gitleaks, trufflehog, pre-commit hooks. · 20 min
+- 05 Threat modeling ligero — STRIDE. Aplicado a un microservicio de la iniciativa. · 25 min
+- 06 Mini-lab + retro. Integrar SAST + SCA + secret scan en tu pipeline. · 30 min
+- DURACIÓN TOTAL · 2 h 30 min · incluye 10 min de descanso y 10 min de retrospectiva
+
+## Slide 3
+- Objetivos de la sesión
+- OBJETIVO 01 · DETECTAR — Integrar SAST, SCA y secret scanning en CI: añadir jobs Semgrep, Trivy y gitleaks al pipeline, configurarlos como gates bloqueantes y triarlos por severidad y explotabilidad, no solo por CVSS.
+- OBJETIVO 02 · INVENTARIAR — Generar un SBOM válido y usarlo: producir SBOMs CycloneDX y SPDX en cada build, publicarlos como artefactos y consultarlos ante un CVE de una dependencia transitiva.
+- OBJETIVO 03 · MODELAR — Hacer threat modeling STRIDE ligero: aplicar STRIDE a un microservicio de la iniciativa: identificar activos, límites de confianza y amenazas por categoría, y traducirlas en controles concretos.
+
+## Slide 4
+- Contenido 01 · Las 3 familias de escaneo: SAST, SCA y secret scanning
+
+| Familia | Herramientas | Qué detecta | Falso positivo típico |
+|---|---|---|---|
+| SAST | Semgrep · SonarQube · CodeQL | Bugs de código: SQLi, XSS, path traversal, deserialización insegura. | Frameworks que sanitizan implícitamente. |
+| SCA | Trivy · Snyk · Dependabot | CVE en dependencias directas y transitivas. Licencias. | CVE sin código vulnerable alcanzable. |
+| Secrets | gitleaks · trufflehog · GitHub secret scanning | API keys, tokens, credenciales hardcoded, incluso en historial. | Fixtures de test que parecen tokens reales. |
+
+- Triage — cómo priorizar:
+  - No triar por CVSS aislado: sumar explotabilidad (¿se llega desde red pública?) y criticidad del dato.
+  - Usar VEX (Vulnerability Exploitability eXchange) para declarar que un CVE no aplica a tu contexto.
+  - SLA de remediación: Critical < 7 días · High < 30 días · Medium < 90 días.
+- Semgrep · regla mínima. Patrón: reglas propias en el repo (`.semgrep/`) versionadas junto al código. Regla del taller: cada falso positivo debe tener PR de fix a la regla, no un nosec silencioso.
+
+```yaml
+rules:
+  - id: py-hardcoded-jwt-secret
+    message: "JWT secret hardcodeado"
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern: jwt.encode(..., "$SECRET", ...)
+      - metavariable-regex:
+          metavariable: "$SECRET"
+          regex: "^[A-Za-z0-9_-]{10,}$"
+    fix: jwt.encode(..., os.environ["JWT_SECRET"], ...)
+```
+
+## Slide 5
+- Contenido 02 · SBOM + Threat modeling
+- SBOM · Software Bill of Materials: sabes qué software estás enviando a producción. Un SBOM lista cada componente (nombre, versión, licencia, hash) que compone un artefacto. Es el prerrequisito para responder rápido cuando aparece un CVE como Log4Shell.
+
+| Formato | Fortaleza |
+|---|---|
+| CycloneDX | Orientado a seguridad, soporta VEX y vulnerabilidades embebidas. |
+| SPDX | Estándar ISO/IEC 5962, fuerte en aspectos de licencias y compliance. |
+
+- Cómo generarlo (multi-stack):
+  - Python · `cyclonedx-py requirements requirements.txt -o sbom.json`
+  - Node · `npx @cyclonedx/cyclonedx-npm --output-file sbom.json`
+  - Java · `mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom`
+  - Contenedor · `syft ghcr.io/team/app:sha -o cyclonedx-json > sbom.json`
+- STRIDE · aplicado a un microservicio:
+
+| Categoría | Amenaza | Control típico |
+|---|---|---|
+| Spoofing | Suplantar cliente API o servicio interno. | mTLS, OAuth2, JWT firmado. |
+| Tampering | Modificar payload o registro en tránsito. | Firma HMAC, TLS, WORM logs. |
+| Repudiation | Usuario niega haber ejecutado la acción. | Audit log firmado, trace_id. |
+| Info disclosure | Fugas por logs, mensajes de error. | Sanitizar logs, secrets vault. |
+| DoS | Saturar endpoints públicos. | Rate limit, WAF, autoscaling. |
+| Elevation | Usuario común obtiene privilegios admin. | RBAC, principio de mínimo privilegio. |
+
+- Regla: STRIDE en 45 min por microservicio crítico, revisado cada release mayor.
+
+## Slide 6
+- Caso de uso · AulaViva (EdTech): SAST + SCA + secret scan en el pipeline
+
+```yaml
+# .github/workflows/security.yml — AulaViva
+name: security
+on: [pull_request]
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: returntocorp/semgrep-action@v1
+        with: { config: "p/owasp-top-ten .semgrep/" }
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: fs
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          ignore-unfixed: "true"
+      - run: |
+          pip install cyclonedx-bom
+          cyclonedx-py requirements requirements.txt -o sbom.json
+      - uses: actions/upload-artifact@v4
+        with: { name: sbom, path: sbom.json }
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+```
+
+- Por qué así para AulaViva (datos de menores + multi-tenancy):
+  - SAST con OWASP Top 10: inyección y XSS son riesgos altos en un LMS. Reglas propias para escapes de plantillas Jinja/Handlebars.
+  - SCA bloqueante en HIGH/CRITICAL: con ignore-unfixed para no bloquear por CVEs sin parche disponible aún.
+  - SBOM CycloneDX como artefacto: conservado 5 años; base para responder auditorías MINEDUC y consultas por CVE.
+  - gitleaks con historial completo (`fetch-depth: 0`). Un token de LLM en el historial vale rotarlo aunque haya sido borrado en un commit posterior.
+- Rotación de secretos: Vault (o AWS Secrets Manager) con TTL < 90 días. Cada tenant tiene su namespace. Sin credenciales largas en variables de entorno de CI.
+
+## Slide 7
+- Mini-lab de la sesión · 30 min — Shift-left en tu pipeline
+- Prerrequisitos:
+  - Pipeline CI de la S08 con al menos una run verde.
+  - Repo con reglas de protección de rama activas.
+  - Cuenta de Semgrep (free) para reglas gestionadas.
+- Pasos:
+  - Añadir `security.yml` con jobs sast, sca, secrets en paralelo.
+  - Configurar Semgrep con `p/owasp-top-ten` + carpeta `.semgrep/` con 2 reglas propias.
+  - Ejecutar Trivy filesystem, fallar en HIGH/CRITICAL con parche disponible.
+  - Generar SBOM CycloneDX y publicarlo como artefacto del run.
+  - Integrar gitleaks con `fetch-depth: 0`.
+  - Redactar `docs/threat-model.md` con STRIDE aplicado a un microservicio.
+  - Documentar en el README cómo re-triar hallazgos y solicitar excepciones (VEX).
+- Entregable — Pull Request con:
+  - `.github/workflows/security.yml` con SAST + SCA + secret scan.
+  - `.semgrep/` con al menos 2 reglas propias.
+  - `sbom.json` (CycloneDX) adjunto como artefacto del último run.
+  - `docs/threat-model.md` con STRIDE + tabla de mitigaciones.
+  - Screenshot del PR mostrando los tres checks pasando.
+  - Nota: si aparecen hallazgos High, incluir plan de remediación o justificación VEX en la descripción del PR.
+- Rúbrica · 100 puntos: SAST integrado y bloqueante 20 · Reglas Semgrep propias funcionales 15 · SCA bloqueante + SBOM válido 25 · Secret scanning con historial 10 · STRIDE ligero documentado 25 · Puntualidad 5.
+- Deadline: antes del inicio de la S10.
+
+## Slide 8
+- Cierre y próximos pasos. Nos vemos en la S10.
+- Compromisos hasta la próxima clase:
+  - Entregar el pipeline con SAST + SCA + secret scan y SBOM funcional.
+  - Publicar el `threat-model.md` con STRIDE en el repo del equipo.
+  - Revisar los hallazgos High/Critical del primer run y planificar remediación.
+  - Leer el post-mortem de un incidente de supply chain (SolarWinds o XZ Utils).
+- S10 · PRÓXIMA SESIÓN — DevSecOps II: supply chain. DAST, IaC scanning, firma de imágenes con Cosign y attestations SLSA. La confianza en tu cadena de suministro se construye con criptografía, no con planilla.
+
+---
+
 # PARTE 2 — Estado real del repo FeathersForAll (contexto de lo ya construido)
 
 Fuente: https://github.com/Erolayer-Cl/FeathersForAll (rama `main`, revisado el 2026-09-28; actualizado el 2026-10-07 con S04–S06 y el código en `code/`). Los documentos están en `FeathersForAll/Documentos/`. Última actividad en el repo: "Tercera Semana" (S03). Lo que sigue es el contenido de esos documentos, más el estado y los pendientes respecto a las PPT (Parte 1).
@@ -2759,3 +2920,20 @@ Guía completa: `FeathersForAll/Documentos/infra/ci-cd.md`. Decisión: ADR 0009 
 - Pendiente del equipo: crear el repo gitops y hacer push; `GITOPS_TOKEN`; Environment `production`; protección de rama (2 revisores + checks); paquetes GHCR públicos; instalar Argo CD v3.5.6 en kind; screenshot Synced/Healthy; primera run verde en `main`.
 - Deadline: antes de la S09 (DevSecOps I: SAST, SCA, SBOM y secret scanning).
 
+### [entregables] S09 — DevSecOps I: shift-left (rama `feat/s09-devsecops`, 2026-11-06)
+
+Decisión: ADR 0010. Guías: `Documentos/seguridad/triage-y-excepciones.md` y `Documentos/seguridad/threat-model.md` (la PPT pide `docs/threat-model.md`; en este repo los documentos viven en `FeathersForAll/Documentos/`).
+
+- `.github/workflows/security.yml` (en PR a `main`, en `main`, cada lunes y manual), con 4 jobs en paralelo:
+  - `security-sast`: `semgrep --test .semgrep/` + Semgrep 1.140.0 con `p/owasp-top-ten`, `p/javascript`, `p/nodejs` y `.semgrep/`; falla con severidad ERROR.
+  - `security-sca`: Trivy 0.76.1 `fs --severity HIGH,CRITICAL --ignore-unfixed`, con las excepciones OpenVEX de `.vex/`.
+  - `security-sbom`: CycloneDX y SPDX de backend y frontend (Trivy desde los lockfiles), validados con `jq` y publicados como artefacto `sbom` (90 días).
+  - `security-secrets`: gitleaks v8.28.0 por imagen Docker (la acción pide licencia en organizaciones), `fetch-depth: 0`, `--redact`, `.gitleaks.toml` con regex precisas para los fixtures sintéticos.
+- `ci.yml`: el job `sast` usa las mismas reglas (decisión del equipo: Semgrep en ambos) y `build-and-push` publica el SBOM CycloneDX de cada imagen.
+- `.semgrep/`: 4 reglas propias con casos de prueba (`ruleid`/`ok`), una por letra de STRIDE: `ffa-jwt-secreto-hardcodeado` (S), `ffa-sql-interpolado` (T), `ffa-log-con-datos-del-estudiante` (I) y `ffa-tenant-desde-el-cliente` (E). Revisadas a mano contra el código actual: no saltan en `code/`.
+- `.pre-commit-config.yaml` con el hook de gitleaks (opcional).
+- Threat model STRIDE del módulo `tutor`: activos, 4 límites de confianza, 28 amenazas con su estado y plan de mitigación (rate limit del tutor, prompt injection, CSP, audit log de apuntes).
+- Historial revisado a mano (36 commits): sin secretos reales; solo fixtures sintéticos (JWT falsos de Postman, secreto de pruebas y hashes scrypt de `demo1234`), cubiertos por `.gitleaks.toml`.
+- No verificado aquí: en este entorno no se pudo descargar Semgrep, Trivy ni gitleaks. La primera run en GitHub es la verificación real.
+- Pendiente del equipo: abrir el PR y revisar la primera run (si hay High, plan o VEX en la descripción); screenshot de los checks en verde; agregar `security-*` a la protección de rama; leer el post-mortem de SolarWinds o XZ Utils.
+- Deadline: antes de la S10 (DevSecOps II: DAST, IaC scanning, cosign y SLSA).

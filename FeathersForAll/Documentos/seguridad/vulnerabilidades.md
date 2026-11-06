@@ -1,8 +1,8 @@
 # Registro de vulnerabilidades
 
 Vulnerabilidades encontradas en el código o en las dependencias de FeathersForAll: qué son, si nos afectaban y cómo se cerraron.
-Las detectan los gates de CI (S08, ADR 0009): SCA con `npm audit --omit=dev --audit-level=high`, SAST con Semgrep y Trivy sobre las imágenes.
-Un hallazgo **High o Critical** bloquea el pipeline hasta que se corrige o se acepta aquí con justificación.
+Las detectan los gates de CI (S08, ADR 0009): SCA con `npm audit --omit=dev --audit-level=high`, SAST con Semgrep y Trivy sobre las imágenes. Desde la S09 (ADR 0010) también `security.yml`: Trivy `fs`, reglas Semgrep propias y gitleaks sobre todo el historial.
+Un hallazgo **High o Critical** bloquea el pipeline hasta que se corrige o se acepta con una excepción VEX en `.vex/`. Cómo priorizar, SLA y excepciones: [`triage-y-excepciones.md`](triage-y-excepciones.md).
 
 | ID | Componente | CVE | CWE | CVSS | Estado |
 |---|---|---|---|---|---|

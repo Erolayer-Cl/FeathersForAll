@@ -97,7 +97,7 @@ jobs:
       - name: SCA (sin High/Critical en dependencias de producción)
         run: npm audit --omit=dev --audit-level=high
 
-  # --- Gate 4: SAST ---
+  # --- Gate 4: SAST (las mismas reglas que security.yml → sast; aquí además frena build-and-push) ---
   sast:
     runs-on: ubuntu-latest
     container:
@@ -105,7 +105,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Semgrep (falla con hallazgos de severidad ERROR)
-        run: semgrep scan --config p/javascript --config p/nodejs --severity ERROR --error --metrics=off code
+        run: >-
+          semgrep scan
+          --config p/owasp-top-ten --config p/javascript --config p/nodejs --config .semgrep/
+          --severity ERROR --error --metrics=off code
 
   # --- Gate 5: e2e con Compose + Newman (sin Ollama: la carpeta del tutor queda fuera) ---
   e2e-newman:
@@ -178,6 +181,16 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
           image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress
           ${{ env.IMAGE }}:${{ github.sha }}
+      - name: SBOM CycloneDX de la imagen (S09, lo que de verdad llega a producción)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:0.76.1
+          image --format cyclonedx --output /out/sbom-${{ matrix.app }}-image.cdx.json --no-progress
+          ${{ env.IMAGE }}:${{ github.sha }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ matrix.app }}-image
+          path: sbom-${{ matrix.app }}-image.cdx.json
+          retention-days: 90
       - name: Push a GHCR (solo main)
         if: env.PUBLISH == 'true'
         run: |

@@ -1,0 +1,27 @@
+rules:
+  - id: ffa-log-con-datos-del-estudiante
+    message: >-
+      Se está enviando al log el cuerpo del request o el texto de la conversación. Regla del proyecto
+      (AGENTS.md, ADR 0007/0008): los logs no guardan cuerpos ni preguntas al tutor, porque son de
+      menores de edad. Registra solo números, ids y tipos (como hace logTurn en tutor/turn.js).
+    severity: ERROR
+    languages: [javascript]
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp: "A09:2021 - Security Logging and Monitoring Failures"
+      stride: Information disclosure
+    patterns:
+      - pattern-either:
+          - pattern: $LOG.$LEVEL(..., <... $REQ.body ...>, ...)
+          - patterns:
+              - pattern: $LOG.$LEVEL(..., <... $V ...>, ...)
+              - metavariable-regex:
+                  metavariable: $V
+                  regex: ^(messages|question|pregunta|prompt|answer|respuesta|content|contenido)$
+      - metavariable-regex:
+          metavariable: $LOG
+          regex: (^|\.)(log|logger|console)$
+      - metavariable-regex:
+          metavariable: $LEVEL
+          regex: ^(trace|debug|info|warn|error|fatal|child|log)$

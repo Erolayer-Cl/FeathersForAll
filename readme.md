@@ -136,6 +136,25 @@ Paso a paso completo (con la prueba del HPA): [`k8s/README.md`](k8s/README.md).
 
 Puesta en marcha (repo gitops, token, Environment, protección de rama y Argo CD): [`Documentos/infra/ci-cd.md`](FeathersForAll/Documentos/infra/ci-cd.md).
 
+### DevSecOps I · shift-left (S09)
+
+| Pieza | Dónde | Resumen |
+|---|---|---|
+| Gates de seguridad | `.github/workflows/security.yml` | `security-sast` (Semgrep OWASP Top 10 + reglas propias), `security-sca` (Trivy fs), `security-sbom` (CycloneDX + SPDX como artefacto) y `security-secrets` (gitleaks, todo el historial). En cada PR, en `main` y cada lunes |
+| Reglas Semgrep propias | `.semgrep/` | JWT hardcodeado, SQL interpolado, logs con datos del estudiante, colegio/rol tomado del cliente. Cada una con casos de prueba |
+| Excepciones | `.vex/` (OpenVEX), `.gitleaks.toml` | Toda excepción con motivo, aprobación y vencimiento |
+| Threat model | [`Documentos/seguridad/threat-model.md`](FeathersForAll/Documentos/seguridad/threat-model.md) | STRIDE del Tutor IA con plan de mitigación |
+| Decisión | [ADR 0010](FeathersForAll/Documentos/adr/0010-devsecops-shift-left.md) | Shift-left con Semgrep, Trivy y gitleaks |
+
+**Si un gate de seguridad se pone rojo** (cómo volver a triar un hallazgo y pedir una excepción VEX):
+
+1. Mira en el log del job qué herramienta falló y qué encontró.
+2. Prioriza por explotabilidad y dato expuesto, no solo por CVSS. SLA: Critical < 7 días, High < 30, Medium < 90.
+3. Si es real, corrígelo y regístralo en [`vulnerabilidades.md`](FeathersForAll/Documentos/seguridad/vulnerabilidades.md). Si no nos afecta, agrega un OpenVEX en `.vex/` (plantilla en [`.vex/README.md`](.vex/README.md)). Si es un falso positivo de una regla propia, arregla la regla, nunca con un `nosemgrep` silencioso. Si es un secreto real, **rótalo primero**.
+4. Si el PR tiene un hallazgo High, su descripción debe incluir el plan de remediación o la justificación VEX.
+
+Guía completa: [`Documentos/seguridad/triage-y-excepciones.md`](FeathersForAll/Documentos/seguridad/triage-y-excepciones.md).
+
 **Evidencia — `kubectl get all -n feathersforall`:**
 
 ![kubectl get all -n feathersforall](FeathersForAll/Documentos/infra/kubectl-get-all.png)
@@ -196,6 +215,7 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0007](FeathersForAll/Documentos/adr/0007-autenticacion-y-privacidad.md) | Autenticación propia por RBD y privacidad de lectura por usuario | Propuesta | 16-10-2026 |
 | [0008](FeathersForAll/Documentos/adr/0008-conversaciones-del-tutor.md) | Conversaciones del tutor IA guardadas y privadas del estudiante | Propuesta | 19-10-2026 |
 | [0009](FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md) | CI/CD con GitHub Actions y GitOps pull-based con Argo CD (repo gitops separado) | Propuesta | 26-10-2026 |
+| [0010](FeathersForAll/Documentos/adr/0010-devsecops-shift-left.md) | DevSecOps shift-left: SAST, SCA, SBOM y secret scanning en cada PR (`security.yml`) | Propuesta | 06-11-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 

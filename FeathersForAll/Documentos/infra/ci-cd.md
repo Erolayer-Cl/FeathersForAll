@@ -18,6 +18,7 @@ Del commit al clúster sin que nadie corra `kubectl`. La decisión y sus porqué
 |---|---|
 | `.github/workflows/ci.yml` | Quality gates, build/escaneo/push de imágenes y PR de promoción a dev |
 | `.github/workflows/promote-prod.yml` | Copia a prod los digest de dev (manual, con aprobación) |
+| `.github/workflows/security.yml` | Gates de seguridad de la S09 (ADR 0010): SAST, SCA, SBOM y secretos; también cada lunes |
 | repo `feathersforall-gitops` | `base/` + `overlays/{dev,prod}/` (Kustomize) y `argocd/` (AppProject + Applications) |
 | [`Documentos/seguridad/vulnerabilidades.md`](../seguridad/vulnerabilidades.md) | Lo que encontraron los gates (CVE, CWE, CVSS) y cómo se cerró |
 
@@ -32,22 +33,27 @@ Regla de la PPT: *si un gate no bloquea, es un log, no un gate*. Todos estos blo
 | Pruebas + cobertura | `backend` | `node --test` con PostgreSQL real (RLS incluido) | Falla una prueba o la cobertura de líneas baja de **70 %** (hoy 98,9 %) |
 | Pruebas + cobertura | `frontend` | Vitest + v8 | Falla una prueba o la cobertura de líneas de la lógica (`src/**/*.js`) baja de **70 %** (hoy 91 %) |
 | SCA | `backend`, `frontend` | `npm audit --omit=dev --audit-level=high` | Hay una dependencia de producción con CVE High/Critical |
-| SAST | `sast` | Semgrep (`p/javascript`, `p/nodejs`) | Hay un hallazgo de severidad ERROR |
+| SAST | `sast` (y `security-sast`) | Semgrep (`p/owasp-top-ten`, `p/javascript`, `p/nodejs` y reglas propias de `.semgrep/`) | Hay un hallazgo de severidad ERROR o una regla propia no pasa sus pruebas |
+| SCA (lockfiles) | `security-sca` | Trivy `fs` + excepciones VEX (`.vex/`) | Un lockfile tiene un CVE High/Critical **con arreglo** (S09) |
+| SBOM | `security-sbom` | Trivy (CycloneDX + SPDX) | No se genera o queda vacío (S09); además `build-and-push` publica el SBOM de cada imagen |
+| Secretos | `security-secrets` | gitleaks (todo el historial) | Hay un secreto en cualquier commit (S09) |
 | e2e | `e2e-newman` | Docker Compose + Newman | Falla una aserción (salud, login, perfil, cursos, notas, privacidad y seguridad; sin el tutor, porque en CI no hay Ollama) |
 | Imagen | `build-and-push` | Trivy | La imagen tiene CVE High/Critical **con arreglo disponible** |
 | Aprobación humana | `promote-prod` | Environment `production` + PR con 2 revisores | Nadie aprueba |
 
 **Cobertura en rojo = menos de 70 %**, en backend y frontend. En el frontend se mide la lógica: quedan fuera los componentes `.jsx` y los hooks/contextos de React (`use*.js`, `*Context.js`), que todavía no tienen pruebas.
 
-### Bloqueantes hoy y en S09
+### Bloqueantes: S08, S09 y lo que viene
 
-| Hoy (S08) | Pasa a bloquear en S09 (DevSecOps I) |
-|---|---|
-| Todos los de la tabla de arriba | Cobertura ≥ 70 % también en `.jsx` y hooks (Testing Library + jsdom) |
-| | Secret scanning (gitleaks) en cada PR |
-| | SBOM (Syft) publicado junto a la imagen y firma con cosign (OIDC, sin claves largas) |
-| | DAST: ZAP baseline contra dev |
-| | Dependabot o SCA programado (`schedule`), para no depender de que alguien haga push ([VULN-001](../seguridad/vulnerabilidades.md)) |
+| Desde S08 | Desde S09 (DevSecOps I, ADR 0010) | Pendiente (S10 y después) |
+|---|---|---|
+| Contrato, lint, cobertura, `npm audit`, Semgrep, Newman, Trivy de imagen | Semgrep con OWASP Top 10 + 4 reglas propias | Firma de imágenes con cosign (OIDC) y SBOM como attestation en GHCR (conservarlo 5 años) |
+| | Trivy `fs` con VEX | DAST: ZAP baseline contra dev |
+| | SBOM CycloneDX + SPDX (artefacto) | IaC scanning (Terraform y manifiestos) |
+| | gitleaks con todo el historial | Cobertura ≥ 70 % también en `.jsx` y hooks (Testing Library + jsdom) |
+| | Escaneo programado cada lunes ([VULN-001](../seguridad/vulnerabilidades.md)) | Dependabot (PRs automáticos de actualización) |
+
+Triage, SLA y excepciones: [`Documentos/seguridad/triage-y-excepciones.md`](../seguridad/triage-y-excepciones.md). Threat model del tutor: [`threat-model.md`](../seguridad/threat-model.md).
 
 ## Puesta en marcha (una vez)
 
@@ -95,7 +101,7 @@ La primera vez que `ci.yml` publica en `main` se crean (o actualizan) `feathersf
 En **ambos** repos: **Settings** → **Branches** → **Add branch ruleset** (o *Add classic branch protection rule*) para `main`:
 
 - **Require a pull request before merging** → **Required approvals: 2** → *Dismiss stale approvals* activado.
-- **Require status checks to pass** → en el repo app agrega: `contrato`, `backend`, `frontend`, `sast`, `e2e-newman`, `build-and-push (api, code/backend)` y `build-and-push (web, code/frontend)`. Los nombres aparecen después de la primera run.
+- **Require status checks to pass** → en el repo app agrega: `contrato`, `backend`, `frontend`, `sast`, `e2e-newman`, `build-and-push (api, code/backend)`, `build-and-push (web, code/frontend)` y, desde la S09, `security-sast`, `security-sca`, `security-sbom` y `security-secrets`. Los nombres aparecen después de la primera run.
 - **Block force pushes** y sin *bypass* (ni siquiera para admins).
 
 Con `gh` (si lo tienen instalado), el equivalente para el repo app:
@@ -104,7 +110,8 @@ Con `gh` (si lo tienen instalado), el equivalente para el repo app:
 gh api -X PUT repos/Erolayer-Cl/FeathersForAll/branches/main/protection --input - <<'EOF'
 {
   "required_status_checks": { "strict": true, "contexts": ["contrato", "backend", "frontend", "sast", "e2e-newman",
-    "build-and-push (api, code/backend)", "build-and-push (web, code/frontend)"] },
+    "build-and-push (api, code/backend)", "build-and-push (web, code/frontend)",
+    "security-sast", "security-sca", "security-sbom", "security-secrets"] },
   "enforce_admins": true,
   "required_pull_request_reviews": { "required_approving_review_count": 2, "dismiss_stale_reviews": true },
   "restrictions": null,
@@ -174,6 +181,8 @@ npm run lint && npm run test:coverage && npm run build
 
 cd ../..   # raíz
 docker run --rm -v "$PWD:/src:ro" -w /src semgrep/semgrep:1.140.0 \
-  semgrep scan --config p/javascript --config p/nodejs --severity ERROR --error --metrics=off code
+  semgrep scan --config p/owasp-top-ten --config p/javascript --config p/nodejs --config .semgrep/ \
+  --severity ERROR --error --metrics=off code
+# Gates de security.yml (S09: reglas propias, Trivy fs, SBOM, gitleaks): ver ../seguridad/triage-y-excepciones.md §5
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12     # sintaxis de los workflows
 ```
