@@ -1,0 +1,24 @@
+# Checkov · IaC scan (S10, ADR 0011). Lo usa el job iac-scan de ci.yml y sirve igual en local:
+#
+#   checkov --config-file .checkov.yaml --framework terraform -d terraform
+#   kubectl kustomize k8s > k8s-render.yaml
+#   checkov --config-file .checkov.yaml --framework kubernetes -f k8s-render.yaml
+#
+# Se escanea la salida de kustomize y no los archivos sueltos: el namespace y el digest de las
+# imágenes los pone Kustomize, y sin eso Checkov reporta falsos positivos (CKV_K8S_21, _14, _43).
+#
+# Regla del taller: cada excepción de esta lista entra por PR y queda justificada en el ADR 0011.
+# Una excepción sin motivo se rechaza en la revisión.
+compact: true
+quiet: true
+skip-download: true # sin cuenta de Prisma Cloud: no hace falta bajar las guías
+
+skip-check:
+  # Secretos como variables de entorno y no como archivos. La API lee su configuración del entorno
+  # (12-Factor III, ADR 0006): DATABASE_URL y JWT_SECRET llegan con envFrom desde un Secret que crea
+  # Terraform. El riesgo que queda (leer /proc/<pid>/environ) lo vigila la regla Falco
+  # "FFA lectura del entorno de un proceso en la API". Revisar si se adopta un gestor de secretos.
+  - CKV_K8S_35
+  # UID alto (>= 10000). El frontend corre como 101, el usuario fijo de nginx-unprivileged, sin root,
+  # sin capabilities y con el sistema de archivos de solo lectura. Cambiar el UID exige rehacer la imagen.
+  - CKV_K8S_40

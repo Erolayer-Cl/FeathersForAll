@@ -1,7 +1,9 @@
-# CI/CD de FeathersForAll (S08, ADR 0009).
+# CI/CD de FeathersForAll (S08, ADR 0009) + cadena de suministro (S10, ADR 0011).
 #
-#   PR a main   → quality gates + build de imágenes (sin publicar)
-#   push a main → lo mismo + push a GHCR por ${{ github.sha }} + PR al repo gitops (overlays/dev)
+#   PR a main   → quality gates + IaC scan + build de imágenes (sin publicar) + DAST contra un staging efímero
+#   push a main → lo mismo + push a GHCR por ${{ github.sha }} + firma cosign (keyless) + attestations
+#                 (SLSA provenance y SBOM) + cosign verify + DAST sobre la imagen firmada
+#                 + PR al repo gitops (overlays/dev)
 #
 # Argo CD (dentro del clúster) aplica el repo gitops: este pipeline NUNCA habla con Kubernetes.
 # Regla de la PPT: si un gate no bloquea, es un log, no un gate. Todos los jobs de abajo bloquean.
@@ -23,6 +25,11 @@ concurrency:
 env:
   NODE_VERSION: "22"
   REGISTRY: ghcr.io/erolayer-cl
+  CHECKOV_VERSION: "3.4.4"
+  FALCO_IMAGE: falcosecurity/falco:0.45.1
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+  # Identidad con la que firma este workflow (la misma que exige k8s/policies/require-signature.yaml).
+  OIDC_ISSUER: https://token.actions.githubusercontent.com
 
 jobs:
   # --- Gate 1: contrato (contract-first) ---
@@ -97,7 +104,7 @@ jobs:
       - name: SCA (sin High/Critical en dependencias de producción)
         run: npm audit --omit=dev --audit-level=high
 
-  # --- Gate 4: SAST ---
+  # --- Gate 4: SAST (las mismas reglas que security.yml → sast; aquí además frena build-and-push) ---
   sast:
     runs-on: ubuntu-latest
     container:
@@ -105,7 +112,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Semgrep (falla con hallazgos de severidad ERROR)
-        run: semgrep scan --config p/javascript --config p/nodejs --severity ERROR --error --metrics=off code
+        run: >-
+          semgrep scan
+          --config p/owasp-top-ten --config p/javascript --config p/nodejs --config .semgrep/
+          --severity ERROR --error --metrics=off code
 
   # --- Gate 5: e2e con Compose + Newman (sin Ollama: la carpeta del tutor queda fuera) ---
   e2e-newman:
@@ -147,13 +157,32 @@ jobs:
         if: failure()
         run: cat api.log
 
-  # --- Build, escaneo y publicación de imágenes ---
+  # --- Gate 6: IaC scan (S10). Terraform + los manifiestos tal como los aplica Kustomize + reglas Falco ---
+  iac-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Instalar Checkov
+        run: pipx install "checkov==${CHECKOV_VERSION}"
+      - name: Checkov · Terraform
+        run: checkov --config-file .checkov.yaml --framework terraform -d terraform
+      - name: Checkov · Kubernetes (salida de kustomize, que es lo que llega al clúster)
+        run: |
+          kubectl kustomize k8s > "$RUNNER_TEMP/k8s-render.yaml"
+          checkov --config-file .checkov.yaml --framework kubernetes -f "$RUNNER_TEMP/k8s-render.yaml"
+      - name: Reglas Falco propias (sintaxis y campos)
+        run: >-
+          docker run --rm -v "$PWD/falco:/reglas:ro" --entrypoint /usr/bin/falco "$FALCO_IMAGE"
+          -V /reglas/rules-custom.yaml
+
+  # --- Build, container scan, publicación, firma y attestations ---
   build-and-push:
-    needs: [contrato, backend, frontend, sast, e2e-newman]
+    needs: [contrato, backend, frontend, sast, e2e-newman, iac-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write # OIDC de GitHub → certificado efímero de Fulcio (firma keyless, sin llaves guardadas)
     strategy:
       matrix:
         include:
@@ -173,11 +202,21 @@ jobs:
           load: true
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-      - name: Trivy (falla con CVE High/Critical que tengan arreglo)
+      - name: Container scan · Trivy (falla con CVE High/Critical que tengan arreglo)
         run: >-
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
           image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress
           ${{ env.IMAGE }}:${{ github.sha }}
+      - name: SBOM CycloneDX de la imagen (S09, lo que de verdad llega a producción)
+        run: >-
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:0.76.1
+          image --format cyclonedx --output /out/sbom-${{ matrix.app }}-image.cdx.json --no-progress
+          ${{ env.IMAGE }}:${{ github.sha }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ matrix.app }}-image
+          path: sbom-${{ matrix.app }}-image.cdx.json
+          retention-days: 90
       - name: Push a GHCR (solo main)
         if: env.PUBLISH == 'true'
         run: |
@@ -186,6 +225,59 @@ jobs:
           digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:${{ github.sha }}" | cut -d@ -f2)"
           echo "$digest" > digest-${{ matrix.app }}.txt
           echo "### ${{ matrix.app }}: \`$IMAGE@$digest\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Instalar cosign
+        if: env.PUBLISH == 'true'
+        uses: sigstore/cosign-installer@v4.0.0
+      - name: Firmar la imagen (keyless) y adjuntar attestations
+        if: env.PUBLISH == 'true'
+        env:
+          CONTEXT: ${{ matrix.context }}
+        run: |
+          ref="$IMAGE@$(cat digest-${{ matrix.app }}.txt)"
+          cosign sign --yes "$ref"
+
+          # Provenance SLSA v1: quién construyó (este workflow), desde qué commit y en qué run.
+          jq -n \
+            --arg repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --arg builder "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+            --arg ref "$GITHUB_REF" --arg sha "$GITHUB_SHA" --arg context "$CONTEXT" \
+            --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" \
+            '{
+              buildDefinition: {
+                buildType: "https://actions.github.io/buildtypes/workflow/v1",
+                externalParameters: { workflow: { ref: $ref, repository: $repo, path: ".github/workflows/ci.yml" } },
+                internalParameters: { runner: "github-hosted", docker_context: $context },
+                resolvedDependencies: [ { uri: ("git+" + $repo + "@" + $ref), digest: { gitCommit: $sha } } ]
+              },
+              runDetails: {
+                builder: { id: $builder },
+                metadata: { invocationId: $run, finishedOn: (now | todate) }
+              }
+            }' > provenance.json
+          cosign attest --yes --type slsaprovenance1 --predicate provenance.json "$ref"
+
+          # El SBOM de la imagen viaja con ella en GHCR (pendiente del ADR 0010: conservarlo más de 90 días).
+          cosign attest --yes --type cyclonedx --predicate sbom-${{ matrix.app }}-image.cdx.json "$ref"
+      - name: cosign verify (firma + attestations con la identidad de este workflow)
+        if: env.PUBLISH == 'true'
+        run: |
+          ref="$IMAGE@$(cat digest-${{ matrix.app }}.txt)"
+          identidad="$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF"
+          cosign verify "$ref" \
+            --certificate-identity "$identidad" --certificate-oidc-issuer "$OIDC_ISSUER" \
+            2> verify-${{ matrix.app }}.txt > /dev/null || { cat verify-${{ matrix.app }}.txt; exit 1; }
+          for tipo in slsaprovenance1 cyclonedx; do
+            cosign verify-attestation "$ref" --type "$tipo" \
+              --certificate-identity "$identidad" --certificate-oidc-issuer "$OIDC_ISSUER" > /dev/null
+            echo "attestation $tipo: OK" >> verify-${{ matrix.app }}.txt
+          done
+          {
+            echo "#### cosign verify · ${{ matrix.app }}"
+            echo "Identidad: \`$identidad\`"
+            echo '```text'
+            cat verify-${{ matrix.app }}.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - if: env.PUBLISH == 'true'
         uses: actions/upload-artifact@v7
         with:
@@ -193,9 +285,91 @@ jobs:
           path: digest-${{ matrix.app }}.txt
           retention-days: 7
 
+  # --- Gate 7: DAST (S10). ZAP baseline contra un staging efímero levantado con las imágenes de este run ---
+  # El clúster es un kind local y GitHub no lo alcanza: el "staging" son los mismos contenedores, con
+  # PostgreSQL y datos sintéticos, detrás de un NGINX que rutea igual que el Ingress (dast/).
+  # En main se usa la imagen YA firmada (por digest y con cosign verify): si el DAST falla, no hay promoción.
+  dast:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      PUBLISH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v7
+      # PR: las imágenes no se publicaron; se reconstruyen desde el caché de build-and-push.
+      - if: env.PUBLISH != 'true'
+        uses: docker/setup-buildx-action@v4
+      - name: Imagen de la API (PR, desde caché)
+        if: env.PUBLISH != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: code/backend
+          tags: feathersforall-api:dast
+          load: true
+          cache-from: type=gha,scope=api
+      - name: Imagen del frontend (PR, desde caché)
+        if: env.PUBLISH != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: code/frontend
+          tags: feathersforall-web:dast
+          load: true
+          cache-from: type=gha,scope=web
+      # main: las imágenes firmadas, por digest.
+      - if: env.PUBLISH == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          merge-multiple: true
+      - if: env.PUBLISH == 'true'
+        uses: sigstore/cosign-installer@v4.0.0
+      - name: Imágenes firmadas (main, verificadas antes de usarlas)
+        if: env.PUBLISH == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for app in api web; do
+            ref="$REGISTRY/feathersforall-$app@$(cat "digest-$app.txt")"
+            cosign verify "$ref" --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+              --certificate-oidc-issuer "$OIDC_ISSUER" > /dev/null
+            docker pull "$ref"
+            docker tag "$ref" "feathersforall-$app:dast"
+          done
+      - name: Staging efímero (base con datos sintéticos + API + web + gateway)
+        run: JWT_SECRET="$(openssl rand -hex 32)" docker compose -f dast/compose.staging.yaml up -d --wait
+      - name: ZAP baseline (falla con las reglas FAIL de dast/zap-rules.tsv)
+        run: |
+          # Cuenta funcional del scanner: estudiante del colegio demo (90_seed_demo.sql, datos sintéticos).
+          token="$(curl -sf http://localhost:8088/v1/auth/login -H 'Content-Type: application/json' \
+            -d '{"rbd":"99901","email":"camila@demo-a.cl","password":"demo1234"}' | jq -r .access_token)"
+          [ -n "$token" ] && [ "$token" != "null" ] || { echo "::error::el login del scanner falló"; exit 1; }
+          echo "::add-mask::$token"
+          mkdir -p zap && cp dast/zap-rules.tsv zap/ && chmod -R a+rwX zap   # ZAP corre como uid 1000
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" \
+            -e ZAP_AUTH_HEADER_VALUE="Bearer $token" -e ZAP_AUTH_HEADER_SITE=localhost \
+            "$ZAP_IMAGE" zap-baseline.py -t http://localhost:8088 \
+            -c zap-rules.tsv -m 2 -T 10 -I \
+            -r zap-report.html -J zap-report.json -w zap-report.md
+      - name: Resumen del reporte
+        if: always()
+        run: |
+          [ -f zap/zap-report.md ] && head -c 60000 zap/zap-report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: zap-report
+          path: zap/zap-report.*
+          retention-days: 90
+      - name: Logs del staging si algo falló
+        if: failure()
+        run: docker compose -f dast/compose.staging.yaml logs --no-color --tail 200
+
   # --- Promoción a dev: PR al repo gitops (Argo CD lo aplica al mergear) ---
   promote:
-    needs: build-and-push
+    needs: [build-and-push, dast] # a dev solo llega lo firmado, verificado y que pasó el DAST
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:

@@ -1,0 +1,31 @@
+# gitleaks (S09, ADR 0010): reglas por defecto + excepciones para los fixtures SINTÉTICOS del repo.
+#
+# Regla del taller: cada excepción explica por qué NO es un secreto. Nunca se agrega una ruta
+# completa "para que pase": si gitleaks encuentra un secreto real, se ROTA (aunque se borre en un
+# commit posterior, sigue en el historial) y se registra en Documentos/seguridad/vulnerabilidades.md.
+title = "FeathersForAll"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fixtures sintéticos de pruebas (no dan acceso a nada)"
+regexes = [
+  # JWT falsos de la carpeta "7 · Seguridad" de Postman: firma inválida y alg "none" (deben dar 401).
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ4In0\.firma-falsa''',
+  '''eyJhbGciOiJub25lIn0\.[A-Za-z0-9_-]+\.?''',
+  # Secreto HS256 de las pruebas unitarias (test/*.test.js); no se usa en ningún ambiente.
+  '''secreto-de-pruebas-con-mas-de-32-caracteres''',
+  # Hashes scrypt de la clave demo "demo1234" en el seed sintético (90_seed_demo.sql) y en pruebas.
+  '''scrypt\$16384\$8\$[0-9]+\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+''',
+]
+
+# Idempotency-Key de los ejemplos del contrato (api/examples/*.json): son UUID de ejemplo que el
+# cliente inventa en cada request (contrato S05), no credenciales. gitleaks los marca como
+# "generic-api-key" por la palabra "Key". Se exceptúa solo esa línea y solo en esa carpeta.
+[[allowlists]]
+description = "Idempotency-Key (UUID de ejemplo) en los ejemplos del contrato"
+condition = "AND"
+regexTarget = "line"
+paths = ['''^FeathersForAll/api/examples/[^/]+\.json$''']
+regexes = ['''"Idempotency-Key":\s*"[0-9a-fA-F-]{36}"''']

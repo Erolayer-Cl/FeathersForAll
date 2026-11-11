@@ -22,6 +22,7 @@ resources:
   - hpa.yaml
   - pdb.yaml
   - cronjob-purga.yaml        # retención de conversaciones del tutor (ADR 0008)
+  - networkpolicy.yaml        # todo cerrado por defecto; solo Ingress → app y app → DNS, BD y Ollama (S10)
 
 # Imágenes por DIGEST, nunca :latest. Los digest los entrega `docker push` (ver k8s/README.md, paso 3).
 images:

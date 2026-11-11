@@ -42,7 +42,9 @@
 | Frontend | `code/frontend/` | React 19 + Vite (ADR 0005). `index.html` = chat del tutor; `portal.html` = portal por rol (`src/portal/`, router por hash `#/portal/<id>`) |
 | Contrato | `FeathersForAll/api/` | OpenAPI 3.1 con ejemplos ejecutables contra Prism |
 | Infra | `k8s/`, `terraform/` | Laboratorio S07: kind + Kustomize + Terraform (ADR 0006) |
-| CI/CD | `.github/workflows/`, repo `Erolayer-Cl/feathersforall-gitops` | S08 (ADR 0009): gates bloqueantes en cada PR, imágenes a GHCR por sha y GitOps con Argo CD. Guía: `Documentos/infra/ci-cd.md` |
+| CI/CD | `.github/workflows/`, repo `Erolayer-Cl/feathersforall-gitops` | S08 (ADR 0009): gates bloqueantes en cada PR, imágenes a GHCR por sha y GitOps con Argo CD. Guía: `Documentos/infra/ci-cd.md`. S09 (ADR 0010): `security.yml` con SAST, SCA, SBOM y secretos. S10 (ADR 0011): IaC scan, firma cosign + attestations y DAST en `ci.yml` |
+| Supply chain | `.checkov.yaml`, `dast/`, `k8s/policies/`, `k8s/networkpolicy.yaml`, `falco/` | S10 (ADR 0011): excepciones de Checkov, staging efímero y reglas de ZAP, policy Kyverno de firma, NetworkPolicy y reglas Falco con su ruta de alerta |
+| Seguridad | `.semgrep/`, `.gitleaks.toml`, `.vex/`, `FeathersForAll/Documentos/seguridad/` | Reglas Semgrep propias (con pruebas), excepciones de gitleaks y VEX, threat model STRIDE del tutor, triage y registro de vulnerabilidades |
 | Documentos | `FeathersForAll/Documentos/` | ADRs, C4, backlog, escenarios Gherkin, datos (DER, eventos, bounded contexts) y prototipo del portal (`diseno/prototipo-portal.html`) |
 
 ## Seguridad multi-tenant (no romper)
@@ -89,7 +91,9 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 ## Estado
 
 - **Sesiones S01–S07:** hechas (detalle en `readme.md` y `models.md`).
-- **S08 (CI/CD y GitOps):** preparada el 26-10-2026 en la rama `Ignacio` (detalle abajo). Su PPT ya está en `models.md`.
+- **S08 (CI/CD y GitOps):** preparada el 26-10-2026 en la rama `Ignacio` y mergeada en `main` (PR #13).
+- **S09 (DevSecOps I):** preparada el 06-11-2026 en la rama `feat/s09-devsecops` (detalle abajo). Su PPT ya está en `models.md`.
+- **S10 (DevSecOps II):** preparada el 11-11-2026 sobre la rama de la S09 (detalle abajo). Su PPT ya está en `models.md`.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
@@ -123,7 +127,22 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - Repo gitops armado en `../feathersforall-gitops` (`git init`, sin commit).
   - Los gates encontraron 3 vulnerabilidades, ya corregidas y registradas con CVE, CWE y CVSS en `FeathersForAll/Documentos/seguridad/vulnerabilidades.md`: body-parser 2.4.0, API en `distroless/nodejs22-debian13` y web en `nginx-unprivileged:1.30-alpine` + `apk upgrade`.
   - **Falta (equipo):** crear el repo en GitHub y hacer push, `GITOPS_TOKEN`, Environment `production`, protección de rama con 2 revisores, paquetes GHCR públicos, Argo CD v3.5.6 en kind con screenshot Synced/Healthy y la primera run verde en `main`.
-  - Gates para S09: cobertura de `.jsx`/hooks (Testing Library), gitleaks, SBOM + cosign, ZAP baseline y Dependabot.
+  - Gates para después: cobertura de `.jsx`/hooks (Testing Library), cosign + SBOM como attestation, ZAP baseline, IaC scanning y Dependabot (S10).
+
+- **S09 — DevSecOps I: shift-left** (06-11-2026, ADR 0010):
+  - `.github/workflows/security.yml`: `security-sast` (Semgrep OWASP Top 10 + `.semgrep/`), `security-sca` (Trivy fs + VEX), `security-sbom` (CycloneDX + SPDX) y `security-secrets` (gitleaks con todo el historial). Corre en PR, en `main` y cada lunes. `ci.yml` usa las mismas reglas Semgrep y publica el SBOM de cada imagen.
+  - 4 reglas Semgrep propias con pruebas: JWT hardcodeado, SQL interpolado, logs con datos del estudiante, colegio/rol desde el cliente.
+  - Threat model STRIDE del tutor: `FeathersForAll/Documentos/seguridad/threat-model.md`. Triage, SLA y VEX: `triage-y-excepciones.md`.
+  - **No verificado en local** (no se pudieron descargar los escáneres); la primera run en GitHub es la verificación.
+  - **Falta (equipo):** PR contra `main`, revisar la primera run, screenshot de los checks, agregar `security-*` a la protección de rama y leer el post-mortem (SolarWinds o XZ Utils).
+
+- **S10 — DevSecOps II: supply chain** (11-11-2026, ADR 0011):
+  - `ci.yml`: job `iac-scan` (Checkov sobre Terraform y la salida de kustomize + validación de las reglas Falco), firma keyless con cosign, attestations SLSA provenance y SBOM, `cosign verify`, y job `dast` (ZAP baseline contra `dast/compose.staging.yaml`). `promote` ahora depende de `dast`.
+  - `k8s/policies/require-signature.yaml` (Kyverno `ImageValidatingPolicy`), `k8s/networkpolicy.yaml` y `falco/rules-custom.yaml` con 3 reglas y ruta de alerta (`falco/README.md`).
+  - Frontend: CSP y demás cabeceras en `code/frontend/security-headers.conf`; se quitó el `<style>` en línea de `portal.html`. Cierra S-4 del threat model.
+  - **Verificado en local:** Checkov (Terraform y manifiestos, 0 fallas con 2 excepciones), actionlint, sintaxis del compose de staging y carga del chat y del login del portal en Chrome headless con la CSP (sin violaciones).
+  - **No verificado en local** (sin acceso a registros de imágenes ni clúster): la firma y las attestations, ZAP, la policy de Kyverno, la NetworkPolicy y las reglas Falco. La primera run en `main` y una pasada en kind son la verificación.
+  - **Falta (equipo):** mergear primero la S09; primera run en `main` y copiar la salida de `cosign verify` al PR; instalar Kyverno y Falco en kind y probar que la policy rechaza una imagen sin firma y que disparan las 3 reglas; copiar `networkpolicy.yaml` a `base/` del repo gitops; agregar `iac-scan` y `dast` a la protección de rama; definir el canal de alertas de Falco.
 
 ## Pendientes y deuda conocida
 
@@ -137,5 +156,8 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **Imagen de la API: 211 MB**, sobre la meta de < 200 MB del ADR 0006 (la base distroless debian13 ya pesa 203 MB).
 - **`k8s/` duplicado con `base/` del repo gitops:** desde S08 manda el repo gitops; si se cambia un manifiesto, hay que cambiarlo en ambos lados (o borrar `k8s/` cuando el equipo lo decida).
 - **Puerto 5432:** si hay un PostgreSQL nativo instalado, el contenedor no arranca (ver README del backend).
+- **Del threat model del tutor (S09):** sin rate limit por usuario en el tutor (D-1, prioridad alta), prompt injection indirecta desde apuntes (T-4) y sin audit log de apuntes (R-1). La CSP (S-4) se cerró en la S10.
+- **Del DAST (S10):** las respuestas JSON de la API no envían `X-Content-Type-Options` ni `Cache-Control: no-store` (hoy WARN en `dast/zap-rules.tsv`; cambia el contrato). Las fuentes vienen de Google Fonts: sin SRI y cada visita le entrega la IP del estudiante a Google; conviene servirlas desde el propio sitio. Falta un escaneo de la API con el contrato (`zap-api-scan`).
+- **Supply chain (S10):** SLSA Build L2; para L3 falta generar la provenance fuera del job (`actions/attest-build-provenance` o `slsa-github-generator`). Sin respaldo de firmas y attestations fuera de GHCR. Con la policy de Kyverno, `publicar-imagenes.ps1` ya no sirve para desplegar.
 - **Limitador del login:** guarda los intentos en memoria, así que cada pod cuenta los suyos. En producción iría en Redis o en el Ingress.
 - **Funciones `SECURITY DEFINER`** (`colegio_por_rbd`, `credenciales_login`): en producción su dueño debe ser `feathersforall_plataforma`. Hoy, en local, es el superusuario.

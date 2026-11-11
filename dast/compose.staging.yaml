@@ -1,0 +1,80 @@
+# Staging efímero para el DAST (S10, ADR 0011). Lo levanta el job dast de ci.yml y sirve igual en local.
+#
+# El clúster del proyecto es un kind en el PC y GitHub Actions no puede llegar a él. Este compose
+# arma lo mismo que corre en Kubernetes, con las mismas imágenes: PostgreSQL con el esquema y los
+# datos demo (sintéticos), la API, el frontend y un NGINX que rutea como el Ingress.
+#
+#   docker build -t feathersforall-api:dast code/backend
+#   docker build -t feathersforall-web:dast code/frontend
+#   JWT_SECRET=$(openssl rand -hex 32) docker compose -f dast/compose.staging.yaml up -d --wait
+#   # → http://localhost:8088   (ZAP: ver dast/README.md)
+#   docker compose -f dast/compose.staging.yaml down -v
+#
+# Los contenedores de la app corren como en k8s/deployment.yaml: sin root, sin capabilities y con
+# el sistema de archivos de solo lectura. No hay Ollama: el tutor responde 503, igual que en e2e-newman.
+name: ffa-staging
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.7-pg16
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: feathersforall
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      APP_DB_PASSWORD: cambiar # claves solo de este staging: la base no publica ningún puerto
+    volumes:
+      - ../code/backend/db:/schema:ro
+      - ../code/backend/db/docker-init.sh:/docker-entrypoint-initdb.d/10-feathersforall.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d feathersforall"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  api:
+    image: ${API_IMAGE:-feathersforall-api:dast}
+    environment:
+      DATABASE_URL: postgres://feathersforall_app:cambiar@db:5432/feathersforall
+      JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET (openssl rand -hex 32)}
+      LLM_ENDPOINT: http://127.0.0.1:9
+      LOG_LEVEL: warn
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      # La imagen distroless no trae curl ni shell: la sonda la hace el propio node.
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:8080/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  web:
+    image: ${WEB_IMAGE:-feathersforall-web:dast}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp] # NGINX escribe pid y temporales en /tmp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/livez"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Hace de Ingress: /v1 y /health → API, el resto → frontend. Un solo origen, como en el clúster.
+  gateway:
+    image: nginxinc/nginx-unprivileged:1.30-alpine
+    volumes:
+      - ./gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8088:8080"
+    depends_on:
+      api: { condition: service_healthy }
+      web: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/livez"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
