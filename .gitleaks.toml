@@ -18,4 +18,7 @@ regexes = [
   '''secreto-de-pruebas-con-mas-de-32-caracteres''',
   # Hashes scrypt de la clave demo "demo1234" en el seed sintético (90_seed_demo.sql) y en pruebas.
   '''scrypt\$16384\$8\$[0-9]+\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+''',
+  '''6ec0bd7f-11c0-43da-975e-2a8ad9ebae0b''',
+  '''a3bb189e-8bf9-3888-9912-ace4e6543002''',
+  '''16fd2706-8baf-433b-82eb-8c7fada847da''',
 ]
