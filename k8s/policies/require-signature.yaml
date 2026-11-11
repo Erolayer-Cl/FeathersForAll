@@ -1,0 +1,68 @@
+# Puerta de entrada al clúster (S10, ADR 0011): en el namespace feathersforall solo corren imágenes
+# firmadas por el workflow ci.yml de este repo, en la rama main, y con attestation SLSA.
+#
+# Kyverno revisa cada pod antes de admitirlo. Va a GHCR, busca la firma cosign de la imagen y compara
+# el certificado con la identidad de abajo. Una imagen construida a mano (publicar-imagenes.ps1), de
+# otro repo o de otra rama no tiene esa firma y el pod se rechaza.
+#
+#   kubectl apply -f k8s/policies/require-signature.yaml      # requiere Kyverno (ver k8s/README.md, paso 7)
+#
+# No está en kustomization.yaml: es un recurso del clúster (lo instala quien administra la plataforma),
+# no de la aplicación, y necesita los CRD de Kyverno.
+#
+# glob "*": se exige la firma a TODA imagen del namespace, no solo a las nuestras. Si solo se
+# revisaran las de ghcr.io/erolayer-cl, cualquier otra imagen entraría sin control.
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: require-signature
+  annotations:
+    policies.kyverno.io/title: Imágenes firmadas por el CI de FeathersForAll
+    policies.kyverno.io/category: Supply chain
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Rechaza en el namespace feathersforall todo pod cuya imagen no tenga firma cosign keyless
+      del workflow ci.yml (rama main) y attestation SLSA provenance firmada por la misma identidad.
+spec:
+  validationActions: [Deny]
+  failurePolicy: Fail # si Kyverno no responde, no entra nada (falla cerrado)
+  webhookConfiguration:
+    timeoutSeconds: 30
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: feathersforall
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        operations: ["CREATE", "UPDATE"]
+  matchImageReferences:
+    - glob: "*"
+  attestors:
+    - name: ci
+      cosign:
+        keyless:
+          identities:
+            # La misma identidad que usa `cosign verify` en ci.yml. (?i): GitHub no distingue
+            # mayúsculas en el nombre de la organización ni del repo, el certificado sí las trae.
+            - subjectRegExp: '(?i)^https://github\.com/erolayer-cl/feathersforall/\.github/workflows/ci\.yml@refs/heads/main$'
+              issuer: https://token.actions.githubusercontent.com
+        ctlog:
+          url: https://rekor.sigstore.dev
+  attestations:
+    - name: slsa
+      intoto:
+        type: https://slsa.dev/provenance/v1
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors.ci])).all(n, n > 0) &&
+        images.initContainers.map(image, verifyImageSignatures(image, [attestors.ci])).all(n, n > 0) &&
+        images.ephemeralContainers.map(image, verifyImageSignatures(image, [attestors.ci])).all(n, n > 0)
+      message: >-
+        Imagen sin firma válida: en feathersforall solo se admiten imágenes firmadas por
+        .github/workflows/ci.yml en main (cosign keyless).
+    - expression: >-
+        images.containers.map(image, verifyAttestationSignatures(image, attestations.slsa, [attestors.ci])).all(n, n > 0)
+      message: >-
+        Imagen sin attestation SLSA provenance firmada por el CI: no se puede saber de qué commit salió.

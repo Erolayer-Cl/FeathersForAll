@@ -155,6 +155,27 @@ Puesta en marcha (repo gitops, token, Environment, protección de rama y Argo CD
 
 Guía completa: [`Documentos/seguridad/triage-y-excepciones.md`](FeathersForAll/Documentos/seguridad/triage-y-excepciones.md).
 
+### DevSecOps II · cadena de suministro (S10)
+
+| Pieza | Dónde | Resumen |
+|---|---|---|
+| IaC scan | job `iac-scan` de `ci.yml`, `.checkov.yaml` | Checkov sobre Terraform y sobre la salida de `kubectl kustomize k8s`. Bloquea el build |
+| Firma y attestations | job `build-and-push` de `ci.yml` | En `main`: `cosign sign` keyless (OIDC de GitHub, sin llaves), attestation SLSA provenance y SBOM CycloneDX adjuntos a la imagen en GHCR, y `cosign verify` |
+| DAST | job `dast` de `ci.yml`, [`dast/`](dast/README.md) | ZAP baseline contra un staging efímero con las imágenes del run. En `main` usa la imagen ya firmada; si falla, no hay promoción a dev |
+| Admisión | [`k8s/policies/require-signature.yaml`](k8s/policies/require-signature.yaml) | Kyverno: en `feathersforall` solo entran imágenes firmadas por `ci.yml` en `main` y con attestation SLSA |
+| Red | [`k8s/networkpolicy.yaml`](k8s/networkpolicy.yaml) | Cerrado por defecto: entra el Ingress, sale a DNS, PostgreSQL y Ollama |
+| Runtime | [`falco/`](falco/README.md) | 3 reglas Falco propias (proceso inesperado, conexión saliente inesperada, lectura del entorno) y ruta de alerta |
+| Cabeceras del frontend | `code/frontend/security-headers.conf` | CSP sin `unsafe-inline`, anti-clickjacking y `Permissions-Policy` (cierra S-4 del threat model) |
+| Decisión | [ADR 0011](FeathersForAll/Documentos/adr/0011-supply-chain.md) | Cosign keyless, SLSA L2, Checkov, ZAP, Kyverno y Falco, con sus excepciones |
+
+Verificar a mano una imagen publicada (el digest sale en el resumen del run de `ci.yml`):
+
+```bash
+cosign verify ghcr.io/erolayer-cl/feathersforall-api@sha256:<digest> \
+  --certificate-identity-regexp '(?i)^https://github\.com/erolayer-cl/feathersforall/\.github/workflows/ci\.yml@refs/heads/main$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 **Evidencia — `kubectl get all -n feathersforall`:**
 
 ![kubectl get all -n feathersforall](FeathersForAll/Documentos/infra/kubectl-get-all.png)
@@ -216,6 +237,7 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0008](FeathersForAll/Documentos/adr/0008-conversaciones-del-tutor.md) | Conversaciones del tutor IA guardadas y privadas del estudiante | Propuesta | 19-10-2026 |
 | [0009](FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md) | CI/CD con GitHub Actions y GitOps pull-based con Argo CD (repo gitops separado) | Propuesta | 26-10-2026 |
 | [0010](FeathersForAll/Documentos/adr/0010-devsecops-shift-left.md) | DevSecOps shift-left: SAST, SCA, SBOM y secret scanning en cada PR (`security.yml`) | Propuesta | 06-11-2026 |
+| [0011](FeathersForAll/Documentos/adr/0011-supply-chain.md) | Cadena de suministro: imágenes firmadas con cosign, attestation SLSA, IaC scan, DAST y control en runtime | Propuesta | 11-11-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 

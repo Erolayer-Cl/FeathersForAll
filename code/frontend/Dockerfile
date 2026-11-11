@@ -24,6 +24,8 @@ FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
 USER root
 RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Fuera de conf.d: ahí NGINX carga todo *.conf a nivel http; este se incluye dentro de cada location.
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 USER 101
 EXPOSE 8080

@@ -1,0 +1,93 @@
+# Red del namespace (S10). Lo encontró el IaC scan: ningún pod tenía NetworkPolicy (CKV2_K8S_6),
+# así que cualquier pod podía hablar con cualquier otro y salir a internet.
+#
+# Ahora: todo cerrado por defecto y se abre solo lo que la app usa.
+#   entra →  solo el Ingress (ingress-nginx), al puerto 8080 de la API y del frontend
+#   sale  →  API y job de purga: DNS y PostgreSQL. La API además llega a Ollama. El frontend no sale.
+#
+# Es la mitad preventiva; la mitad de detección es la regla Falco "FFA conexión saliente inesperada"
+# (falco/rules-custom.yaml), que usa la misma lista de puertos. Si cambia una, cambia la otra.
+# Requiere un CNI que aplique NetworkPolicy (kindnet lo hace desde kind 0.24).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ffa-web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ffa-web
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress: [] # solo sirve archivos estáticos
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ffa-api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ffa-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to: # DNS del clúster
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # PostgreSQL (5432; 5433 en el laboratorio) y Ollama (11434) están fuera del clúster, en el PC.
+    # En un ambiente real se acota además con ipBlock al rango de la base y del proveedor del LLM.
+    - ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 5433 }
+        - { protocol: TCP, port: 11434 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ffa-purga-conversaciones
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ffa-purga-conversaciones
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 5433 }

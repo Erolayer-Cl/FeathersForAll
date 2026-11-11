@@ -1,10 +1,10 @@
-# models.md — Taller de Ingeniería de Software (S01–S09)
+# models.md — Taller de Ingeniería de Software (S01–S10)
 
 Conversión de las PPT de la carpeta AULAVIVA a Markdown, para usar como contexto al construir AulaViva (FeathersForAll). Cada sesión = un módulo del taller; cada mini-lab define un entregable en el repo.
 
 **Iniciativa nuestra: AulaViva** — plataforma SaaS multi-tenant con tutor IA (MVP: multi-tenancy real 1 colegio = 1 tenant, cursos/docentes/estudiantes con RBAC, evaluaciones auto-corregidas, tutor IA con RAG por curso, panel del apoderado). Restricciones: aislamiento por tenant, datos de menores, picos estacionales, RAG con currículum MINEDUC, FinOps del LLM por tenant.
 
-**Estructura:** Parte 1 = contenido de las PPT S01–S09. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
+**Estructura:** Parte 1 = contenido de las PPT S01–S10. Parte 2 (al final) = estado real del repo FeathersForAll: qué está hecho, qué falta, inconsistencias abiertas y el texto completo de los documentos ya escritos.
 
 **Entregables que pide el taller para el repo:** `CHARTER.md`, `docs/adr/0001..0004`, `docs/backlog.md`, `docs/impact-map.md`, `docs/scenarios/*.feature`, `docs/c4/` (L1, L2), `docs/arch/atributos-calidad.md`, `docs/12-factor-checklist.md`, `docs/arch/managed-services.md`, `api/openapi.yaml`, `.spectral.yaml`, `docs/api/versioning-policy.md`, `docs/data/{der.png,event-catalog.md,bounded-contexts.md}`, `Dockerfile`, `k8s/*.yaml`, `terraform/main.tf`, ADR de plataforma K8s (en el repo: 0006), `.github/workflows/security.yml`, `.semgrep/`, SBOM CycloneDX y `docs/threat-model.md` (en el repo: `Documentos/seguridad/threat-model.md`).
 
@@ -2082,6 +2082,175 @@ jobs:
   - Revisar los hallazgos High/Critical del primer run y planificar remediación.
   - Leer el post-mortem de un incidente de supply chain (SolarWinds o XZ Utils).
 - S10 · PRÓXIMA SESIÓN — DevSecOps II: supply chain. DAST, IaC scanning, firma de imágenes con Cosign y attestations SLSA. La confianza en tu cadena de suministro se construye con criptografía, no con planilla.
+
+---
+
+# S10 — DevSecOps II: supply chain (DAST, IaC scanning, firma y SLSA)
+
+## Slide 1
+- Sesión 10 · 2h 30 min
+- DevSecOps II: supply chain.
+- DAST desde el pipeline, IaC scanning, imágenes firmadas con Cosign, attestations SLSA y controles en runtime. La cadena de suministro se protege con criptografía, no con planilla.
+- BLOQUE B · AUTOMATIZACIÓN Y DEVSECOPS
+- MÓDULO 10 de 18 sesiones
+
+## Slide 2
+- Agenda
+- 01 Warm-up · Lecciones de SolarWinds y XZ Utils. Cómo se rompió la cadena de confianza. · 20 min
+- 02 DAST en pipeline. OWASP ZAP y Burp Suite automatizados. · 25 min
+- 03 IaC scanning y container scanning. Checkov, tfsec, KICS, Trivy, Grype. · 25 min
+- 04 Firma con Cosign + Sigstore. Keyless signing y verificación en admisión. · 25 min
+- 05 SLSA + runtime security. Niveles SLSA, provenance, Falco, admission controllers. · 25 min
+- 06 Mini-lab + retro. Pipeline con DAST + firma + attestation SLSA nivel 2. · 30 min
+- DURACIÓN TOTAL · 2 h 30 min · incluye 10 min de descanso y 10 min de retrospectiva
+
+## Slide 3
+- Objetivos de la sesión
+- OBJETIVO 01 · PROBAR EN VIVO — Ejecutar DAST y escaneo de IaC en el pipeline: configurar ZAP baseline sobre el ambiente de staging y Checkov/tfsec sobre los módulos Terraform. Interpretar hallazgos y crear excepciones auditables.
+- OBJETIVO 02 · FIRMAR — Firmar imágenes y publicar attestations: usar Cosign con keyless signing (OIDC en CI) para firmar imágenes y generar attestation SLSA nivel 2. Verificar la firma en admission time con una policy de Kyverno o Cosign policy.
+- OBJETIVO 03 · VIGILAR — Aplicar runtime security: distinguir prevención (admission controllers como Kyverno/OPA) de detección (Falco). Definir 3 reglas Falco relevantes para la iniciativa y su ruta de alerta.
+
+## Slide 4
+- Contenido 01 · Escaneos del pipeline: DAST, IaC scanning y container scanning
+
+| Familia | Herramientas | Qué prueba | Momento en el pipeline |
+|---|---|---|---|
+| DAST | OWASP ZAP · Burp Suite | App en ejecución: XSS, IDOR, headers de seguridad, auth flow. | Post-deploy a staging. |
+| IaC scan | Checkov · tfsec · KICS | Buckets públicos, security groups abiertos, secretos en variables. | Pre-terraform apply. |
+| Container scan | Trivy · Grype | CVEs de OS y libs en la imagen final. | Post-build, pre-push. |
+
+- ZAP baseline, lo mínimo útil. Buenas prácticas: cuenta funcional dedicada al scanner · datos sintéticos · seed reproducible · timeout < 10 min para no romper el pipeline.
+
+```bash
+# Ejecuta baseline scan de 5 min contra staging y falla en riesgo Medium+
+docker run -t owasp/zap2docker-stable zap-baseline.py \
+  -t https://staging.crediscore.local \
+  -c zap-rules.tsv \
+  -l WARN \
+  -I   # no fallar en info
+```
+
+- IaC scan con Checkov. Reglas típicas que atrapa: S3 sin cifrado en reposo · Security Group con 0.0.0.0/0 en SSH · RDS sin backups automatizados · IAM policies con `*:*`.
+- Excepciones: cada `skip_check` requiere PR con ADR de justificación.
+
+```yaml
+- name: Checkov IaC scan
+  uses: bridgecrewio/checkov-action@v12
+  with:
+    directory: terraform/
+    framework: terraform
+    soft_fail: "false"
+    skip_check: CKV_AWS_18
+```
+
+## Slide 5
+- Contenido 02 · Cadena de suministro firmada: SLSA, Cosign y runtime security
+
+| Nivel SLSA | Qué garantiza |
+|---|---|
+| L1 | Build documentado y reproducible manualmente. |
+| L2 | Build en servicio hospedado con provenance firmada. |
+| L3 | Build aislado, provenance no falsificable, runners efímeros. |
+
+- Cosign keyless: firmar y verificar. Attestation SLSA: `cosign attest --predicate provenance.json` adjunta el predicate al registro OCI.
+
+```bash
+# Firma con identidad OIDC (sin llave persistente)
+cosign sign --yes ghcr.io/team/app@sha256:...
+
+# Verifica que la imagen fue firmada por el workflow
+cosign verify \
+  --certificate-identity "https://github.com/team/app/.github/workflows/ci.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/team/app@sha256:...
+```
+
+- Runtime security: prevenir en admisión · detectar en ejecución.
+
+| Control | Rol |
+|---|---|
+| Kyverno / OPA Gatekeeper | Admission controller: rechaza pods sin firma verificada, sin resource limits, con hostNetwork. |
+| Cosign policy | Verifica firma y attestation SLSA antes de admitir la imagen al cluster. |
+| Falco | Detección en runtime: shell dentro de contenedor, mount de /proc, escalación a root. |
+| eBPF probes | Base tecnológica de Falco/Cilium/Tetragon. Trazabilidad sin sidecar. |
+
+- Regla del taller: cada alerta Falco de High genera un incidente, no un log más.
+- Reglas Falco imprescindibles: Terminal shell in container · Write below etc · Unexpected outbound connection.
+
+## Slide 6
+- Caso de uso · CrediScore (FinTech): cadena de suministro completa firmada
+
+```yaml
+# Pipeline supply-chain (fragmento)
+jobs:
+  iac-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bridgecrewio/checkov-action@v12
+        with: { directory: terraform/ }
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ghcr.io/crediscore/scoring:${{ github.sha }}
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+  sign-and-attest:
+    needs: [container-scan]
+    runs-on: ubuntu-latest
+    permissions: { id-token: write, packages: write }
+    steps:
+      - uses: sigstore/cosign-installer@v3
+      - run: cosign sign --yes ghcr.io/crediscore/scoring@$DIGEST
+      - run: cosign attest --yes --type slsaprovenance --predicate prov.json ghcr.io/crediscore/scoring@$DIGEST
+  dast:
+    needs: [sign-and-attest]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: zaproxy/action-baseline@v0.12.0
+        with: { target: "https://staging.crediscore.local" }
+```
+
+- Por qué así para CrediScore: trazabilidad exigible por la CMF.
+  - Cada release, una prueba criptográfica: la firma Cosign + attestation SLSA queda en el registro OCI. Una auditoría puede verificar cualquier imagen desplegada.
+  - Kyverno como puerta al cluster: la policy `require-signature` rechaza cualquier imagen no firmada por el workflow oficial.
+  - DAST post-firma: asegura que el binario firmado también pasa la prueba dinámica; si falla, la imagen no llega a prod pese a estar firmada.
+  - Fraude y trazabilidad: Falco alerta si un pod del servicio de scoring abre un shell interactivo, señal clara de compromiso.
+- Retención: firmas y attestations conservadas junto a la imagen mientras esté en uso, y respaldadas 5 años.
+
+## Slide 7
+- Mini-lab de la sesión · 30 min — Firma tu cadena de suministro end-to-end
+- Prerrequisitos:
+  - Pipeline shift-left de la S09 pasando.
+  - Ambiente de staging accesible (URL o port-forward).
+  - Cluster K8s con Kyverno o Cosign policy instalado.
+- Pasos:
+  - Añadir job `iac-scan` con Checkov o tfsec sobre `terraform/`.
+  - Añadir job `container-scan` con Trivy o Grype sobre la imagen buildeada.
+  - Firmar la imagen con `cosign sign --yes` usando OIDC keyless.
+  - Generar y adjuntar attestation SLSA nivel 2 con `cosign attest --type slsaprovenance`.
+  - Añadir job `dast` con ZAP baseline contra staging.
+  - Aplicar policy Kyverno `require-image-signature` en el namespace del equipo.
+  - Instalar Falco y definir 3 reglas propias para tu iniciativa.
+- Entregable — Pull Request con:
+  - Pipeline extendido con `iac-scan`, `container-scan`, `sign-and-attest`, `dast`.
+  - Comando `cosign verify` ejecutado como parte del pipeline.
+  - `k8s/policies/require-signature.yaml` (Kyverno o Cosign policy).
+  - `falco/rules-custom.yaml` con 3 reglas propias.
+  - `docs/adr/0006-supply-chain.md` — decisión de política de firma y SLSA.
+  - Nota: incluye evidencia (`cosign verify` exitoso) en la descripción del PR.
+- Rúbrica · 100 puntos: DAST integrado en pipeline 15 · IaC scan + container scan bloqueantes 20 · Firma Cosign + verify OK 20 · Attestation SLSA nivel 2 adjunta 20 · Policy admisión + reglas Falco 20 · Puntualidad 5.
+- Deadline: antes del inicio de la S11.
+
+## Slide 8
+- Cierre y próximos pasos. Nos vemos en la S11.
+- Compromisos hasta la próxima clase:
+  - Entregar el pipeline con DAST + IaC scan + firma + SLSA funcionando.
+  - Publicar la policy de admisión y verificar que rechaza imágenes sin firma.
+  - Documentar las 3 reglas Falco elegidas y su ruta de alertamiento.
+  - Leer un runbook SRE del stack elegido para la próxima sesión.
+- S11 · PRÓXIMA SESIÓN — Observabilidad, SRE y SLOs. Logs, métricas y traces. SLIs, SLOs y error budgets aplicados a tu iniciativa. Cómo dormir tranquilos cuando el sistema está en producción.
 
 ---
 

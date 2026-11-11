@@ -26,9 +26,12 @@ localhost:8088 ──▶ ingress-nginx ─────────┼──▶ �
 | `ingress.yaml` | Ruteo HTTP (streaming del chat sin buffer) |
 | `hpa.yaml` | Escalado de la API: 2–6 réplicas por CPU |
 | `pdb.yaml` | Siempre al menos 1 réplica de la API durante mantenciones |
+| `networkpolicy.yaml` | Red cerrada por defecto: entra el Ingress, sale a DNS, PostgreSQL y Ollama (S10) |
+| `policies/require-signature.yaml` | Policy de Kyverno: solo imágenes firmadas por el CI (S10; no se aplica con `-k`, ver paso 7) |
 | `cluster/kind.yaml` | Definición del clúster local (no se aplica con `-k`) |
 | `tools/publicar-imagenes.ps1` | Build + push a GHCR + digest en `kustomization.yaml` |
 | `tools/carga.yaml` | Carga sintética para probar el HPA (no se aplica con `-k`) |
+| `tools/sin-firma.yaml` | Pod con una imagen sin firmar, para probar que la policy lo rechaza (S10) |
 
 ## 0. Prerrequisitos (una vez)
 
@@ -111,9 +114,9 @@ Probar:
 
 ```powershell
 kubectl top pods -n feathersforall                          # métricas OK (puede tardar ~1 min tras crear el clúster)
-kubectl apply -n feathersforall -f k8s/tools/carga.yaml
+kubectl apply -n default -f k8s/tools/carga.yaml            # fuera del namespace de la app: entra por el Ingress
 kubectl get hpa ffa-api -n feathersforall --watch           # TARGETS sube > 65 % y REPLICAS 2 → 3…6  (Ctrl+C)
-kubectl delete -n feathersforall -f k8s/tools/carga.yaml    # en ~2 min vuelve a 2 réplicas
+kubectl delete -n default -f k8s/tools/carga.yaml           # en ~2 min vuelve a 2 réplicas
 ```
 
 Toma una captura del `--watch` cuando suban las réplicas: es la evidencia de "HPA configurado y probado".
@@ -125,6 +128,38 @@ kubectl get pod -n feathersforall -l app.kubernetes.io/name=ffa-api -o jsonpath=
 kubectl exec -n feathersforall deploy/ffa-api -- sh          # falla: la imagen distroless no tiene shell
 kubectl run root-test -n feathersforall --image=busybox:1.36 --restart=Never -- id   # rechazado por Pod Security "restricted"
 ```
+
+## 7. Supply chain en el clúster (S10)
+
+Decisión y contexto: [ADR 0011](../FeathersForAll/Documentos/adr/0011-supply-chain.md). Requiere Helm (`winget install Helm.Helm`) y que `ci.yml` ya haya publicado y firmado imágenes en `main`.
+
+**Kyverno y la policy de firma**
+
+```powershell
+helm repo add kyverno https://kyverno.github.io/kyverno/
+helm repo update
+helm install kyverno kyverno/kyverno --namespace kyverno --create-namespace
+kubectl wait -n kyverno --for=condition=available deployment --all --timeout=300s
+kubectl apply -f k8s/policies/require-signature.yaml
+kubectl get imagevalidatingpolicy require-signature        # READY debe quedar en True
+```
+
+Probar que rechaza (evidencia del entregable):
+
+```powershell
+# Imagen sin firma: debe fallar con el mensaje de la policy
+kubectl apply -n feathersforall -f k8s/tools/sin-firma.yaml
+
+# Imagen firmada por el CI: los pods de la app se crean normalmente
+kubectl rollout restart deployment/ffa-web -n feathersforall
+kubectl rollout status deployment/ffa-web -n feathersforall
+```
+
+Con la policy activa, las imágenes de `tools/publicar-imagenes.ps1` ya no entran: no tienen la firma del workflow. Los digest válidos son los del resumen del run de `ci.yml` (o los del PR `deploy(dev)` del repo gitops).
+
+**NetworkPolicy.** Se aplica con el resto (`kubectl apply -k k8s/`). Comprobar que la app sigue respondiendo en http://localhost:8088 y que `Invoke-RestMethod http://localhost:8088/health` dice `db: up` y `llm: up`.
+
+**Falco.** Instalación, prueba de las 3 reglas y ruta de alerta: [`falco/README.md`](../falco/README.md).
 
 ## Actualizar o limpiar
 
@@ -142,3 +177,5 @@ kubectl run root-test -n feathersforall --image=busybox:1.36 --restart=Never -- 
 | `port is already allocated` (kind) | El puerto 8088 está ocupado: cámbialo en `cluster/kind.yaml` y recrea el clúster. |
 | `Error acquiring the state lock` | Otro `terraform apply` en curso. Espera; nunca uses `-lock=false`. |
 | `forbidden: violates PodSecurity "restricted"` | Es lo esperado para pods que corren como root. Los de la app cumplen la política. |
+| `admission webhook ... require-signature` deniega un pod | La imagen no está firmada por `ci.yml` en `main` (paso 7). Para pods de diagnóstico (`busybox`, etc.) usa otro namespace. |
+| La app deja de llegar a la BD o a Ollama tras aplicar `networkpolicy.yaml` | El puerto no está en la lista de salida de `ffa-api` (5432, 5433, 11434), o el CNI no aplica NetworkPolicy (kind < 0.24). |

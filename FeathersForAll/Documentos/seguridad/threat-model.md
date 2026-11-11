@@ -73,7 +73,7 @@ Estado: ✅ control existente y verificado · 🟡 parcial · ❌ falta.
 | S-1 | Un estudiante usa el token de otro, o fabrica uno, para leer sus conversaciones | JWT HS256 firmado y verificado con `timingSafeEqual`; se rechaza `alg: none` y tokens vencidos (`platform/auth.js`); prueba Postman "7 · Seguridad" | ✅ |
 | S-2 | `JWT_SECRET` débil o filtrado permite firmar tokens de cualquier colegio | La API no arranca con < 32 caracteres; Secret de Kubernetes creado por Terraform; **gitleaks** en todo el historial y regla Semgrep `ffa-jwt-secreto-hardcodeado` (S09) | ✅ |
 | S-3 | Uso del chat de desarrollo sin token en producción | `CHAT_REQUIRE_AUTH=true` y `ENABLE_DEV_ROUTES=false` por defecto con `NODE_ENV=production`; `overlays/prod` no los activa | ✅ |
-| S-4 | Robo del token desde el navegador (XSS) | React escapa por defecto; SAST `p/owasp-top-ten`. Falta: Content-Security-Policy en NGINX | 🟡 |
+| S-4 | Robo del token desde el navegador (XSS) | React escapa por defecto; SAST `p/owasp-top-ten`; Content-Security-Policy sin `unsafe-inline` y con `connect-src 'self'` en NGINX (S10, `security-headers.conf`), exigida por el DAST | ✅ |
 
 ### T · Tampering
 
@@ -131,9 +131,9 @@ Estado: ✅ control existente y verificado · 🟡 parcial · ❌ falta.
 | Alta | D-1 | Rate limit por usuario en `POST .../messages` (p. ej. 20 turnos/min) y 429 con RFC 7807; en producción en Redis o en el Ingress | Iván | S11 |
 | Alta | I-4 | Antes de la demo pública: adaptador LLM externo solo con el seed sintético + banner; prohibido conectarlo a datos reales | Bastián | Antes de publicar la demo |
 | Media | T-4 | Delimitar los fragmentos en el prompt (`<apunte>…</apunte>`) e instruir que son datos; prueba con un apunte "malicioso" | Bastián | S11 |
-| Media | S-4 | Cabecera Content-Security-Policy en `nginx.conf` | Ignacio | S10 (ZAP baseline lo va a pedir) |
+| ~~Media~~ | ~~S-4~~ | ~~Cabecera Content-Security-Policy en `nginx.conf`~~ Hecho en la S10 (ADR 0011) | Ignacio | Cerrada |
 | Media | R-1 | Tabla de auditoría para subir/borrar apuntes (actor, acción, curso, fecha; sin contenido) | Iván | Etapa rol docente |
-| Baja | T-5 / D-4 | NetworkPolicy API → Ollama y tope de streams por usuario | Ignacio | Cuando Ollama salga del host |
+| Baja | T-5 / D-4 | Tope de streams por usuario. La NetworkPolicy ya existe (S10, `k8s/networkpolicy.yaml`): falta acotarla con `ipBlock` | Ignacio | Cuando Ollama salga del host |
 | Baja | E-4 | Dueño `feathersforall_plataforma` para las funciones `SECURITY DEFINER` | Ignacio | Antes de producción |
 
 ## 7. Cómo se mantiene

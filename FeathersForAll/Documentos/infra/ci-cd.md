@@ -1,12 +1,12 @@
 # CI/CD y GitOps (S08)
 
-Del commit al clúster sin que nadie corra `kubectl`. La decisión y sus porqués están en el [ADR 0009](../adr/0009-ci-cd-y-gitops.md).
+Del commit al clúster sin que nadie corra `kubectl`. La decisión y sus porqués están en el [ADR 0009](../adr/0009-ci-cd-y-gitops.md). Desde la S10 las imágenes salen firmadas y con attestations ([ADR 0011](../adr/0011-supply-chain.md), sección [Cadena de suministro](#cadena-de-suministro-s10)).
 
 ```text
  repo app (Erolayer-Cl/FeathersForAll)                     repo gitops (Erolayer-Cl/feathersforall-gitops)
  ──────────────────────────────────────                    ─────────────────────────────────────────────
  PR a main ──▶ ci.yml: quality gates + build (sin push)
- merge a main ──▶ ci.yml: gates ──▶ build + Trivy ──▶ push GHCR (por sha)
+ merge a main ──▶ ci.yml: gates ──▶ build + Trivy ──▶ push GHCR (por sha) ──▶ firma + attestations ──▶ DAST
                                                     └─▶ promote: PR "deploy(dev): <sha>"  ──▶ overlays/dev
                                                                                                │ merge
  Actions → promote-prod (aprobación Environment) ──────▶ PR "deploy(prod): …" (2 revisores) ──▶ overlays/prod
@@ -19,6 +19,9 @@ Del commit al clúster sin que nadie corra `kubectl`. La decisión y sus porqué
 | `.github/workflows/ci.yml` | Quality gates, build/escaneo/push de imágenes y PR de promoción a dev |
 | `.github/workflows/promote-prod.yml` | Copia a prod los digest de dev (manual, con aprobación) |
 | `.github/workflows/security.yml` | Gates de seguridad de la S09 (ADR 0010): SAST, SCA, SBOM y secretos; también cada lunes |
+| `.checkov.yaml` | Configuración y excepciones del IaC scan (S10) |
+| `dast/` | Staging efímero y reglas del ZAP baseline (S10) |
+| `k8s/policies/`, `falco/` | Policy de admisión de Kyverno y reglas Falco (S10): se aplican en el clúster, no en CI |
 | repo `feathersforall-gitops` | `base/` + `overlays/{dev,prod}/` (Kustomize) y `argocd/` (AppProject + Applications) |
 | [`Documentos/seguridad/vulnerabilidades.md`](../seguridad/vulnerabilidades.md) | Lo que encontraron los gates (CVE, CWE, CVSS) y cómo se cerró |
 
@@ -37,21 +40,24 @@ Regla de la PPT: *si un gate no bloquea, es un log, no un gate*. Todos estos blo
 | SCA (lockfiles) | `security-sca` | Trivy `fs` + excepciones VEX (`.vex/`) | Un lockfile tiene un CVE High/Critical **con arreglo** (S09) |
 | SBOM | `security-sbom` | Trivy (CycloneDX + SPDX) | No se genera o queda vacío (S09); además `build-and-push` publica el SBOM de cada imagen |
 | Secretos | `security-secrets` | gitleaks (todo el historial) | Hay un secreto en cualquier commit (S09) |
+| IaC | `iac-scan` | Checkov (Terraform + salida de kustomize) y `falco -V` | Un recurso incumple un check que no esté exceptuado en `.checkov.yaml`, o una regla Falco no valida (S10) |
 | e2e | `e2e-newman` | Docker Compose + Newman | Falla una aserción (salud, login, perfil, cursos, notas, privacidad y seguridad; sin el tutor, porque en CI no hay Ollama) |
 | Imagen | `build-and-push` | Trivy | La imagen tiene CVE High/Critical **con arreglo disponible** |
+| Firma | `build-and-push` (solo `main`) | cosign keyless + `cosign verify` | No se puede firmar, adjuntar las attestations (SLSA provenance, SBOM) o verificarlas con la identidad del workflow (S10) |
+| DAST | `dast` | ZAP baseline contra el staging efímero | Aparece un hallazgo marcado FAIL en `dast/zap-rules.tsv` (S10). En `main` frena `promote` |
 | Aprobación humana | `promote-prod` | Environment `production` + PR con 2 revisores | Nadie aprueba |
 
 **Cobertura en rojo = menos de 70 %**, en backend y frontend. En el frontend se mide la lógica: quedan fuera los componentes `.jsx` y los hooks/contextos de React (`use*.js`, `*Context.js`), que todavía no tienen pruebas.
 
-### Bloqueantes: S08, S09 y lo que viene
+### Bloqueantes: S08, S09, S10 y lo que viene
 
-| Desde S08 | Desde S09 (DevSecOps I, ADR 0010) | Pendiente (S10 y después) |
-|---|---|---|
-| Contrato, lint, cobertura, `npm audit`, Semgrep, Newman, Trivy de imagen | Semgrep con OWASP Top 10 + 4 reglas propias | Firma de imágenes con cosign (OIDC) y SBOM como attestation en GHCR (conservarlo 5 años) |
-| | Trivy `fs` con VEX | DAST: ZAP baseline contra dev |
-| | SBOM CycloneDX + SPDX (artefacto) | IaC scanning (Terraform y manifiestos) |
-| | gitleaks con todo el historial | Cobertura ≥ 70 % también en `.jsx` y hooks (Testing Library + jsdom) |
-| | Escaneo programado cada lunes ([VULN-001](../seguridad/vulnerabilidades.md)) | Dependabot (PRs automáticos de actualización) |
+| Desde S08 | Desde S09 (DevSecOps I, ADR 0010) | Desde S10 (DevSecOps II, ADR 0011) | Pendiente |
+|---|---|---|---|
+| Contrato, lint, cobertura, `npm audit`, Semgrep, Newman, Trivy de imagen | Semgrep con OWASP Top 10 + 4 reglas propias | IaC scan con Checkov (Terraform y manifiestos) | Cobertura ≥ 70 % también en `.jsx` y hooks (Testing Library + jsdom) |
+| | Trivy `fs` con VEX | Firma cosign keyless + attestations SLSA y SBOM en GHCR + `cosign verify` | Dependabot (PRs automáticos de actualización) |
+| | SBOM CycloneDX + SPDX (artefacto) | DAST: ZAP baseline contra un staging efímero | `zap-api-scan` con el contrato OpenAPI |
+| | gitleaks con todo el historial | | Provenance generada fuera del job (SLSA L3) |
+| | Escaneo programado cada lunes ([VULN-001](../seguridad/vulnerabilidades.md)) | | Respaldo de firmas y attestations fuera de GHCR |
 
 Triage, SLA y excepciones: [`Documentos/seguridad/triage-y-excepciones.md`](../seguridad/triage-y-excepciones.md). Threat model del tutor: [`threat-model.md`](../seguridad/threat-model.md).
 
@@ -101,7 +107,7 @@ La primera vez que `ci.yml` publica en `main` se crean (o actualizan) `feathersf
 En **ambos** repos: **Settings** → **Branches** → **Add branch ruleset** (o *Add classic branch protection rule*) para `main`:
 
 - **Require a pull request before merging** → **Required approvals: 2** → *Dismiss stale approvals* activado.
-- **Require status checks to pass** → en el repo app agrega: `contrato`, `backend`, `frontend`, `sast`, `e2e-newman`, `build-and-push (api, code/backend)`, `build-and-push (web, code/frontend)` y, desde la S09, `security-sast`, `security-sca`, `security-sbom` y `security-secrets`. Los nombres aparecen después de la primera run.
+- **Require status checks to pass** → en el repo app agrega: `contrato`, `backend`, `frontend`, `sast`, `e2e-newman`, `build-and-push (api, code/backend)`, `build-and-push (web, code/frontend)`; desde la S09, `security-sast`, `security-sca`, `security-sbom` y `security-secrets`; y desde la S10, `iac-scan` y `dast`. Los nombres aparecen después de la primera run.
 - **Block force pushes** y sin *bypass* (ni siquiera para admins).
 
 Con `gh` (si lo tienen instalado), el equivalente para el repo app:
@@ -111,7 +117,7 @@ gh api -X PUT repos/Erolayer-Cl/FeathersForAll/branches/main/protection --input 
 {
   "required_status_checks": { "strict": true, "contexts": ["contrato", "backend", "frontend", "sast", "e2e-newman",
     "build-and-push (api, code/backend)", "build-and-push (web, code/frontend)",
-    "security-sast", "security-sca", "security-sbom", "security-secrets"] },
+    "security-sast", "security-sca", "security-sbom", "security-secrets", "iac-scan", "dast"] },
   "enforce_admins": true,
   "required_pull_request_reviews": { "required_approving_review_count": 2, "dismiss_stale_reviews": true },
   "restrictions": null,
@@ -168,6 +174,40 @@ Mientras `overlays/dev` tenga los digest de ejemplo (`sha256:0000…`), la app v
 
 Evidencia para el entregable: la run verde de `ci.yml` en `main`, el PR `deploy(dev)` mergeado y el screenshot Synced/Healthy.
 
+## Cadena de suministro (S10)
+
+Qué pasa con una imagen desde que se construye hasta que corre ([ADR 0011](../adr/0011-supply-chain.md)):
+
+```text
+iac-scan ─▶ build ─▶ Trivy ─▶ push por digest ─▶ cosign sign (keyless) ─▶ attest SLSA + SBOM ─▶ cosign verify
+                                                                                                    │
+        promote (PR gitops) ◀── dast: verify + ZAP baseline sobre la imagen firmada ◀───────────────┘
+              │ merge
+        Argo CD ─▶ Kyverno: ¿firma y attestation del workflow ci.yml@main? ─▶ pod ─▶ Falco vigila
+```
+
+- **Sin llaves.** GitHub entrega al job un token OIDC, Fulcio lo cambia por un certificado que dura minutos y la firma queda en el log público de Rekor. La identidad firmante es `https://github.com/<org>/<repo>/.github/workflows/ci.yml@refs/heads/main`.
+- **Requisito:** el job necesita `id-token: write` (ya está en `build-and-push`). No hay secretos nuevos que configurar.
+- **Evidencia del entregable:** el resumen del run de `ci.yml` en `main` trae la salida de `cosign verify` de cada imagen. Se copia a la descripción del PR.
+
+Verificar a mano (requiere [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)):
+
+```bash
+IMG=ghcr.io/erolayer-cl/feathersforall-api@sha256:<digest del resumen del run>
+ID='(?i)^https://github\.com/erolayer-cl/feathersforall/\.github/workflows/ci\.yml@refs/heads/main$'
+ISS=https://token.actions.githubusercontent.com
+
+cosign verify "$IMG" --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISS"
+# De qué commit y run salió
+cosign verify-attestation "$IMG" --type slsaprovenance1 --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISS" \
+  | jq -r '.payload | @base64d | fromjson | .predicate.buildDefinition.resolvedDependencies, .predicate.runDetails'
+# Qué trae dentro (SBOM): ¿usamos el paquete X?
+cosign verify-attestation "$IMG" --type cyclonedx --certificate-identity-regexp "$ID" --certificate-oidc-issuer "$ISS" \
+  | jq -r '.payload | @base64d | fromjson | .predicate.components[] | "\(.name) \(.version)"' | grep -i express
+```
+
+En el clúster: policy de Kyverno, NetworkPolicy y Falco se instalan y prueban con [`k8s/README.md`](../../../k8s/README.md) (paso 7) y [`falco/README.md`](../../../falco/README.md). El DAST se explica en [`dast/README.md`](../../../dast/README.md).
+
 ## Correr los gates en local antes del PR
 
 ```bash
@@ -185,4 +225,5 @@ docker run --rm -v "$PWD:/src:ro" -w /src semgrep/semgrep:1.140.0 \
   --severity ERROR --error --metrics=off code
 # Gates de security.yml (S09: reglas propias, Trivy fs, SBOM, gitleaks): ver ../seguridad/triage-y-excepciones.md §5
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12     # sintaxis de los workflows
+# IaC scan (S10): los comandos están en la cabecera de .checkov.yaml. DAST: dast/README.md
 ```
