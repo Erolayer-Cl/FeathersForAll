@@ -40,7 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Pruebas de las reglas propias (cada regla con casos que deben y no deben saltar)
-        run: semgrep --test .semgrep/
+        run: |
+             cp -r .semgrep /tmp/reglas-semgrep
+             semgrep --test /tmp/reglas-semgrep
       - name: Semgrep (falla con hallazgos de severidad ERROR)
         run: >-
           semgrep scan

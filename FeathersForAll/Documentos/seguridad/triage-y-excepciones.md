@@ -72,7 +72,8 @@ Desde la raíz del repo (requiere Docker):
 
 ```bash
 # SAST + pruebas de las reglas propias
-docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.140.0 semgrep --test .semgrep/
+# (se copian a una carpeta sin punto: semgrep --test no busca pruebas dentro de carpetas ocultas)
+docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.140.0 sh -c "cp -r .semgrep /tmp/reglas && semgrep --test /tmp/reglas"
 docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.140.0 semgrep scan \
   --config p/owasp-top-ten --config p/javascript --config p/nodejs --config .semgrep/ \
   --severity ERROR --error --metrics=off code

@@ -21,7 +21,8 @@ rules:
                   regex: ^(messages|question|pregunta|prompt|answer|respuesta|content|contenido)$
       - metavariable-regex:
           metavariable: $LOG
-          regex: (^|\.)(log|logger|console)$
+          # metavariable-regex ancla al inicio: hay que aceptar el prefijo (req.log, this.logger…).
+          regex: ^(.+\.)?(log|logger|console)$
       - metavariable-regex:
           metavariable: $LEVEL
           regex: ^(trace|debug|info|warn|error|fatal|child|log)$
