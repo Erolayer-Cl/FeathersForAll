@@ -186,7 +186,7 @@ export function createRagService({
 
       const known = titles === undefined ? await titlesOf(ref) : titles;
       const wantReference = useReference(curricular);
-      let found = [];
+      let found;
       let subjectOfCourse = null;
       if (known === null) {
         // Almacén que no sabe listar documentos: una sola búsqueda, y las Bases se separan por su nombre.

@@ -19,7 +19,7 @@ const esMineduc = (docId) => /^MINEDUC\b/i.test(docId);
 const extension = (nombre) => (nombre.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase();
 
 /** Valida el archivo antes de enviarlo; devuelve el motivo si no sirve. */
-export function motivoRechazo(file) {
+function motivoRechazo(file) {
   if (!APUNTE_EXTENSIONES.includes(extension(file.name))) return 'Solo se aceptan archivos PDF, TXT o MD.';
   if (file.size === 0) return 'El archivo está vacío.';
   if (file.size > MAX_APUNTE_BYTES) return `Pesa más de ${MAX_APUNTE_BYTES / 1024 / 1024} MB.`;
