@@ -40,19 +40,21 @@ export function toStats(data) {
  */
 export function createOllamaClient({ endpoint, model, timeoutMs, temperature, numCtx, keepAlive, fetchImpl = fetch }) {
   const baseUrl = endpoint.replace(/\/+$/, '');
-  const hasOptions = temperature !== undefined || numCtx !== undefined;
-
+  
   return {
     model,
 
     /**
      * Envía la conversación y entrega la respuesta como fragmentos de texto.
      * @param {{role: string, content: string}[]} messages
-     * @param {{signal?: AbortSignal, onStats?: (stats: LlmStats) => void}} [options]
+     * @param {{signal?: AbortSignal, onStats?: (stats: LlmStats) => void, temperature?: number}} [options]
      *   `onStats` recibe las métricas de Ollama al terminar (solo números, nunca el texto).
+     *   `temperature` pide, para esta respuesta, una creatividad máxima (p. ej. baja cuando el tutor responde con
+     *   apuntes): se usa la menor entre este valor y la temperatura configurada, nunca más alta que la configurada.
      * @returns {AsyncGenerator<string>}
      */
-    async *chat(messages, { signal, onStats } = {}) {
+    async *chat(messages, { signal, onStats, temperature: requested } = {}) {
+      const effectiveTemperature = requested === undefined ? temperature : temperature === undefined ? requested : Math.min(requested, temperature);
       const controller = new AbortController();
       const onAbort = () => controller.abort(signal.reason);
       signal?.addEventListener('abort', onAbort, { once: true });
@@ -81,7 +83,9 @@ export function createOllamaClient({ endpoint, model, timeoutMs, temperature, nu
               messages,
               stream: true,
               ...(keepAlive !== undefined && { keep_alive: keepAlive }),
-              ...(hasOptions && { options: { ...(temperature !== undefined && { temperature }), ...(numCtx !== undefined && { num_ctx: numCtx }) } }),
+              ...((effectiveTemperature !== undefined || numCtx !== undefined) && {
+                options: { ...(effectiveTemperature !== undefined && { temperature: effectiveTemperature }), ...(numCtx !== undefined && { num_ctx: numCtx }) },
+              }),
             }),
             signal: controller.signal,
           });

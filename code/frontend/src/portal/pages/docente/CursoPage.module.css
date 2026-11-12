@@ -1,0 +1,31 @@
+/* Docente · Curso: carga de apuntes y lista de apuntes indexados. */
+.crumbs { color: var(--fp-muted); font-size: 13px; }
+.crumbs a:hover { color: var(--fp-brand-text); }
+
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; }
+@media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.h2 { font-size: 18px; }
+.sub { margin: 4px 0 0; color: var(--fp-muted); font-size: 13.5px; }
+.alerta { margin: 12px 0 0; color: var(--fp-danger-ink); font-size: 13.5px; }
+
+.drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; margin-top: 16px; padding: 32px 20px; border: 2px dashed var(--fp-track); border-radius: var(--fp-radius-md); background: var(--fp-field); color: var(--fp-muted); font-size: 13px; text-align: center; cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease; }
+.drop b { color: inherit; font-size: 14px; }
+.drop:hover, .dropOver, .drop:focus-within { border-color: var(--fp-accent); background: var(--fp-accent-soft); }
+/* El input real queda sobre toda la zona (invisible): sirve con teclado, clic y lectores de pantalla. */
+.fileInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.fileInput:disabled { cursor: progress; }
+
+.envios { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.envios li { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: var(--fp-radius-md); background: var(--fp-field); font-size: 13px; }
+.envios b { overflow-wrap: anywhere; }
+.envios span { color: var(--fp-muted); font-size: 12.5px; }
+.ok span { color: var(--fp-success-ink); }
+.error span { color: var(--fp-danger-ink); }
+.subiendo span { color: var(--fp-brand-text); }
+
+.rows { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--fp-radius-md); background: var(--fp-field); font-size: 13.5px; }
+.grow { flex: 1; min-width: 0; }
+.grow b, .grow small { display: block; }
+.grow b { overflow-wrap: anywhere; }
+.grow small { color: var(--fp-muted); font-size: 12px; }

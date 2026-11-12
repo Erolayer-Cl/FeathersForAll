@@ -1,11 +1,15 @@
 import express, { Router } from 'express';
 import { HttpProblem } from '../../../platform/problem.js';
-import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError } from './errors.js';
+import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError, UnreadableDocumentError } from './errors.js';
+import { extractPdfPages } from './pdf-text.js';
 
 export const COURSE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_NAME = 120;
 const MAX_TEXT = 500_000;
+const MAX_FILE = '40mb'; // un PDF de apuntes; las bases curriculares completas pesan ~4 MB
+const TEXT_EXT = /\.(txt|md|markdown)$/i;
+const PDF_EXT = /\.pdf$/i;
 
 /**
  * Carga de apuntes (ruta de desarrollo, fuera del contrato OpenAPI).
@@ -42,6 +46,8 @@ export function createRagRouter({ rag, tenantId }) {
     if (err instanceof CourseNotFoundError) return new HttpProblem(404, 'No encontrado', 'El curso no existe en este colegio', 'not-found');
     if (err instanceof RagForbiddenError) return new HttpProblem(403, 'Prohibido', 'No puedes gestionar los apuntes de este curso', 'forbidden');
     if (err instanceof EmbeddingDimensionError) return new HttpProblem(503, 'Configuración inválida', err.message);
+    if (err instanceof UnreadableDocumentError) return new HttpProblem(422, 'Archivo ilegible', err.message);
+    if (err instanceof RangeError) return new HttpProblem(422, 'Documento inválido', err.message);
     return err;
   }
 
@@ -68,6 +74,42 @@ export function createRagRouter({ rag, tenantId }) {
 
     try {
       res.status(201).json(await rag.ingest({ ...ref, docId: name.trim(), text, actor: actorOf(req) }));
+    } catch (err) {
+      throw translate(err);
+    }
+  });
+
+  /**
+   * Sube un archivo de apuntes (PDF, .txt o .md) como cuerpo binario: POST .../files?name=clase1.pdf
+   * El texto se extrae en el servidor, se limpia, se parte en fragmentos y se indexa en el RAG del curso.
+   * Si ya existe un documento con ese nombre, se reemplaza.
+   */
+  router.post('/:courseId/files', express.raw({ type: () => true, limit: MAX_FILE }), async (req, res) => {
+    const ref = ctx(req);
+    mustManage(req);
+
+    const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
+    if (!name || name.length > MAX_NAME) {
+      throw new HttpProblem(422, 'Documento inválido', `"name" debe ser el nombre del archivo (1 a ${MAX_NAME} caracteres)`);
+    }
+    const body = req.body;
+    if (!Buffer.isBuffer(body) || body.length === 0) {
+      throw new HttpProblem(422, 'Documento inválido', 'El archivo está vacío');
+    }
+
+    const isPdf = PDF_EXT.test(name);
+    if (!isPdf && !TEXT_EXT.test(name)) {
+      throw new HttpProblem(415, 'Formato no soportado', 'Solo se aceptan archivos .pdf, .txt o .md', 'unsupported-media-type');
+    }
+    if (isPdf && body.subarray(0, 5).toString('latin1') !== '%PDF-') {
+      throw new HttpProblem(422, 'Archivo ilegible', 'El archivo no es un PDF válido');
+    }
+
+    try {
+      const input = isPdf ? { pages: await extractPdfPages(body) } : { text: body.toString('utf8') };
+      if (!isPdf && !input.text.trim()) throw new RangeError('El documento no tiene texto');
+      const result = await rag.ingest({ ...ref, docId: name, title: name.replace(/\.[^.]+$/, ''), ...input, actor: actorOf(req) });
+      res.status(201).json({ ...result, ...(input.pages && { pages: input.pages.length }) });
     } catch (err) {
       throw translate(err);
     }

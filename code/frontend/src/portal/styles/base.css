@@ -1,10 +1,4 @@
-/* Sin el margen por defecto del navegador (marco blanco de 8 px alrededor del portal).
-   Estaba como <style> en portal.html; la CSP no permite estilos en línea. Es el único selector global. */
-body {
-  margin: 0;
-}
-
-/* Reset mínimo, limitado al portal. */
+/* Reset mínimo, limitado al portal (no usa selectores globales). */
 .fp-root {
   min-height: 100%;
   background: var(--fp-bg);

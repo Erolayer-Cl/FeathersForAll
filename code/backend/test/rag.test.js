@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { chunkText } from '../src/modules/tutor/rag/chunker.js';
 import { createVectorStore } from '../src/modules/tutor/rag/vector-store.js';
 import { createRagService } from '../src/modules/tutor/rag/rag-service.js';
-import { buildQuery, dropNoInfoTurns, isSmallTalk, prepareTurn, withContext, NO_INFO_REPLY, NO_NOTES_REPLY } from '../src/modules/tutor/rag/rag-prompt.js';
+import { buildQuery, dropNoInfoTurns, isCourseOverviewQuery, isSmallTalk, prepareTurn, withContext, NO_INFO_REPLY, NO_NOTES_REPLY } from '../src/modules/tutor/rag/rag-prompt.js';
 import { createOllamaEmbedder } from '../src/modules/tutor/embeddings-client.js';
 import { LlmUnavailableError } from '../src/modules/tutor/llm-client.js';
 import { fakeEmbedder } from './fake-embedder.js';
@@ -201,7 +201,8 @@ describe('prepareTurn', () => {
     assert.equal(turn.kind, 'grounded');
     assert.ok(turn.system.startsWith('BASE'));
     assert.ok(turn.system.includes('El numerador indica cuántas partes se toman'));
-    assert.ok(turn.system.includes('[1] (fracciones.md)'));
+    assert.match(turn.system, /\[1\] Fuente: fracciones/);
+    assert.ok(!turn.system.includes('(fracciones.md)'), 'una sola línea de fuente, sin el nombre duplicado entre paréntesis');
     assert.deepEqual(turn.sources.map((s) => s.doc_id), ['fracciones.md']);
   });
 
@@ -237,6 +238,15 @@ describe('buildQuery', () => {
       { role: 'user', content: 'dale' },
     ]);
     assert.equal(q, 'Explícame cómo se suman fracciones\ndale');
+  });
+
+  test('un cálculo numérico independiente ("1+1 cuanto es") no arrastra la pregunta anterior', () => {
+    const q = buildQuery([
+      { role: 'user', content: '¿Cómo funciona la regla de tres simple?' },
+      { role: 'assistant', content: 'La regla de tres...' },
+      { role: 'user', content: '1+1 cuanto es' },
+    ]);
+    assert.equal(q, '1+1 cuanto es');
   });
 });
 
@@ -359,7 +369,8 @@ describe('isSmallTalk', () => {
   const charla = ['hola', 'Hola!!', 'buenas tardes', 'hola pluma', '¿cómo estás?', 'gracias', 'muchas gracias profe',
     'ok', 'vale, ya entendí', 'chao', 'nos vemos', '¿quién eres?', '¿qué puedes hacer?', 'ayuda',
     'estoy nervioso por la prueba', 'tengo prueba mañana', 'no entiendo nada',
-    'ola', 'Ola!', 'olaaa', 'holaaa', 'oli', 'holis', 'hla', 'alo', 'wenas', 'ola pluma', 'ola, ¿cómo estás?'];
+    'ola', 'Ola!', 'olaaa', 'holaaa', 'oli', 'holis', 'hla', 'alo', 'wenas', 'ola pluma', 'ola, ¿cómo estás?',
+    'eres gei', 'eres gay', 'callate', 'tonto', 'jajaja', 'xd'];
   const materia = ['hola, ¿qué es una fracción?', '¿qué indica el numerador?', 'dame un ejemplo', 'sí',
     'no entiendo el denominador', '¿cuál es la capital de Francia?', 'explícame la fotosíntesis',
     '¿qué es una ola?', 'ola de calor', 'olas del mar'];
@@ -368,4 +379,18 @@ describe('isSmallTalk', () => {
   for (const t of materia) test(`materia: "${t}"`, () => assert.equal(isSmallTalk(t), false));
 
   test('un texto largo nunca es charla', () => assert.equal(isSmallTalk(`hola ${'x'.repeat(100)}`), false));
+});
+
+describe('isCourseOverviewQuery', () => {
+  const overview = [
+    '¿Qué temas tienes?',
+    '¿Qué materias hay?',
+    '¿Cuáles son los temas del curso?',
+    '¿De qué trata este curso?',
+    '¿Qué me puedes enseñar?',
+    '¿Qué apuntes hay subidos?',
+    '¿Qué contenidos tienes?',
+  ];
+  for (const t of overview) test(`overview: "${t}"`, () => assert.equal(isCourseOverviewQuery(t), true));
+  test('pregunta concreta no es overview', () => assert.equal(isCourseOverviewQuery('¿cómo se suman fracciones?'), false));
 });
