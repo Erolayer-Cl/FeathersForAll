@@ -193,6 +193,13 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - Portal: `EditorEvaluacion` compartido por «Nueva evaluación» y «Editar borrador» (`doc-evaluacion-editar/<id>`), con el panel «Generar con IA» solo al crear (en edición reemplazaría lo guardado) y aviso de que la IA puede equivocarse.
   - **Verificado en local:** backend 335 sin base y 506 con PostgreSQL (cobertura 98,67 %); frontend 123; Spectral sin errores; recorrido en Chrome headless con la CSP, la API real y un Ollama falso (tema sin apuntes, generar, editar lo generado, guardar, editar, publicar, eliminar, 360 px). **No verificado:** la calidad de las preguntas con `qwen2.5:3b` real (solo se probó el parser con respuestas simuladas); conviene que un docente las revise.
 
+- **Auditoría de secretos y logs** (14-11-2026): sin llaves ni contraseñas reales en los archivos ni en el historial (patrones conocidos, `.env`, `tfstate`, llaves). Hallazgos corregidos:
+  - `k8s/configmap.yaml` ya no deja el chat sin token ni las rutas `/v1/dev/*` abiertas (`ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`): el frontend ya tiene login. Hay que replicarlo en `base/` del repo gitops.
+  - Logs de la API (`src/platform/logger.js`): `redact` de password, token, authorization, cookie y secretos; los errores de PostgreSQL se serializan sin `detail`/`where`/`parameters` (traen valores de filas, p. ej. correos). El log de cada request registra el patrón de la ruta (`/v1/courses/:courseId`), no la ruta real (ids y nombres de archivos de apuntes).
+  - CI: el reporte de ZAP se sanea (token y `Bearer …`) antes de subirse como artefacto y al `GITHUB_STEP_SUMMARY`; si queda un JWT, el job falla y no se publica.
+  - gitleaks: excepción acotada para el UUID de `Idempotency-Key` de `portalApi.test.js`.
+  - Sigue siendo válido: las claves de laboratorio (`postgres:postgres`, `cambiar`, `demo1234`) son sintéticas y no deben llegar a producción.
+
 ## Pendientes y deuda conocida
 
 - En `main` hay cambios sin commitear de antes de la etapa 1:
