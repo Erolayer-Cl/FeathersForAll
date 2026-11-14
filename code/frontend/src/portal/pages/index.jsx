@@ -7,6 +7,8 @@ import { CursoPage } from './estudiante/CursoPage.jsx';
 import { MisCursosPage } from './estudiante/MisCursosPage.jsx';
 import { MisNotasPage } from './estudiante/MisNotasPage.jsx';
 import { TutorPage } from './estudiante/TutorPage.jsx';
+import { DocenteCursosPage } from './docente/CursosPage.jsx';
+import { DocenteCursoPage } from './docente/CursoPage.jsx';
 import { SettingsPage } from './shared/SettingsPage.jsx';
 
 export const PAGES = {
@@ -18,6 +20,9 @@ export const PAGES = {
   'est-curso': CursoPage,
   'est-notas': MisNotasPage,
   'est-tutor': TutorPage,
+  'doc-inicio': DocenteCursosPage,
+  'doc-cursos': DocenteCursosPage,
+  'doc-curso': DocenteCursoPage,
   'est-config': () => <SettingsPage role="est" />,
   'doc-config': () => <SettingsPage role="doc" />,
   'adm-config': () => <SettingsPage role="adm" />,

@@ -92,17 +92,27 @@ export function createVectorStore({ path } = {}) {
       return [...counts].map(([doc_id, chunks]) => ({ doc_id, chunks }));
     },
 
+    /** Nombres de los documentos del curso (sin contar fragmentos). */
+    listTitles({ tenantId, courseId }) {
+      refresh();
+      return [...new Set(records.filter((r) => sameCourse(r, { tenantId, courseId })).map((r) => r.doc_id))];
+    },
+
     hasCourse({ tenantId, courseId }) {
       refresh();
       return records.some((r) => sameCourse(r, { tenantId, courseId }));
     },
 
-    /** Los `topK` fragmentos más parecidos, solo de ese tenant y curso. */
-    search({ tenantId, courseId, embedding, topK }) {
+    /**
+     * Los `topK` fragmentos más parecidos, solo de ese tenant y curso (este almacén de desarrollo ignora `queryText`:
+     * solo busca por significado). `docIds` limita la búsqueda a esos documentos.
+     */
+    search({ tenantId, courseId, embedding, topK, docIds }) {
       refresh();
       const query = normalize(embedding);
+      const only = docIds ? new Set(docIds) : null;
       return records
-        .filter((r) => sameCourse(r, { tenantId, courseId }))
+        .filter((r) => sameCourse(r, { tenantId, courseId }) && (!only || only.has(r.doc_id)))
         .map((r) => ({
           doc_id: r.doc_id,
           chunk_index: r.chunk_index,

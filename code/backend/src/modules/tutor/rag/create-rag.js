@@ -17,6 +17,11 @@ export function ragConfigFromEnv(env = process.env) {
     storePath: env.RAG_STORE_PATH ?? 'data/rag-store.json',
     topK: Number(env.RAG_TOP_K ?? 4),
     minScore: Number(env.RAG_MIN_SCORE ?? 0.5),
+    // Similitud a partir de la cual un fragmento sirve aunque no comparta palabras con la pregunta (paráfrasis).
+    // Sin definir = RAG_MIN_SCORE + 0,12.
+    strongScore: env.RAG_STRONG_SCORE === undefined ? undefined : Number(env.RAG_STRONG_SCORE),
+    // Cuándo se consultan las Bases del Mineduc además de los apuntes del docente: curricular | always | off.
+    referenceMode: ['curricular', 'always', 'off'].includes(env.RAG_REFERENCE_MODE) ? env.RAG_REFERENCE_MODE : 'curricular',
     chunkChars: Number(env.RAG_CHUNK_CHARS ?? 800),
     // Colegio y curso del chat cuando la petición NO trae token (solo desarrollo).
     // Con token (JWT) el colegio sale siempre del token.
@@ -43,6 +48,8 @@ export async function createRag(config, { db } = {}) {
     store,
     topK: config.topK,
     minScore: config.minScore,
+    ...(config.strongScore !== undefined && { strongScore: config.strongScore }),
+    referenceMode: config.referenceMode,
     chunk: { maxChars: config.chunkChars, overlapChars: Math.round(config.chunkChars * 0.15) },
   });
   return { ...service, backend: db ? 'postgres' : 'archivo' };
