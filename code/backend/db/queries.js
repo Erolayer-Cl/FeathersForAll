@@ -67,12 +67,14 @@ RETURNING id, nombre, periodo, asignatura, nivel, created_at`;
 //   matriculados       -> students_count (la API solo lo muestra al personal: para un estudiante,
 //                         el RLS de 04 cuenta solo su propia matrícula)
 //   apuntes            -> tutor_documents: apuntes que el docente subió al RAG del curso
-//   tutor_disponible   -> tutor_available: hay fragmentos indexados, así que el tutor puede responder
+//   tutor_disponible   -> tutor_available: hay fragmentos de apuntes del docente, así que el tutor puede responder
+// Las Bases del Mineduc ("MINEDUC · …", doc-kinds.js) no cuentan: con solo ellas el tutor dice que faltan apuntes.
 const COLUMNAS_CURSO = `
        c.id, c.nombre, c.periodo, c.asignatura, c.nivel, c.docente_id, d.nombre AS docente, c.created_at,
        (SELECT count(*) FROM matriculas m WHERE m.curso_id = c.id AND m.activo) AS matriculados,
-       (SELECT count(*) FROM apuntes_curso a WHERE a.curso_id = c.id) AS apuntes,
-       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible`;
+       (SELECT count(*) FROM apuntes_curso a WHERE a.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS apuntes,
+       EXISTS (SELECT 1 FROM apuntes_embeddings e JOIN apuntes_curso a ON a.id = e.apunte_id
+               WHERE e.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS tutor_disponible`;
 
 // Cursos que ve la sesión (GET /v1/courses): el admin, todos los de su colegio; el docente,
 // los que dicta; el estudiante, en los que tiene matrícula activa (puede_ver_curso, 04).
@@ -275,7 +277,8 @@ WHERE e.id = $1`;
 // notas todavía, con su docente y si el tutor tiene apuntes. $2 NULL = todos los ramos.
 export const RAMOS_ESTUDIANTE = `
 SELECT c.id AS curso_id, c.nombre AS curso, c.asignatura, c.periodo, d.nombre AS docente,
-       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible
+       EXISTS (SELECT 1 FROM apuntes_embeddings e JOIN apuntes_curso a ON a.id = e.apunte_id
+               WHERE e.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS tutor_disponible
 FROM matriculas m
 JOIN cursos c   ON c.id = m.curso_id
 JOIN usuarios d ON d.id = c.docente_id

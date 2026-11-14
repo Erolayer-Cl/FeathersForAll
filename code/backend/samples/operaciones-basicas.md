@@ -1,18 +1,4 @@
-import { createOllamaEmbedder } from '../src/modules/tutor/embeddings-client.js';
-import { createPgVectorStore } from '../src/modules/tutor/rag/pg-vector-store.js';
-import { createRagService } from '../src/modules/tutor/rag/rag-service.js';
-import { createDb } from '../src/platform/db.js';
-
-async function main() {
-  const db = createDb({ connectionString: process.env.DATABASE_ADMIN_URL });
-  const embedder = createOllamaEmbedder({
-    endpoint: process.env.LLM_ENDPOINT || 'http://127.0.0.1:11434',
-    model: process.env.EMBEDDING_MODEL || 'bge-m3',
-  });
-  const store = createPgVectorStore({ db });
-  const rag = createRagService({ embedder, store });
-
-  const text = `# Operaciones Básicas y Aritmética
+# Operaciones básicas y aritmética (apunte de ejemplo, datos sintéticos)
 
 ## Suma o Adición
 La suma o adición es la operación matemática que consiste en reunir o añadir varias cantidades en una sola. Los elementos que se suman se llaman sumandos y el resultado se llama suma o total.
@@ -57,26 +43,3 @@ Para resolver un problema numérico o de proporcionalidad directa (regla de tres
 1. Se identifica el valor unitario (dividiendo el valor total entre la cantidad de elementos).
 2. Se multiplica el valor unitario por la nueva cantidad deseada.
 Por ejemplo: Si 4 cuadernos cuestan 120 pesos, el valor unitario por cuaderno es 120 ÷ 4 = 30 pesos. Para 8 cuadernos, se calcula 8 × 30 = 240 pesos (o bien, como 8 es el doble de 4, el costo es 120 × 2 = 240 pesos).
-`;
-
-  const tenantId = process.env.DEFAULT_TENANT_ID || '11111111-1111-1111-1111-111111111111';
-  const courseId = process.env.DEFAULT_COURSE_ID || 'c0000000-0000-0000-0000-000000000001';
-  const actor = { id: 'a0000000-0000-0000-0000-000000000001', rol: 'docente' };
-
-  console.log('Ingestando operaciones_basicas_y_aritmetica.md en Matemática 7°A...');
-  const res = await rag.ingest({
-    tenantId,
-    courseId,
-    docId: 'operaciones_basicas_y_aritmetica.md',
-    text,
-    title: 'Operaciones Básicas y Aritmética',
-    actor,
-  });
-  console.log('Ingestado con éxito:', res);
-  await db.end();
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

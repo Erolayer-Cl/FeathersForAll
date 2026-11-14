@@ -82,9 +82,66 @@ describe('chunkPages', () => {
   });
 });
 
+describe('PDF de ejercicios (encabezados y pies solo en el borde de la página)', () => {
+  // Guía de 4 páginas: encabezado y pie repetidos, y en medio operaciones distintas en cada hoja.
+  const guia = [1, 2, 3, 4].map((n) => `Guía de multiplicación · 7° básico
+Calcula los productos y escribe el resultado.
+${n + 3} x 8 = ${(n + 3) * 8}
+${n + 5} x 9 = ${(n + 5) * 9}
+Página ${n} de 4`);
+  const text = pagesToParagraphs(guia).map((p) => p.text).join('\n');
+
+  test('conserva las operaciones de cada página', () => {
+    for (const op of ['4 x 8 = 32', '6 x 9 = 54', '7 x 8 = 56', '9 x 9 = 81']) assert.ok(text.includes(op), op);
+  });
+
+  test('quita el encabezado y el pie repetidos', () => {
+    assert.ok(!text.includes('Guía de multiplicación'));
+    assert.ok(!/Página \d de 4/.test(text));
+  });
+
+  test('una operación no se confunde con un título numerado; "2.1 Números racionales" sí es título', () => {
+    assert.equal(pagesToParagraphs(['4 x 8 = 32', 'a', 'b', 'c'])[0].section, '');
+    assert.equal(pagesToParagraphs(['2.1 Números racionales\nTexto del tema.', 'a', 'b', 'c'])[0].section, '2.1 Números racionales');
+    assert.equal(pagesToParagraphs(['3. La Independencia de Chile\nEl proceso comenzó en 1810.', 'a', 'b', 'c'])[0].section, '3. La Independencia de Chile');
+  });
+
+  test('un número al borde que NO avanza con la página es contenido: "Respuesta: 18" se conserva', () => {
+    const respuestas = [18, 25, 36, 49];
+    const pages = respuestas.map((r, i) => `Guía de cuadrados · 7° básico\n${i + 4} x ${i + 4}\nRespuesta: ${r}\nPágina ${i + 1} de 4`);
+    const t = pagesToParagraphs(pages).map((p) => p.text).join('\n');
+    for (const r of respuestas) assert.ok(t.includes(`Respuesta: ${r}`), String(r));
+    assert.ok(!/Página \d de 4/.test(t));
+  });
+
+  test('un encabezado de 3 líneas y un número de página con desfase (45, 46…) se quitan enteros', () => {
+    const pages = [1, 2, 3, 4].map((n) => `Colegio Demo A\nDepartamento de Matemática\nGuía de Fracciones 7° básico\nUna fracción tiene numerador ${n}.\n${n + 44}`);
+    const t = pagesToParagraphs(pages).map((p) => p.text).join('\n');
+    assert.ok(!/Colegio Demo A|Departamento|Guía de Fracciones|\b4[5-8]\b/.test(t), t);
+    assert.ok(t.includes('Una fracción tiene numerador 3.'));
+  });
+});
+
 describe('toTsQuery', () => {
-  test('arma "a | b" con palabras de 3+ letras, sin repetidas', () => {
-    assert.equal(toTsQuery('¿Qué dice el OA 3 de lengua? lengua'), 'qué | dice | lengua');
+  test('arma "a | b" con las palabras que dicen el tema, sin repetidas; sigla + número como frase', () => {
+    assert.equal(toTsQuery('¿Qué dice el OA 3 de lengua? lengua'), 'lengua | oa <-> 3');
+    assert.equal(toTsQuery('Decreto 97'), 'decreto | decreto <-> 97');
+  });
+
+  test('las palabras de "pedir ayuda" no cuentan: "ejemplo" no calza con cualquier "por ejemplo"', () => {
+    assert.equal(toTsQuery('dame un ejemplo de la fotosíntesis'), 'fotosíntesis');
+    assert.equal(toTsQuery('dame un ejemplo'), null);
+    assert.equal(toTsQuery('el 3 de mayo'), 'mayo');
+  });
+
+  test('las palabras de tema sí cuentan ("¿qué es la materia?" en Ciencias)', () => {
+    assert.equal(toTsQuery('¿Qué es la materia?'), 'materia');
+  });
+
+  test('solo los términos curriculares arman frase con un número; nunca queda un número suelto', () => {
+    assert.equal(toTsQuery('había 3 manzanas'), 'había | manzanas');
+    assert.equal(toTsQuery('Independencia 1810'), 'independencia');
+    assert.equal(toTsQuery('unidad 2'), 'unidad | unidad <-> 2');
   });
 
   test('descarta cualquier sintaxis de consulta que escriba el usuario', () => {

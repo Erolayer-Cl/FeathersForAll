@@ -15,8 +15,9 @@ const NO_DISPONIBLE = {
   ),
 };
 
-const esMineduc = (docId) => /^MINEDUC\b/i.test(docId);
 const extension = (nombre) => (nombre.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase();
+/** "1 fragmento", "3 fragmentos". */
+const contar = (n, palabra) => `${n} ${palabra}${n === 1 ? '' : 's'}`;
 
 /** Valida el archivo antes de enviarlo; devuelve el motivo si no sirve. */
 function motivoRechazo(file) {
@@ -59,7 +60,7 @@ export function DocenteCursoPage({ param: courseId }) {
       actualizar(id, { estado: 'subiendo', detalle: 'Leyendo el archivo e indexándolo…' });
       try {
         const r = await uploadCourseFile(token, courseId, file);
-        actualizar(id, { estado: 'ok', detalle: `${r.chunks} fragmentos indexados${r.pages ? ` (${r.pages} páginas)` : ''}` });
+        actualizar(id, { estado: 'ok', detalle: `${contar(r.chunks, 'fragmento')} ${r.chunks === 1 ? 'indexado' : 'indexados'}${r.pages ? ` (${contar(r.pages, 'página')})` : ''}` });
         docs.reload();
       } catch (err) {
         if (err?.status === 401) {
@@ -72,12 +73,12 @@ export function DocenteCursoPage({ param: courseId }) {
     if (inputRef.current) inputRef.current.value = '';
   }
 
-  async function borrar(docId) {
-    if (!window.confirm(`¿Quitar «${docId}» del tutor? Tus estudiantes dejarán de recibir respuestas basadas en este apunte.`)) return;
-    setBorrando(docId);
+  async function borrar(nombre) {
+    if (!window.confirm(`¿Quitar «${nombre}» del tutor? Tus estudiantes dejarán de recibir respuestas basadas en este apunte.`)) return;
+    setBorrando(nombre);
     setErrorBorrar(null);
     try {
-      await deleteCourseDocument(token, courseId, docId);
+      await deleteCourseDocument(token, courseId, nombre);
       docs.reload();
     } catch (err) {
       if (err?.status === 401) expire();
@@ -87,7 +88,7 @@ export function DocenteCursoPage({ param: courseId }) {
     }
   }
 
-  const documentos = docs.data?.documents ?? [];
+  const documentos = docs.data?.data ?? [];
   const totalFragmentos = documentos.reduce((n, d) => n + d.chunks, 0);
 
   return (
@@ -112,9 +113,12 @@ export function DocenteCursoPage({ param: courseId }) {
 
             <label
               className={`${styles.drop} ${arrastrando ? styles.dropOver : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
+              // Mientras se procesa un archivo no se aceptan otros: las subidas van de a una (igual que el input,
+              // que queda deshabilitado) y así ningún envío en espera desaparece de la lista.
+              data-ocupado={subiendo ? "" : undefined}
+              onDragOver={(e) => { e.preventDefault(); if (!subiendo) setArrastrando(true); }}
               onDragLeave={() => setArrastrando(false)}
-              onDrop={(e) => { e.preventDefault(); setArrastrando(false); subir(e.dataTransfer.files); }}
+              onDrop={(e) => { e.preventDefault(); setArrastrando(false); if (!subiendo) subir(e.dataTransfer.files); }}
             >
               <input
                 ref={inputRef}
@@ -143,7 +147,7 @@ export function DocenteCursoPage({ param: courseId }) {
           <Card as="section" aria-labelledby="docs-titulo">
             <h2 id="docs-titulo" className={styles.h2}>Apuntes del curso</h2>
             <p className={styles.sub}>
-              {documentos.length} documento{documentos.length === 1 ? '' : 's'} · {totalFragmentos} fragmentos que el tutor puede consultar.
+              {contar(documentos.length, 'documento')} · {contar(totalFragmentos, 'fragmento')} que el tutor puede consultar.
             </p>
             {errorBorrar && <p role="alert" className={styles.alerta}>{errorBorrar}</p>}
 
@@ -153,14 +157,14 @@ export function DocenteCursoPage({ param: courseId }) {
               )}
               <ul className={styles.rows}>
                 {documentos.map((d) => (
-                  <li key={d.doc_id} className={styles.row}>
+                  <li key={d.name} className={styles.row}>
                     <div className={styles.grow}>
-                      <b>{d.doc_id}</b>
-                      <small>{d.chunks} fragmentos</small>
+                      <b>{d.name}</b>
+                      <small>{contar(d.chunks, 'fragmento')}</small>
                     </div>
-                    {esMineduc(d.doc_id) && <Chip tone="accent">Bases Mineduc</Chip>}
-                    <Button size="sm" variant="warn" disabled={borrando === d.doc_id} onClick={() => borrar(d.doc_id)} aria-label={`Quitar ${d.doc_id}`}>
-                      {borrando === d.doc_id ? 'Quitando…' : 'Quitar'}
+                    {d.official && <Chip tone="accent">Bases Mineduc</Chip>}
+                    <Button size="sm" variant="warn" disabled={borrando === d.name} onClick={() => borrar(d.name)} aria-label={`Quitar ${d.name}`}>
+                      {borrando === d.name ? 'Quitando…' : 'Quitar'}
                     </Button>
                   </li>
                 ))}

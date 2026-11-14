@@ -31,6 +31,10 @@ function toProblem(err) {
   if (err instanceof DbUnavailableError) {
     return new HttpProblem(503, 'Base de datos no disponible', err.message, 'db-unavailable');
   }
+  // Express no pudo decodificar un parámetro de la URL ("%E0%A4%A"): es un error del cliente.
+  if (err instanceof URIError) {
+    return new HttpProblem(400, 'Solicitud inválida', 'La URL tiene caracteres mal codificados', 'invalid-request');
+  }
   if (err.type === 'entity.parse.failed') {
     return new HttpProblem(400, 'Solicitud inválida', 'El cuerpo no es JSON válido', 'invalid-json');
   }

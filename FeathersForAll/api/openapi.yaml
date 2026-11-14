@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FeathersForAll API
-  version: 1.2.0
+  version: 1.3.0
   summary: API pública del monolito modular de FeathersForAll.
   description: |
     Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
@@ -19,6 +19,9 @@ info:
     **Conversaciones del tutor (v1.2, ADR 0008):** el estudiante guarda sus conversaciones con el
     tutor IA por curso y las retoma en cualquier dispositivo. Solo las ve el propio estudiante (ni el
     docente ni el admin) y se borran al terminar el año escolar.
+
+    **Apuntes del tutor (v1.3):** el docente del curso y el admin del colegio suben, listan y quitan
+    los apuntes (PDF, TXT o Markdown) que usa el tutor IA de ese curso. El estudiante recibe `403`.
 
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
     (claim `tenant_id`) y el backend lo fija por transacción en PostgreSQL (RLS, ADR 0002 D1).
@@ -580,6 +583,123 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /courses/{courseId}/documents:
+    get:
+      tags: [Tutor IA]
+      summary: Apuntes del tutor en un curso
+      description: |
+        Documentos indexados para el tutor IA del curso, del más reciente al más antiguo, con cuántos fragmentos
+        tiene cada uno. `official = true` marca las Bases Curriculares del Mineduc (no las subió el docente).
+        Solo el docente del curso y el admin del colegio; el estudiante del curso recibe `403`.
+      operationId: listCourseDocuments
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Apuntes del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocumentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/documents/{documentName}:
+    put:
+      tags: [Tutor IA]
+      summary: Subir o reemplazar un apunte del tutor
+      description: |
+        Sube un archivo de apuntes como cuerpo binario (hasta 40 MB). El formato lo dice la extensión del nombre:
+        `.pdf`, `.txt` o `.md`. El servidor extrae el texto, lo parte en fragmentos y calcula sus embeddings antes
+        de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
+        eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
+
+        Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
+        que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
+        responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+      operationId: putCourseDocument
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/DocumentName'
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+          text/plain:
+            schema: { type: string, format: binary }
+          text/markdown:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Apunte reemplazado (ya existía uno con ese nombre).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocument'
+        '201':
+          description: Apunte creado e indexado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocument'
+              example: { name: "fracciones.pdf", chunks: 12, official: false, pages: 4 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags: [Tutor IA]
+      summary: Quitar un apunte del tutor
+      description: |
+        Borra el apunte y sus fragmentos: el tutor deja de usarlo de inmediato. Solo el docente del curso y el admin
+        del colegio. Si el apunte no existe en el curso responde `404`.
+      operationId: deleteCourseDocument
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/DocumentName'
+      responses:
+        '204':
+          description: Apunte borrado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /tutor-conversations/{conversationId}:
     get:
       tags: [Tutor IA]
@@ -653,6 +773,12 @@ components:
       required: true
       description: Identificador de la conversación con el tutor (UUID que genera el cliente).
       schema: { type: string, format: uuid }
+    DocumentName:
+      name: documentName
+      in: path
+      required: true
+      description: Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent.
+      schema: { type: string, minLength: 1, maxLength: 120 }
     AssessmentId:
       name: assessmentId
       in: path
@@ -1020,6 +1146,21 @@ components:
             messages:
               type: array
               items: { $ref: '#/components/schemas/TutorMessage' }
+    CourseDocument:
+      type: object
+      required: [name, chunks, official]
+      properties:
+        name: { type: string, example: "fracciones.pdf", description: "Nombre del apunte; identifica al documento dentro del curso." }
+        chunks: { type: integer, minimum: 0, description: "Fragmentos indexados que el tutor puede citar." }
+        official: { type: boolean, description: "Bases Curriculares del Mineduc (true) o apunte del docente (false)." }
+        pages: { type: integer, minimum: 1, description: "Solo al subir un PDF: páginas leídas." }
+    CourseDocumentList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CourseDocument' }
   responses:
     BadRequest:
       description: Solicitud mal formada (por ejemplo, falta Idempotency-Key).
@@ -1068,6 +1209,16 @@ components:
           $ref: '#/components/headers/Retry-After'
         X-RateLimit-Remaining:
           $ref: '#/components/headers/X-RateLimit-Remaining'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: El cuerpo supera el tamaño permitido (40 MB para un apunte).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: Formato de archivo no soportado.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

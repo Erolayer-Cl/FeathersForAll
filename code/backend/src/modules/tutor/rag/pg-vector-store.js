@@ -12,6 +12,7 @@
 //
 // Mapeo con el resto del RAG: tenantId = colegios.id, courseId = cursos.id, docId = apuntes_curso.titulo.
 import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError } from './errors.js';
+import { fold, isQueryNoise } from './relevance.js';
 
 export const EMBEDDING_DIM = 1024; // bge-m3; debe coincidir con vector(N) de 02_s06_ajustes.sql
 
@@ -19,14 +20,26 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const validRef = ({ tenantId, courseId }) => UUID.test(tenantId ?? '') && UUID.test(courseId ?? '');
 const toVector = (v) => `[${v.join(',')}]`;
 
+// Términos que, seguidos de un número, identifican algo del currículum o de un documento ("OA 3", "Decreto 97",
+// "unidad 2"). Solo con ellos se arma una frase: con cualquier palabra, PostgreSQL descartaría las que considera
+// vacías ("había", "ella") y la frase quedaría en el número solo, que calza con cualquier fragmento.
+const PHRASE_TERMS = new Set(['oa', 'oat', 'of', 'oaa', 'decreto', 'ley', 'unidad', 'capitulo', 'eje', 'objetivo', 'leccion', 'guia', 'ejercicio', 'problema', 'actividad', 'modulo', 'nivel', 'pagina', 'anexo', 'tema', 'clase', 'semana']);
+const MAX_TERMS = 12;
+
 /**
- * Pregunta del usuario -> consulta de texto completo "palabra | palabra | ..." (cualquiera de ellas).
+ * Pregunta del usuario -> consulta de texto completo: las palabras que dicen de qué trata la pregunta (sin las de
+ * pedir ayuda: "dame", "ejemplo", "qué"…; ver isQueryNoise) unidas con "|", más los términos curriculares seguidos
+ * de un número como frase exacta ("OA 3" -> oa <-> 3, "decreto 97" -> decreto <-> 97).
  * Solo letras y dígitos: nada de lo que escriba el usuario llega como sintaxis de to_tsquery.
  * Devuelve null si no queda ninguna palabra útil (entonces solo se busca por significado).
  */
 export function toTsQuery(text) {
-  const words = (text ?? '').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
-  const unique = [...new Set(words)].slice(0, 12);
+  const raw = (text ?? '').toLowerCase();
+  const words = (raw.match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter((w) => !isQueryNoise(w) && !/^\d+$/.test(w));
+  const phrases = [...raw.matchAll(/(?<![\p{L}\p{N}])(\p{L}{2,20})\s?(\d{1,4})(?![\p{L}\p{N}])/gu)]
+    .filter(([, w]) => PHRASE_TERMS.has(fold(w)))
+    .map(([, w, n]) => `${w} <-> ${n}`);
+  const unique = [...new Set([...words, ...phrases])].slice(0, MAX_TERMS);
   return unique.length ? unique.join(' | ') : null;
 }
 
@@ -71,6 +84,9 @@ export function createPgVectorStore({ db }) {
       return write({ tenantId }, actor, async (client) => {
         const course = await client.query('SELECT 1 FROM cursos WHERE id = $1', [courseId]);
         if (course.rowCount === 0) throw new CourseNotFoundError();
+        // Dos subidas del mismo nombre a la vez (doble clic, reintento del proxy): FOR UPDATE no bloquea una fila que
+        // aún no existe, así que sin este candado ambas harían INSERT y quedaría el apunte duplicado.
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`apunte:${courseId}:${docId}`]);
 
         const existing = await client.query(
           'SELECT id FROM apuntes_curso WHERE curso_id = $1 AND titulo = $2 FOR UPDATE',
@@ -99,7 +115,7 @@ export function createPgVectorStore({ db }) {
            FROM unnest($3::text[], $4::text[]) WITH ORDINALITY AS u(t, e, n)`,
           [courseId, apunteId, chunks.map((c) => c.text), chunks.map((c) => toVector(c.embedding))],
         );
-        return { apunteId };
+        return { apunteId, created: existing.rowCount === 0 };
       });
     },
 

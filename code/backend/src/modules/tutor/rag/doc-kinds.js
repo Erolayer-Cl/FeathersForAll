@@ -28,8 +28,12 @@ export const isReferenceDoc = (docId) => /^MINEDUC\b/i.test(docId ?? '');
  * Nivel de un curso a partir del campo `nivel` de la base ("7B", "2M", "7° Básico", "3° medio", "NT1"…).
  * @returns {{stage: 'basico' | 'medio' | 'parvularia', grade: number | null} | null}  null si no se reconoce
  */
+const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+
 export function parseLevel(nivel) {
-  const t = fold(nivel);
+  // "IV Medio", "III° medio", "VII básico": el número romano pasa a dígitos antes de leer el nivel.
+  // º y ª son letras para fold(): se quitan antes, igual que °, para que "IVº Medio" quede "iv medio".
+  const t = fold(String(nivel ?? '').replace(/[º°ª]/g, ' ')).replace(/\b(viii|vii|vi|iv|v|iii|ii|i)\s+(?=(b|m)(asico|edio)?\b)/, (_, r) => `${ROMAN[r]} `);
   if (!t) return null;
   if (/parvul|^nt ?[12]$|prekinder|kinder|sala cuna|medio (menor|mayor)|transicion/.test(t)) return { stage: 'parvularia', grade: null };
   const m = /(\d{1,2})\s*(?:ro|do|to|mo|vo|no|er|\u00ba|\u00b0)?\s*(b|m)(?:asico|edio)?\b/.exec(t) ?? /(\d{1,2})\s*(?:ro|do|to|mo|vo|no|er)?\s*(basico|medio)/.exec(t);
@@ -72,6 +76,9 @@ export function referenceAppliesToLevel(docId, nivel) {
 // la primera que calza, así "Educación Física" no se confunde con "Física" ni "Lengua y Cultura de los Pueblos
 // Originarios" con "Lengua".
 const SUBJECTS = [
+  // Nombres que contienen el de otra asignatura: van primero para que no los tome la otra.
+  ['ciencias', ['ciencias para la ciudadania']],
+  ['musica', ['artes musicales']],
   ['pueblos-originarios', ['pueblos originarios', 'mapudungun', 'aymara', 'quechua', 'rapa nui', 'kawesqar', 'lengua y cultura']],
   ['educacion-fisica', ['educacion fisica', 'ed fisica', 'deporte', 'salud']],
   ['educacion-ciudadana', ['educacion ciudadana', 'ciudadania', 'civica']],

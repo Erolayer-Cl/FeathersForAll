@@ -24,6 +24,10 @@ export type TutorConversationDetail = Schemas["TutorConversationDetail"];
 export type TutorMessage = Schemas["TutorMessage"];
 export type TutorMessageInput = Schemas["TutorMessageInput"];
 export type TutorSource = Schemas["TutorSource"];
+// v1.3.0 — apuntes del tutor por curso (docente y admin). La subida es PUT con el archivo como cuerpo binario:
+// usar fetch directo con el File del navegador (ver portalApi.js del frontend).
+export type CourseDocument = Schemas["CourseDocument"];
+export type CourseDocumentList = Schemas["CourseDocumentList"];
 
 export interface ClientOptions {
   /** Ej: "http://localhost:3000/v1" o el mock de Prism "http://127.0.0.1:4010" (sin /v1). */

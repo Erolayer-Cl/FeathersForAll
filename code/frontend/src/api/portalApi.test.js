@@ -1,6 +1,16 @@
 import { describe, expect, test } from 'vitest';
 import { ApiError } from './http.js';
-import { deleteTutorConversation, getCourses, getMyGrades, getTutorConversation, getTutorConversations, login } from './portalApi.js';
+import {
+  deleteCourseDocument,
+  deleteTutorConversation,
+  getCourseDocuments,
+  getCourses,
+  getMyGrades,
+  getTutorConversation,
+  getTutorConversations,
+  login,
+  uploadCourseFile,
+} from './portalApi.js';
 
 /** fetch falso: registra las llamadas y responde en orden. */
 function fakeFetch(...responses) {
@@ -97,5 +107,58 @@ describe('conversaciones del tutor (v1.2)', () => {
     const err = await getTutorConversation('t1', 'k1', { fetchImpl }).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err.status).toBe(404);
+  });
+});
+
+describe('apuntes del tutor por curso (v1.3)', () => {
+  test('lista los apuntes del curso con el token', async () => {
+    const { fetchImpl, calls } = fakeFetch({ body: { data: [{ name: 'a.md', chunks: 2, official: false }] } });
+    expect((await getCourseDocuments('t1', 'c1', { fetchImpl })).data[0].name).toBe('a.md');
+    expect(calls[0].url).toBe('/v1/courses/c1/documents');
+    expect(calls[0].init.headers.authorization).toBe('Bearer t1');
+  });
+
+  test('subir usa PUT con el nombre codificado, el archivo como cuerpo y el tipo según la extensión', async () => {
+    const { fetchImpl, calls } = fakeFetch({ status: 201, body: { name: 'Clase 1 · Ángulos.pdf', chunks: 3, official: false, pages: 2 } });
+    const file = new File(['%PDF-1.4'], 'Clase 1 · Ángulos.pdf');
+    expect((await uploadCourseFile('t1', 'c1', file, { fetchImpl })).pages).toBe(2);
+    expect(calls[0].init.method).toBe('PUT');
+    expect(calls[0].url).toBe(`/v1/courses/c1/documents/${encodeURIComponent('Clase 1 · Ángulos.pdf')}`);
+    expect(calls[0].init.headers['content-type']).toBe('application/pdf');
+    expect(calls[0].init.headers.authorization).toBe('Bearer t1');
+    expect(calls[0].init.body).toBe(file);
+  });
+
+  test('un .md se envía como text/markdown y un .txt como text/plain', async () => {
+    const { fetchImpl, calls } = fakeFetch({ status: 201, body: {} }, { status: 200, body: {} });
+    await uploadCourseFile('t', 'c', new File(['# A'], 'a.MD'), { fetchImpl });
+    await uploadCourseFile('t', 'c', new File(['a'], 'a.txt'), { fetchImpl });
+    expect(calls[0].init.headers['content-type']).toBe('text/markdown');
+    expect(calls[1].init.headers['content-type']).toBe('text/plain');
+  });
+
+  test('un error al subir (p. ej. 422 PDF escaneado) llega como ApiError con su detail', async () => {
+    const { fetchImpl } = fakeFetch({ status: 422, body: { status: 422, detail: 'El PDF no tiene texto seleccionable (parece un escaneo).' } });
+    const err = await uploadCourseFile('t', 'c', new File(['%PDF'], 'x.pdf'), { fetchImpl }).catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(422);
+    expect(err.message).toMatch(/escaneo/);
+  });
+
+  test('sin conexión al subir da ApiError con status 0', async () => {
+    const { fetchImpl } = fakeFetch(new TypeError('Failed to fetch'));
+    const err = await uploadCourseFile('t', 'c', new File(['a'], 'a.md'), { fetchImpl }).catch((e) => e);
+    expect(err.status).toBe(0);
+  });
+
+  test('quitar usa DELETE con el nombre codificado y un 204 devuelve null', async () => {
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+      calls.push({ url, init });
+      return new Response(null, { status: 204 });
+    };
+    expect(await deleteCourseDocument('t1', 'c1', 'MINEDUC · Matemática', { fetchImpl })).toBeNull();
+    expect(calls[0].url).toBe(`/v1/courses/c1/documents/${encodeURIComponent('MINEDUC · Matemática')}`);
+    expect(calls[0].init.method).toBe('DELETE');
   });
 });

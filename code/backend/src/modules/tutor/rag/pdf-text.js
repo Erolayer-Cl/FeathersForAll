@@ -20,6 +20,7 @@ export async function extractPdfPages(data) {
   try {
     const pdf = await unpdf.getDocumentProxy(new Uint8Array(data));
     ({ text: pages } = await unpdf.extractText(pdf, { mergePages: false }));
+    pages = pages.map((p) => p.replaceAll('\u0000', '')); // PostgreSQL no acepta NUL en un TEXT
   } catch (err) {
     throw new UnreadableDocumentError(`No se pudo leer el PDF (${err.message}). ¿Está dañado o protegido con contraseña?`);
   }

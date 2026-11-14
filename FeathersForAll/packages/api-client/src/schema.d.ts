@@ -330,6 +330,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{courseId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apuntes del tutor en un curso
+         * @description Documentos indexados para el tutor IA del curso, del más reciente al más antiguo, con cuántos fragmentos
+         *     tiene cada uno. `official = true` marca las Bases Curriculares del Mineduc (no las subió el docente).
+         *     Solo el docente del curso y el admin del colegio; el estudiante del curso recibe `403`.
+         */
+        get: operations["listCourseDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/documents/{documentName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Subir o reemplazar un apunte del tutor
+         * @description Sube un archivo de apuntes como cuerpo binario (hasta 40 MB). El formato lo dice la extensión del nombre:
+         *     `.pdf`, `.txt` o `.md`. El servidor extrae el texto, lo parte en fragmentos y calcula sus embeddings antes
+         *     de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
+         *     eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
+         *
+         *     Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
+         *     que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
+         *     responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+         */
+        put: operations["putCourseDocument"];
+        post?: never;
+        /**
+         * Quitar un apunte del tutor
+         * @description Borra el apunte y sus fragmentos: el tutor deja de usarlo de inmediato. Solo el docente del curso y el admin
+         *     del colegio. Si el apunte no existe en el curso responde `404`.
+         */
+        delete: operations["deleteCourseDocument"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tutor-conversations/{conversationId}": {
         parameters: {
             query?: never;
@@ -707,6 +761,22 @@ export interface components {
         TutorConversationDetail: components["schemas"]["TutorConversation"] & {
             messages: components["schemas"]["TutorMessage"][];
         };
+        CourseDocument: {
+            /**
+             * @description Nombre del apunte; identifica al documento dentro del curso.
+             * @example fracciones.pdf
+             */
+            name: string;
+            /** @description Fragmentos indexados que el tutor puede citar. */
+            chunks: number;
+            /** @description Bases Curriculares del Mineduc (true) o apunte del docente (false). */
+            official: boolean;
+            /** @description Solo al subir un PDF: páginas leídas. */
+            pages?: number;
+        };
+        CourseDocumentList: {
+            data: components["schemas"]["CourseDocument"][];
+        };
     };
     responses: {
         /** @description Solicitud mal formada (por ejemplo, falta Idempotency-Key). */
@@ -790,6 +860,24 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description El cuerpo supera el tamaño permitido (40 MB para un apunte). */
+        PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Formato de archivo no soportado. */
+        UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Un servicio del que depende la operación (por ejemplo, el proveedor LLM) no está disponible. */
         ServiceUnavailable: {
             headers: {
@@ -807,6 +895,8 @@ export interface components {
         CourseId: string;
         /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
         ConversationId: string;
+        /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+        DocumentName: string;
         /** @description Identificador de la evaluación. */
         AssessmentId: string;
         /** @description Cursor opaco devuelto en `next_cursor`. */
@@ -1326,6 +1416,121 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listCourseDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apuntes del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDocumentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putCourseDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+                documentName: components["parameters"]["DocumentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/pdf": string;
+                "text/plain": string;
+                "text/markdown": string;
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Apunte reemplazado (ya existía uno con ese nombre). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDocument"];
+                };
+            };
+            /** @description Apunte creado e indexado. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "name": "fracciones.pdf",
+                     *       "chunks": 12,
+                     *       "official": false,
+                     *       "pages": 4
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CourseDocument"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["ValidationError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteCourseDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+                documentName: components["parameters"]["DocumentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apunte borrado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getTutorConversation: {

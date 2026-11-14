@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.2.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.3.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
@@ -60,30 +60,38 @@ export function deleteTutorConversation(token, conversationId, opts) {
   return requestJson(`/v1/tutor-conversations/${encodeURIComponent(conversationId)}`, { method: 'DELETE', token, ...opts });
 }
 
-// --- Apuntes del curso para el RAG del tutor (solo docente del curso y administrador).
-// Rutas de desarrollo del backend (ENABLE_DEV_ROUTES): fuera del contrato OpenAPI.
+// --- Apuntes del tutor por curso (contrato v1.3: solo el docente del curso y el administrador).
 
 /** Tamaño máximo de un archivo de apuntes (igual que el límite del backend). */
 export const MAX_APUNTE_BYTES = 40 * 1024 * 1024;
 /** Extensiones que acepta la carga de apuntes. */
 export const APUNTE_EXTENSIONES = ['.pdf', '.txt', '.md'];
 
-/** GET /v1/dev/courses/{id}/documents → { documents: [{ doc_id, chunks }] } los apuntes indexados del curso. */
+const TIPO_POR_EXTENSION = { pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown' };
+const documentoPath = (courseId, name) =>
+  `/v1/courses/${encodeURIComponent(courseId)}/documents${name === undefined ? '' : `/${encodeURIComponent(name)}`}`;
+
+/** GET /v1/courses/{id}/documents → { data: [{ name, chunks, official }] } los apuntes indexados del curso. */
 export function getCourseDocuments(token, courseId, opts) {
-  return requestJson(`/v1/dev/courses/${encodeURIComponent(courseId)}/documents`, { token, ...opts });
+  return requestJson(documentoPath(courseId), { token, ...opts });
 }
 
 /**
- * POST /v1/dev/courses/{id}/files?name=… → { doc_id, chunks, pages? }
- * Sube un PDF, .txt o .md (cuerpo binario). Si ya existe uno con ese nombre, lo reemplaza.
+ * PUT /v1/courses/{id}/documents/{nombre} → { name, chunks, official, pages? } (201 nuevo, 200 reemplazado)
+ * Sube un PDF, .txt o .md como cuerpo binario; el formato lo dice la extensión del nombre.
  * Un PDF grande tarda: el servidor lo lee y calcula los embeddings antes de responder.
  */
 export async function uploadCourseFile(token, courseId, file, { signal, fetchImpl = fetch } = {}) {
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
   let res;
   try {
-    res = await fetchImpl(`${API_URL}/v1/dev/courses/${encodeURIComponent(courseId)}/files?name=${encodeURIComponent(file.name)}`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream', accept: 'application/json' },
+    res = await fetchImpl(`${API_URL}${documentoPath(courseId, file.name)}`, {
+      method: 'PUT',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': TIPO_POR_EXTENSION[ext] ?? 'application/octet-stream',
+        accept: 'application/json',
+      },
       body: file,
       signal,
     });
@@ -95,7 +103,7 @@ export async function uploadCourseFile(token, courseId, file, { signal, fetchImp
   return res.json();
 }
 
-/** DELETE /v1/dev/courses/{id}/documents/{docId} → null (204). El tutor deja de usar ese apunte. */
-export function deleteCourseDocument(token, courseId, docId, opts) {
-  return requestJson(`/v1/dev/courses/${encodeURIComponent(courseId)}/documents/${encodeURIComponent(docId)}`, { method: 'DELETE', token, ...opts });
+/** DELETE /v1/courses/{id}/documents/{nombre} → null (204). El tutor deja de usar ese apunte. */
+export function deleteCourseDocument(token, courseId, name, opts) {
+  return requestJson(documentoPath(courseId, name), { method: 'DELETE', token, ...opts });
 }

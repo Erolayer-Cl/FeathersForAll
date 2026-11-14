@@ -28,12 +28,22 @@ const STOPWORDS = new Set(`
   muy mas menos tambien tampoco ademas solo solamente todo toda todos todas algo alguno alguna algun
   hay ser soy eres somos son era fue sera esta estan estoy estas estamos estaba tiene tienen tengo tienes
   puedo puedes puede pueden podria podrias podemos hacer hace haces hago
-  quiero quieres quiere quisiera necesito necesita saber entender entiendo entendi aprender conocer
+  quiero quieres quiere quisiera necesito necesita saber entender entiendo entendi aprender conocer dice dicen
   explica explicame explicar explicas explicarme dime decir digo dame dar darme muestra muestrame mostrar
   ayuda ayudame ayudas ayudar favor porfa gracias hola
   ejemplo ejemplos significa significan concepto conceptos definicion definir tema temas materia clase
   pregunta respuesta resultado resultados cosa cosas vez veces
   the and`.split(/\s+/).filter(Boolean));
+
+/** ¿La palabra no dice de qué trata la pregunta? (artículos, interrogativos, "dame", "ejemplo"…) */
+export const isStopword = (word) => STOPWORDS.has(fold(word));
+
+// Palabras de la lista anterior que SÍ pueden ser el tema de una pregunta ("¿qué es la materia?" en Ciencias,
+// "la clase de los mamíferos"): no cuentan para la cobertura, pero la búsqueda por texto no las descarta.
+const TOPIC_WORDS = new Set(['materia', 'clase', 'clases', 'tema', 'temas', 'concepto', 'conceptos', 'definicion', 'resultado', 'resultados', 'pregunta', 'respuesta']);
+
+/** ¿La palabra sobra en la búsqueda por texto? Las de pedir ayuda ("dame", "ejemplo", "dice") sí; las de tema no. */
+export const isQueryNoise = (word) => isStopword(word) && !TOPIC_WORDS.has(fold(word));
 
 /** Raíz aproximada de una palabra: sin plural y recortada, para que "fracciones" calce con "fracción". */
 export function stem(word) {
@@ -93,7 +103,10 @@ export function expandMathQuery(query) {
  */
 export function isMathExpression(query) {
   const t = fold(query);
-  if (!/\d/.test(query ?? '')) return false;
+  // Tiene que haber una operación: "OA 3" o "unidad 2" tienen números, pero no son un cálculo. Y "OA 3-4" es un
+  // rango de objetivos, no una resta.
+  if (!/\d\s*[+\-−–x×*·/÷:^]\s*\d|√|\*\*/i.test(query ?? '')) return false;
+  if (/\b(oa|oat|of|unidad|unidades|eje|capitulo|guia|decreto)\s?\d/.test(t)) return false;
   return t.split(' ').every((token) => token.length < 3 || STOPWORDS.has(token) || /\d/.test(token));
 }
 
