@@ -200,6 +200,51 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - gitleaks: excepción acotada para el UUID de `Idempotency-Key` de `portalApi.test.js`.
   - Sigue siendo válido: las claves de laboratorio (`postgres:postgres`, `cambiar`, `demo1234`) son sintéticas y no deben llegar a producción.
 
+## Plan de acción (por rol y arquitectura)
+
+> Plan de arquitectura del 14-11-2026. Se actualiza al cerrar cada fase. ✅ hecho · 🔜 siguiente · ⬜ pendiente.
+
+### Qué puede hacer cada rol hoy
+
+| Rol | Ya puede | Le falta |
+|---|---|---|
+| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor | Libro de notas y resumen en pantalla (la API existe), «Mis estudiantes», «Reportes», cambiar exigencia y ponderación desde el portal |
+| **Estudiante** | Ver cursos y notas, rendir evaluaciones con nota y retroalimentación al instante, usar el tutor IA con historial | «Progreso», contenido del curso (`est-contenido`), columnas Examen/Final de «Mis notas» (no existen en la base) |
+| **Administrador** | Entrar y leer cursos y notas de su colegio por la API | Todo en el portal: gestión de usuarios (crear, desactivar, restablecer clave), vista de cursos, evaluaciones y reportes del colegio |
+
+### Fases
+
+1. ✅ **Cerrar lo abierto.** PR #16 revisado y mergeado (PR #17), login por rol, auditoría de secretos y logs.
+2. ✅ **Ciclo mínimo H1, H2, H4** (contrato v1.4.0) y **evaluaciones con IA y edición de borradores** (v1.5.0).
+3. 🔜 **Docente ve sus resultados (H3).** Casi todo frontend, sobre rutas que ya existen:
+   - «Mis estudiantes» y libro de notas del curso (`GET /v1/courses/{id}/gradebook`);
+   - resumen y estudiantes en riesgo (`GET .../grades/summary`);
+   - notas de un estudiante y cambio de exigencia y ponderación (`PATCH .../grading`).
+4. ⬜ **Administrador.** Gestión de usuarios (crear, desactivar, restablecer clave: hoy no hay cambio ni restablecimiento de contraseña), vista de cursos y evaluaciones del colegio. Pide contrato nuevo (`/users`) y probablemente un ADR (ciclo de vida de la cuenta).
+5. ⬜ **Estudiante: Progreso** (evolución de notas por ramo) y contenido del curso.
+6. ⬜ **Transversal.** Ver «Arquitectura: lo que falta» abajo.
+
+### Arquitectura: lo que falta
+
+| Tema | Estado | Qué hacer |
+|---|---|---|
+| Límite de solicitudes | Solo login e IA (en memoria, por pod) | Límite por usuario en el tutor y en los POST (el contrato declara 429); en producción, Redis o el Ingress |
+| Outbox y cola SQS | Decididos en ADR 0002 y 0004; existe la tabla `outbox_eventos`, no hay worker | Definir si se implementa o se corrige el ADR: hoy ningún flujo lo necesita |
+| Ciclo de vida de la cuenta | Sin cambio ni restablecimiento de clave ni cierre de sesión en el servidor (el JWT dura 8 h) | ADR + rutas; revocación de tokens |
+| Auditoría | Sin registro de quién subió apuntes, publicó o cambió una exigencia (R-1 del threat model) | Tabla de auditoría escrita por la API |
+| Métricas | El NFR promete 99,5 % y p95 < 500 ms, pero no se mide | Endpoint de métricas y paneles |
+| Migraciones | El esquema son archivos SQL aplicados en orden (`01`–`06`) | Herramienta de migraciones antes de tener datos reales |
+| PDF y hilo principal | Un PDF grande frena a los demás (D-1) | Worker thread o cola |
+| Búsqueda por texto | `to_tsvector` fila por fila, sin índice GIN | Índice GIN |
+| Documentos | `atributos-calidad.md` aún dice «HTML/JS» como frontend | Actualizar |
+
+### Decisiones que son del equipo (no se pueden cerrar desde código)
+
+- **Mineduc en el RAG:** ADR con el diseño (corpus compartido de solo lectura, sin `colegio_id`, o copia por curso como hoy) y que Ignacio valide la fuente antes de cargar ningún PDF.
+- **Repo gitops:** replicar en `base/` el ConfigMap sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`, el Ingress `feathersforall-cursos` y `networkpolicy.yaml`; aplicar la migración `06` en bases existentes.
+- **Calidad de las preguntas con IA:** que un docente revise las generadas con el modelo real (`qwen2.5:3b`).
+- **Propuestas de la auditoría de rendimiento (P1–P8)** de la sección siguiente.
+
 ## Pendientes y deuda conocida
 
 - En `main` hay cambios sin commitear de antes de la etapa 1:
