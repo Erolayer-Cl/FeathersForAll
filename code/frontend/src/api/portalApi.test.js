@@ -175,7 +175,7 @@ describe('apuntes del tutor por curso (v1.3)', () => {
 });
 
 describe('ciclo mínimo (v1.4)', () => {
-  const KEY = '3b1f7c1e-2a4d-4c1b-9d7e-0c5a1e2f3a4b';
+  const KEY = crypto.randomUUID(); // UUID de prueba generado en cada corrida
 
   test('los POST envían la Idempotency-Key y el cuerpo JSON', async () => {
     const { fetchImpl, calls } = fakeFetch({ status: 201, body: { id: 'c1' } }, { status: 201, body: {} }, { status: 201, body: {} }, { status: 201, body: {} });
