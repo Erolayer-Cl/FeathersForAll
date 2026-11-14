@@ -3,6 +3,9 @@ import { ApiError } from './http.js';
 import {
   createAssessment,
   createCourse,
+  deleteAssessment,
+  generateAssessment,
+  updateAssessment,
   deleteCourseDocument,
   enrollStudent,
   getAssessment,
@@ -209,5 +212,26 @@ describe('ciclo mínimo (v1.4)', () => {
     const b = await setAssessmentStatus('t', 'e1', 'published', { fetchImpl }).catch((e) => e);
     expect([a.status, a.message]).toEqual([409, 'Ya rendiste esta evaluación.']);
     expect(b.status).toBe(422);
+  });
+});
+
+describe('evaluaciones con IA y borradores (v1.5)', () => {
+  test('generar es un POST sin Idempotency-Key (no crea nada); editar es PUT y borrar es DELETE', async () => {
+    const calls = [];
+    const fetchImpl = async (url, init) => { calls.push({ url, init }); return init.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify({ title: 'T', questions: [], source: 'tema', sources: [] }), { status: 200, headers: { 'content-type': 'application/json' } }); };
+    await generateAssessment('t', 'c1', { topic: 'Fracciones', questions_count: 3, use_notes: false }, { fetchImpl });
+    await updateAssessment('t', 'e1', { title: 'Nuevo', questions: [] }, { fetchImpl });
+    expect(await deleteAssessment('t', 'e1', { fetchImpl })).toBeNull();
+    expect(calls.map((c) => [c.init.method, c.url])).toEqual([['POST', '/v1/courses/c1/assessments/generate'], ['PUT', '/v1/assessments/e1'], ['DELETE', '/v1/assessments/e1']]);
+    expect(calls[0].init.headers['idempotency-key']).toBeUndefined();
+    expect(JSON.parse(calls[0].init.body)).toEqual({ topic: 'Fracciones', questions_count: 3, use_notes: false });
+  });
+
+  test('los errores de la IA (422 sin apuntes, 429 tope, 502 modelo) llegan con su mensaje', async () => {
+    for (const [status, detail] of [[422, 'No encontré apuntes del curso sobre ese tema.'], [429, 'Espera 10 min antes de generar otra evaluación'], [502, 'El modelo no devolvió preguntas utilizables.']]) {
+      const { fetchImpl } = fakeFetch({ status, body: { status, detail } });
+      const err = await generateAssessment('t', 'c1', { topic: 'x y z' }, { fetchImpl }).catch((e) => e);
+      expect([err.status, err.message]).toEqual([status, detail]);
+    }
   });
 });

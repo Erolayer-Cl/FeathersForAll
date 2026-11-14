@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { getAssessment, getAssessmentResults, setAssessmentStatus } from '../../../api/portalApi.js';
+import { deleteAssessment, getAssessment, getAssessmentResults, setAssessmentStatus } from '../../../api/portalApi.js';
 import { Button, Card, Chip, EmptyState, FormMessage, Kpi, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
+import { usePortalRoute } from '../../router/usePortalRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { estadoEvaluacion } from '../../utils/evaluaciones.js';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
@@ -73,6 +74,7 @@ function Resultados({ assessmentId, preguntas }) {
 /** Docente · Evaluación (doc-evaluacion/<id>): preguntas con su correcta, publicar o cerrar (H2) y resultados (H3). */
 export function DocenteEvaluacionPage({ param: assessmentId }) {
   const { token, expire } = useSession();
+  const { navigate } = usePortalRoute();
   const { data: ev, loading, error, reload } = useApiData((t, opts) => getAssessment(t, assessmentId, opts), assessmentId);
   const [cambiando, setCambiando] = useState(false);
   const [problema, setProblema] = useState(null);
@@ -95,6 +97,20 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
     }
   }
 
+  async function eliminar() {
+    if (!window.confirm('¿Eliminar este borrador? Se borran sus preguntas y no se puede deshacer.')) return;
+    setCambiando(true);
+    setProblema(null);
+    try {
+      await deleteAssessment(token, assessmentId);
+      navigate('doc-curso', ev.course_id);
+    } catch (err) {
+      if (err.status === 401) expire();
+      else setProblema(err.message);
+      setCambiando(false);
+    }
+  }
+
   const estado = estadoEvaluacion(ev?.status);
   return (
     <>
@@ -107,6 +123,8 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
             <PageHead title={ev.title} subtitle={ev.published_at ? `Publicada el ${formatFecha(ev.published_at)}` : 'Aún no está publicada: los estudiantes no la ven.'}>
               <Chip tone={estado.tone}>{estado.label}</Chip>
               {ev.status === 'draft' && <Button disabled={cambiando} onClick={() => cambiarEstado('published')}>{cambiando ? 'Publicando…' : 'Publicar'}</Button>}
+              {ev.status === 'draft' && <Button variant="soft" href={`#/portal/doc-evaluacion-editar/${encodeURIComponent(assessmentId)}`}>Editar</Button>}
+              {ev.status === 'draft' && <Button variant="warn" disabled={cambiando} onClick={eliminar}>Eliminar borrador</Button>}
               {ev.status === 'published' && <Button variant="warn" disabled={cambiando} onClick={() => cambiarEstado('closed')}>{cambiando ? 'Cerrando…' : 'Cerrar evaluación'}</Button>}
               <Button variant="ghost" href={`#/portal/doc-curso/${encodeURIComponent(ev.course_id)}`}>Volver al curso</Button>
             </PageHead>

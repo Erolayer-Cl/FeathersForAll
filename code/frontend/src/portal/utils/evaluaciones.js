@@ -19,7 +19,27 @@ let contador = 0;
 const nuevaClave = () => `q${(contador += 1)}`;
 
 export const preguntaVacia = () => ({ key: nuevaClave(), statement: '', options: ['', ''], correct: null, feedback: '' });
-export const borradorVacio = () => ({ title: '', questions: [preguntaVacia()] });
+export const borradorVacio = () => ({ title: '', closesAt: '', questions: [preguntaVacia()] });
+
+const preguntaDesdeApi = (q) => ({ key: nuevaClave(), statement: q.statement, options: [...q.options], correct: q.correct_option ?? null, feedback: q.feedback ?? '' });
+
+/** ISO 8601 -> valor de <input type="datetime-local"> en hora local ("2026-11-20T18:30"). */
+export function isoALocal(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dos = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`;
+}
+
+/** Evaluación de la API (docente) -> borrador editable. */
+export const borradorDesdeApi = (ev) => ({ title: ev.title, closesAt: isoALocal(ev.closes_at), questions: ev.questions.map(preguntaDesdeApi) });
+
+/** Lo que propuso la IA -> borrador editable (sin cierre: eso lo decide el docente). */
+export const borradorDesdeIa = (gen) => ({ title: gen.title, closesAt: '', questions: gen.questions.map(preguntaDesdeApi) });
+
+/** ¿El borrador ya tiene algo escrito? (para avisar antes de que la IA lo reemplace) */
+export const borradorTieneTexto = (draft) => draft.title.trim() !== '' || draft.questions.some((q) => q.statement.trim() !== '' || q.options.some((o) => o.trim() !== ''));
 
 /** Opciones con texto, conservando su posición (la alternativa correcta es un índice). */
 const conTexto = (q) => q.options.map((o) => o.trim());
@@ -33,6 +53,7 @@ export function revisarBorrador(draft) {
   const avisos = [];
   if (draft.title.trim().length < 3) errores.push('Escribe un título de al menos 3 caracteres.');
   if (draft.questions.length === 0) errores.push('Agrega al menos una pregunta.');
+  if (draft.closesAt && !(new Date(draft.closesAt).getTime() > Date.now())) errores.push('La fecha de cierre debe ser futura.');
   draft.questions.forEach((q, i) => {
     const n = i + 1;
     if (q.statement.trim().length < 3) errores.push(`Pregunta ${n}: escribe el enunciado (mínimo 3 caracteres).`);
@@ -48,6 +69,7 @@ export function revisarBorrador(draft) {
 export function borradorACuerpo(draft) {
   return {
     title: draft.title.trim(),
+    ...(draft.closesAt && { closes_at: new Date(draft.closesAt).toISOString() }),
     questions: draft.questions.map((q) => ({
       statement: q.statement.trim(),
       options: conTexto(q),

@@ -193,6 +193,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{courseId}/assessments/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proponer una evaluación con IA
+         * @description Genera con IA un **borrador propuesto** de evaluación a partir de un tema y, por defecto, de los apuntes del
+         *     curso (solo los de ese curso y colegio). No guarda nada: el docente lo revisa, lo edita y lo guarda con
+         *     `createAssessment`. La IA puede equivocarse: la alternativa correcta y la retroalimentación deben revisarse.
+         *
+         *     Con `use_notes = true` (por defecto) y sin apuntes sobre el tema responde `422`; con `false` genera solo del tema.
+         *     Si el modelo no devuelve preguntas utilizables responde `502`, y si el servicio no está disponible, `503`.
+         *     Cada usuario tiene un tope de generaciones por ventana de tiempo (`429` con `Retry-After`).
+         *     Solo el docente del curso y el admin.
+         */
+        post: operations["generateAssessment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assessments/{assessmentId}": {
         parameters: {
             query?: never;
@@ -207,9 +234,19 @@ export interface paths {
          *     ni `feedback` (la retroalimentación llega al entregar). Un borrador no existe para el estudiante (404).
          */
         get: operations["getAssessment"];
-        put?: never;
+        /**
+         * Editar un borrador
+         * @description Reemplaza el título, el cierre y las preguntas de una evaluación **en borrador** (incluido uno generado con IA).
+         *     Una evaluación publicada o cerrada ya tiene entregas y notas: no se edita (`409`). Es `PUT` porque repetirlo
+         *     deja el mismo resultado. Solo el docente del curso y el admin.
+         */
+        put: operations["updateAssessment"];
         post?: never;
-        delete?: never;
+        /**
+         * Borrar un borrador
+         * @description Borra una evaluación en borrador con sus preguntas. Una publicada o cerrada no se borra (`409`). Solo el docente del curso y el admin.
+         */
+        delete: operations["deleteAssessment"];
         options?: never;
         head?: never;
         /**
@@ -875,6 +912,35 @@ export interface components {
             /** Format: date-time */
             closes_at?: string | null;
         };
+        GenerateAssessmentInput: {
+            /** @example Fracciones: suma con igual denominador */
+            topic: string;
+            /** @default 5 */
+            questions_count: number;
+            /**
+             * @description Alternativas por pregunta.
+             * @default 4
+             */
+            options_count: number;
+            /**
+             * @description Basar las preguntas en los apuntes del curso.
+             * @default true
+             */
+            use_notes: boolean;
+        };
+        GeneratedAssessment: {
+            title: string;
+            questions: components["schemas"]["QuestionInput"][];
+            /**
+             * @description De dónde salieron las preguntas.
+             * @enum {string}
+             */
+            source: "apuntes" | "tema";
+            /** @description Apuntes usados (nombres de documento). */
+            sources?: string[];
+            /** @description Cuántas se pidieron; pueden llegar menos si el modelo falló en alguna. */
+            requested_questions?: number;
+        };
         AssessmentStatusInput: {
             /** @enum {string} */
             status: "published" | "closed";
@@ -1130,6 +1196,15 @@ export interface components {
         };
         /** @description Formato de archivo no soportado. */
         UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Un servicio del que depende la operación respondió algo inutilizable (por ejemplo, el modelo de IA). */
+        BadGateway: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1502,6 +1577,42 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    generateAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateAssessmentInput"];
+            };
+        };
+        responses: {
+            /** @description Borrador propuesto (sin guardar). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedAssessment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+            502: components["responses"]["BadGateway"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
     getAssessment: {
         parameters: {
             query?: never;
@@ -1528,6 +1639,66 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    updateAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentInput"];
+            };
+        };
+        responses: {
+            /** @description Borrador actualizado. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assessment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Borrador borrado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updateAssessmentStatus: {

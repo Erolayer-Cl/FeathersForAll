@@ -3,7 +3,9 @@ import { HttpProblem } from '../../platform/problem.js';
 import { withIdempotency } from '../../platform/idempotency.js';
 import { invalid, uuidParam } from '../../platform/validation.js';
 import { cursoVisible, esStaffDelCurso } from '../cursos/acceso-curso.js';
+import { createLoginLimiter } from '../../platform/login-limiter.js';
 import * as Q from '../../../db/queries.js';
+import { armarPrompt, leerBorradorIa, leerPedidoIa } from './generar-ia.js';
 
 const MAX_PREGUNTAS = 100;
 const MAX_ENUNCIADO = 1000;
@@ -107,7 +109,7 @@ async function evaluacionParaEstudiante(c, ev) {
  * Los POST llevan Idempotency-Key (platform/idempotency.js). Lo que el estudiante nunca recibe: la alternativa
  * correcta antes de rendir ni las retroalimentaciones de una evaluación que no ha entregado.
  */
-export function createEvaluacionesRouter({ db }) {
+export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = createLoginLimiter({ maxFailures: 10, windowMs: 10 * 60_000 }) }) {
   const router = Router();
   const read = (user, fn) => db.withUser(user, fn, { readOnly: true });
 
@@ -128,15 +130,60 @@ export function createEvaluacionesRouter({ db }) {
         const curso = await cursoVisible(c, req.user, courseId);
         if (!esStaffDelCurso(req.user, curso)) throw forbidden('Solo el docente del curso o el administrador crean evaluaciones');
         const { id } = (await c.query(Q.CREAR_EVALUACION, [courseId, input.title, input.closesAt])).rows[0];
-        for (const [i, q] of input.questions.entries()) {
-          const pregunta = (await c.query(Q.CREAR_PREGUNTA, [id, q.statement, i + 1, q.feedback])).rows[0];
-          for (const [j, texto] of q.options.entries()) {
-            await c.query(Q.CREAR_ALTERNATIVA, [pregunta.id, texto, j === q.correct, j]);
-          }
-        }
+        await escribirPreguntas(c, id, input.questions);
         const ev = await cargarEvaluacion(c, id);
         return { status: 201, body: await evaluacionParaDocente(c, ev) };
       },
+    });
+  });
+
+  // H2 · Generar un BORRADOR con IA a partir de un tema y, si se quiere, de los apuntes del curso. No guarda nada:
+  // el docente revisa y edita lo propuesto y lo guarda con POST /assessments (o lo descarta).
+  router.post('/v1/courses/:courseId/assessments/generate', async (req, res) => {
+    const courseId = uuidParam(req.params.courseId, 'courseId');
+    const pedido = leerPedidoIa(req.body);
+    if (pedido.error) throw invalid(pedido.error);
+    if (!llm) throw new HttpProblem(503, 'Generador no disponible', 'La generación con IA no está configurada en este servidor', 'llm-unavailable');
+
+    await read(req.user, async (c) => {
+      const curso = await cursoVisible(c, req.user, courseId);
+      if (!esStaffDelCurso(req.user, curso)) throw forbidden('Solo el docente del curso o el administrador generan evaluaciones');
+    });
+
+    // Cada generación cuesta tiempo de modelo: tope por usuario (el contrato declara 429).
+    const clave = `ia|${req.user.id}`;
+    const espera = aiLimiter.retryAfterSeconds(clave);
+    if (espera > 0) {
+      res.set('Retry-After', String(espera));
+      throw new HttpProblem(429, 'Demasiadas generaciones', `Espera ${Math.ceil(espera / 60)} min antes de generar otra evaluación`, 'too-many-requests');
+    }
+    aiLimiter.recordFailure(clave);
+
+    // Apuntes del curso (solo del colegio del token: el RAG filtra por tenant y curso).
+    let notes = '';
+    let sources = [];
+    if (pedido.useNotes) {
+      if (!rag) throw new HttpProblem(422, 'Sin apuntes', 'Este servidor no tiene el buscador de apuntes: genera con "use_notes": false', 'validation-error');
+      const { hits } = await rag.retrieve({ tenantId: req.user.colegioId ?? tenantId, courseId, query: pedido.topic });
+      const propios = hits.filter((h) => !h.reference);
+      if (propios.length === 0) {
+        throw new HttpProblem(422, 'Sin apuntes sobre ese tema', 'No encontré apuntes del curso sobre ese tema: sube el material o genera sin usar los apuntes', 'validation-error');
+      }
+      notes = propios.map((h) => h.text).join('\n\n---\n\n');
+      sources = [...new Set(propios.map((h) => h.doc_id))];
+    }
+
+    let salida = '';
+    for await (const trozo of llm.chat(armarPrompt({ ...pedido, notes }), { temperature: 0.3 })) salida += trozo;
+    const borrador = leerBorradorIa(salida, pedido);
+    if (!borrador) throw new HttpProblem(502, 'Respuesta inválida del generador', 'El modelo no devolvió preguntas utilizables: vuelve a intentarlo o escribe la evaluación a mano', 'bad-gateway');
+
+    res.json({
+      title: borrador.title || `Evaluación de ${pedido.topic}`.slice(0, 150),
+      questions: borrador.questions,
+      source: pedido.useNotes ? 'apuntes' : 'tema',
+      sources,
+      requested_questions: pedido.count,
     });
   });
 
@@ -183,6 +230,35 @@ export function createEvaluacionesRouter({ db }) {
       return evaluacionParaEstudiante(c, ev);
     });
     res.json(body);
+  });
+
+  // H2 · Editar un BORRADOR (también uno generado con IA): reemplaza título, cierre y preguntas. Solo borradores.
+  router.put('/v1/assessments/:assessmentId', async (req, res) => {
+    const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
+    const input = leerEvaluacion(req.body);
+    const body = await db.withUser(req.user, async (c) => {
+      const ev = await cargarEvaluacion(c, assessmentId);
+      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador editan evaluaciones');
+      if (ev.estado !== 'borrador') throw conflict('Solo se puede editar una evaluación en borrador: esta ya fue publicada');
+      const ok = (await c.query(Q.ACTUALIZAR_BORRADOR, [assessmentId, input.title, input.closesAt])).rows[0];
+      if (!ok) throw conflict('La evaluación ya no está en borrador');
+      await c.query(Q.BORRAR_PREGUNTAS, [assessmentId]);
+      await escribirPreguntas(c, assessmentId, input.questions);
+      return evaluacionParaDocente(c, await cargarEvaluacion(c, assessmentId));
+    });
+    res.json(body);
+  });
+
+  // Borrar un borrador. Una evaluación publicada o cerrada tiene entregas y notas: no se borra.
+  router.delete('/v1/assessments/:assessmentId', async (req, res) => {
+    const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
+    await db.withUser(req.user, async (c) => {
+      const ev = await cargarEvaluacion(c, assessmentId);
+      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador borran evaluaciones');
+      if (ev.estado !== 'borrador') throw conflict('Solo se puede borrar una evaluación en borrador: las publicadas tienen entregas y notas');
+      if (!(await c.query(Q.BORRAR_BORRADOR, [assessmentId])).rows[0]) throw conflict('La evaluación ya no está en borrador');
+    });
+    res.status(204).end();
   });
 
   // H2 · Publicar o cerrar. No se publica si alguna pregunta no tiene alternativa correcta (422, con cuáles).
@@ -265,6 +341,16 @@ export function createEvaluacionesRouter({ db }) {
   });
 
   return router;
+}
+
+/** Crea las preguntas y alternativas de una evaluación (en la transacción de quien llama). */
+async function escribirPreguntas(c, evaluacionId, questions) {
+  for (const [i, q] of questions.entries()) {
+    const pregunta = (await c.query(Q.CREAR_PREGUNTA, [evaluacionId, q.statement, i + 1, q.feedback])).rows[0];
+    for (const [j, texto] of q.options.entries()) {
+      await c.query(Q.CREAR_ALTERNATIVA, [pregunta.id, texto, j === q.correct, j]);
+    }
+  }
 }
 
 /** Cuerpo de submissions (schema SubmissionInput) -> [{ question_id, selected_option }], o 400. */

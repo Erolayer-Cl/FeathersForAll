@@ -11,6 +11,7 @@ import { DocenteCursosPage } from './docente/CursosPage.jsx';
 import { DocenteCursoPage } from './docente/CursoPage.jsx';
 import { DocenteCursoNuevoPage } from './docente/CursoNuevoPage.jsx';
 import { DocenteEvaluacionesPage } from './docente/EvaluacionesPage.jsx';
+import { DocenteEvaluacionEditarPage } from './docente/EvaluacionEditarPage.jsx';
 import { DocenteEvaluacionNuevaPage } from './docente/EvaluacionNuevaPage.jsx';
 import { DocenteEvaluacionPage } from './docente/EvaluacionPage.jsx';
 import { EvaluacionPage } from './estudiante/EvaluacionPage.jsx';
@@ -32,6 +33,7 @@ export const PAGES = {
   'doc-evaluaciones': DocenteEvaluacionesPage,
   'doc-evaluacion-nueva': DocenteEvaluacionNuevaPage,
   'doc-evaluacion': DocenteEvaluacionPage,
+  'doc-evaluacion-editar': DocenteEvaluacionEditarPage,
   'est-evaluacion': EvaluacionPage,
   'est-config': () => <SettingsPage role="est" />,
   'doc-config': () => <SettingsPage role="doc" />,

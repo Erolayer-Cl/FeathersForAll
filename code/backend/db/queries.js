@@ -177,6 +177,19 @@ RETURNING id`;
 
 // La BD garantiza "como máximo una correcta"; "al menos una" lo valida la API
 // antes de publicar: si esto devuelve filas -> 422.
+// Editar un borrador: cambia el título y el cierre, y se vuelven a crear las preguntas (las alternativas caen en cascada).
+export const ACTUALIZAR_BORRADOR = `
+UPDATE evaluaciones SET titulo = $2, fecha_cierre = $3
+WHERE id = $1 AND estado = 'borrador'
+RETURNING id`;
+
+export const BORRAR_PREGUNTAS = `
+DELETE FROM preguntas WHERE evaluacion_id = $1`;
+
+export const BORRAR_BORRADOR = `
+DELETE FROM evaluaciones WHERE id = $1 AND estado = 'borrador'
+RETURNING id`;
+
 export const PREGUNTAS_SIN_CORRECTA = `
 SELECT p.id, p.orden
 FROM preguntas p

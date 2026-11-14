@@ -27,7 +27,7 @@ export async function toApiError(res) {
  * Petición JSON al backend.
  * @param {string} path  ruta desde la raíz de la API (p. ej. '/v1/me')
  * @param {object} [opts]
- * @param {'GET'|'POST'|'PATCH'|'DELETE'} [opts.method]
+ * @param {'GET'|'POST'|'PUT'|'PATCH'|'DELETE'} [opts.method]
  * @param {string} [opts.token]   JWT de la sesión (Authorization: Bearer)
  * @param {string} [opts.idempotencyKey]  UUID de la operación (POST que crean recursos): repetirla no duplica nada
  * @param {unknown} [opts.body]   se envía como JSON

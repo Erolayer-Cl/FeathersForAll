@@ -67,3 +67,5 @@ export type SubmissionInput = Schemas["SubmissionInput"];
 export type Gradebook = Schemas["Gradebook"];
 export type GradesSummary = Schemas["GradesSummary"];
 export type StudentCourseGrades = Schemas["StudentCourseGrades"];
+export type GenerateAssessmentInput = Schemas["GenerateAssessmentInput"];
+export type GeneratedAssessment = Schemas["GeneratedAssessment"];

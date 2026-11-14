@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  borradorACuerpo, borradorVacio, estadoEvaluacion, periodosDisponibles, preguntaVacia, quitarOpcion, respuestasACuerpo, revisarBorrador, sinResponder,
+  borradorACuerpo, borradorDesdeApi, borradorDesdeIa, borradorTieneTexto, borradorVacio, isoALocal, estadoEvaluacion, periodosDisponibles, preguntaVacia, quitarOpcion, respuestasACuerpo, revisarBorrador, sinResponder,
 } from './evaluaciones.js';
 
 const pregunta = (extra = {}) => ({ ...preguntaVacia(), statement: '¿Cuánto es 3/4 + 1/4?', options: ['1/2', '1', '4/8'], correct: 1, feedback: 'Es 1.', ...extra });
@@ -86,5 +86,45 @@ describe('período del curso', () => {
   it('ofrece los semestres de este año y el siguiente, y propone el actual', () => {
     expect(periodosDisponibles(new Date(2026, 2, 10))).toEqual({ lista: ['2026-S1', '2026-S2', '2027-S1', '2027-S2'], porDefecto: '2026-S1' });
     expect(periodosDisponibles(new Date(2026, 10, 14)).porDefecto).toBe('2026-S2');
+  });
+});
+
+describe('cierre y borradores que vienen de la API o de la IA', () => {
+  const mañana = () => { const d = new Date(Date.now() + 86_400_000); d.setSeconds(0, 0); return d; };
+
+  it('isoALocal da el valor de datetime-local en hora local y aguanta vacío o basura', () => {
+    const d = mañana();
+    const local = isoALocal(d.toISOString());
+    expect(local).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    expect(new Date(local).getTime()).toBe(d.getTime());
+    expect(isoALocal(null)).toBe('');
+    expect(isoALocal('basura')).toBe('');
+  });
+
+  it('el cierre viaja como ISO solo si se puso; uno pasado es un error', () => {
+    const d = mañana();
+    const base = { title: 'Prueba', questions: [pregunta()] };
+    expect(borradorACuerpo({ ...base, closesAt: isoALocal(d.toISOString()) }).closes_at).toBe(d.toISOString());
+    expect(borradorACuerpo({ ...base, closesAt: '' })).not.toHaveProperty('closes_at');
+    expect(revisarBorrador({ ...base, closesAt: '2020-01-01T10:00' }).errores).toContain('La fecha de cierre debe ser futura.');
+    expect(revisarBorrador({ ...base, closesAt: '' }).errores).toEqual([]);
+  });
+
+  it('una evaluación de la API pasa a borrador editable, con la correcta y sin perder el orden', () => {
+    const b = borradorDesdeApi({ title: 'T', closes_at: null, questions: [{ id: 'q1', statement: '¿A?', options: ['x', 'y'], correct_option: 1, feedback: 'f' }, { id: 'q2', statement: '¿B?', options: ['m', 'n'], correct_option: null }] });
+    expect(b.questions.map((q) => [q.statement, q.options, q.correct, q.feedback])).toEqual([['¿A?', ['x', 'y'], 1, 'f'], ['¿B?', ['m', 'n'], null, '']]);
+    expect(b.questions[0].key).not.toBe(b.questions[1].key);
+  });
+
+  it('lo que propone la IA llega editable y sin fecha de cierre', () => {
+    const b = borradorDesdeIa({ title: 'Fracciones', questions: [{ statement: '¿A?', options: ['x', 'y'], correct_option: 0, feedback: '' }] });
+    expect(b).toMatchObject({ title: 'Fracciones', closesAt: '' });
+    expect(revisarBorrador(b).errores).toEqual([]);
+  });
+
+  it('detecta si el formulario ya tiene algo escrito (para avisar antes de que la IA lo reemplace)', () => {
+    expect(borradorTieneTexto(borradorVacio())).toBe(false);
+    expect(borradorTieneTexto({ ...borradorVacio(), title: 'x' })).toBe(true);
+    expect(borradorTieneTexto({ title: '', closesAt: '', questions: [pregunta()] })).toBe(true);
   });
 });

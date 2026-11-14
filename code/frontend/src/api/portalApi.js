@@ -156,6 +156,21 @@ export function getAssessmentResults(token, assessmentId, opts) {
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/results`, { token, ...opts });
 }
 
+/** POST /v1/courses/{id}/assessments/generate → borrador propuesto por la IA { title, questions, source, sources } (NO guarda nada). */
+export function generateAssessment(token, courseId, input, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/assessments/generate`, { method: 'POST', token, body: input, ...opts });
+}
+
+/** PUT /v1/assessments/{id} → el borrador con sus preguntas reemplazadas. 409 si ya está publicado. */
+export function updateAssessment(token, assessmentId, input, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'PUT', token, body: input, ...opts });
+}
+
+/** DELETE /v1/assessments/{id} → null (204). Solo borradores. */
+export function deleteAssessment(token, assessmentId, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'DELETE', token, ...opts });
+}
+
 /** POST /v1/assessments/{id}/submissions → { score, max_score, percentage, grade, answers: [{ question_id, correct, feedback }] }. 409 si ya la rindió. */
 export function submitAssessment(token, assessmentId, answers, idempotencyKey, opts) {
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/submissions`, {

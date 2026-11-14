@@ -29,6 +29,7 @@ export const PORTAL_ROUTES = [
   { id: 'doc-curso-nuevo', title: 'Nuevo curso', group: 'Docente', role: 'doc', nav: 'cursos' },
   { id: 'doc-curso', title: 'Curso (resumen y contenidos)', group: 'Docente', role: 'doc', nav: 'cursos', detail: true },
   { id: 'doc-evaluacion-nueva', title: 'Nueva evaluación', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
+  { id: 'doc-evaluacion-editar', title: 'Editar borrador', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
   { id: 'doc-evaluacion', title: 'Evaluación (preguntas y resultados)', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
   { id: 'doc-estudiantes', title: 'Mis estudiantes', group: 'Docente', role: 'doc', nav: 'estudiantes' },
   { id: 'doc-evaluaciones', title: 'Evaluaciones', group: 'Docente', role: 'doc', nav: 'evaluaciones' },
