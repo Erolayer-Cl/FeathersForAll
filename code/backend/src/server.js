@@ -1,4 +1,4 @@
-import pino from 'pino';
+import { createLogger } from './platform/logger.js';
 import { createApp } from './app.js';
 import { createOllamaClient } from './modules/tutor/llm-client.js';
 import { createDb } from './platform/db.js';
@@ -26,7 +26,7 @@ const config = {
 };
 const ragConfig = ragConfigFromEnv();
 
-const logger = pino({ level: config.logLevel });
+const logger = createLogger({ level: config.logLevel });
 
 const llm = createOllamaClient({
   endpoint: config.llmEndpoint,

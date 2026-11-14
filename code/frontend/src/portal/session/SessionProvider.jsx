@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { login } from '../../api/portalApi.js';
 import { SessionContext } from './SessionContext.js';
-import { clearSession, loadSession, portalRoleOf, saveLastRbd, saveSession, sessionFromLogin } from './session.js';
+import { clearSession, loadSession, portalRoleOf, signInWith } from './session.js';
 
 const AVISO_VENCIDA = 'Tu sesión expiró. Vuelve a iniciar sesión.';
 
@@ -11,10 +11,10 @@ export function SessionProvider({ children }) {
   // Aviso que muestra el login (por ejemplo, que la sesión expiró).
   const [notice, setNotice] = useState(null);
 
-  const signIn = useCallback(async ({ rbd, email, password, remember }) => {
-    const next = sessionFromLogin(await login({ rbd, email, password }));
-    saveSession(next, { remember });
-    saveLastRbd(rbd);
+  // `expectedRole`: rol de la pestaña de acceso. Si la cuenta es de otro rol, lanza RoleMismatchError y NO guarda
+  // la sesión (el token se descarta): así nadie termina en un portal distinto del que eligió sin darse cuenta.
+  const signIn = useCallback(async ({ rbd, email, password, remember }, { expectedRole } = {}) => {
+    const next = await signInWith(login, { rbd, email, password, remember }, { expectedRole }); // RoleMismatchError: no guarda nada
     setNotice(null);
     setSession(next);
     return next;

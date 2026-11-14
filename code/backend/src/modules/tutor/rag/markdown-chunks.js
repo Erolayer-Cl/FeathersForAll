@@ -50,7 +50,7 @@ export function splitSections(text) {
  */
 export function chunkMarkdown(text, { title = '', maxChars = 800, overlapChars = 120 } = {}) {
   const out = [];
-  for (const { section, text: body } of splitSections(text)) {
+  for (const { section, text: body } of splitSections(text.replace(/^\uFEFF/, ''))) {
     const header = chunkHeader({ title, section });
     // Deja espacio para la cabecera dentro del máximo, igual que chunkPages.
     const room = Math.max(300, maxChars - header.length - 4);

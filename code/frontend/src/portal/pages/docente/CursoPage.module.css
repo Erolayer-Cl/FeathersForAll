@@ -29,3 +29,6 @@
 .grow b, .grow small { display: block; }
 .grow b { overflow-wrap: anywhere; }
 .grow small { color: var(--fp-muted); font-size: 12px; }
+
+/* Mientras se procesa un archivo, la zona de carga no acepta otros. */
+.drop[data-ocupado] { cursor: progress; opacity: 0.65; }

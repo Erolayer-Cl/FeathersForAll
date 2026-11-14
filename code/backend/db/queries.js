@@ -67,12 +67,14 @@ RETURNING id, nombre, periodo, asignatura, nivel, created_at`;
 //   matriculados       -> students_count (la API solo lo muestra al personal: para un estudiante,
 //                         el RLS de 04 cuenta solo su propia matrícula)
 //   apuntes            -> tutor_documents: apuntes que el docente subió al RAG del curso
-//   tutor_disponible   -> tutor_available: hay fragmentos indexados, así que el tutor puede responder
+//   tutor_disponible   -> tutor_available: hay fragmentos de apuntes del docente, así que el tutor puede responder
+// Las Bases del Mineduc ("MINEDUC · …", doc-kinds.js) no cuentan: con solo ellas el tutor dice que faltan apuntes.
 const COLUMNAS_CURSO = `
        c.id, c.nombre, c.periodo, c.asignatura, c.nivel, c.docente_id, d.nombre AS docente, c.created_at,
        (SELECT count(*) FROM matriculas m WHERE m.curso_id = c.id AND m.activo) AS matriculados,
-       (SELECT count(*) FROM apuntes_curso a WHERE a.curso_id = c.id) AS apuntes,
-       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible`;
+       (SELECT count(*) FROM apuntes_curso a WHERE a.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS apuntes,
+       EXISTS (SELECT 1 FROM apuntes_embeddings e JOIN apuntes_curso a ON a.id = e.apunte_id
+               WHERE e.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS tutor_disponible`;
 
 // Cursos que ve la sesión (GET /v1/courses): el admin, todos los de su colegio; el docente,
 // los que dicta; el estudiante, en los que tiene matrícula activa (puede_ver_curso, 04).
@@ -112,7 +114,50 @@ FROM usuarios u
 WHERE u.email = $2 AND u.rol = 'estudiante' AND u.activo
 RETURNING id, curso_id, estudiante_id, fecha_matricula`;
 
+// Alumnos matriculados (activos) de un curso. Solo para el docente del curso y el admin.
+export const ESTUDIANTES_CURSO = `
+SELECT m.id AS matricula_id, m.fecha_matricula, u.id AS estudiante_id, u.nombre, u.email
+FROM matriculas m
+JOIN usuarios u ON u.id = m.estudiante_id
+WHERE m.curso_id = $1 AND m.activo
+ORDER BY u.nombre, u.id`;
+
 // --- Evaluaciones (H2) -----------------------------------------------------------
+
+// Lista para el docente/admin: todas, borradores incluidos.
+export const EVALUACIONES_DEL_CURSO = `
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+       (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
+       (SELECT count(*) FROM intentos_evaluacion i WHERE i.evaluacion_id = e.id AND i.fecha_envio IS NOT NULL)::int AS entregas
+FROM evaluaciones e
+WHERE e.curso_id = $1
+ORDER BY e.created_at DESC, e.id`;
+
+// Lista para el estudiante ($2 = su id): solo publicadas y cerradas (nunca borradores), con su nota si ya la rindió.
+export const EVALUACIONES_PARA_ESTUDIANTE = `
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+       (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
+       n.nota, n.puntaje, n.fecha_envio AS entregada_at
+FROM evaluaciones e
+LEFT JOIN notas n ON n.evaluacion_id = e.id AND n.estudiante_id = $2
+WHERE e.curso_id = $1 AND e.estado IN ('publicada', 'cerrada')
+ORDER BY e.fecha_publicacion DESC, e.id`;
+
+// Evaluación completa, CON las alternativas correctas: solo para el docente del curso y el admin.
+export const PREGUNTAS_PARA_DOCENTE = `
+SELECT p.id, p.orden, p.enunciado, p.retroalimentacion,
+       json_agg(json_build_object('texto', a.texto, 'es_correcta', a.es_correcta) ORDER BY a.orden, a.id) AS alternativas
+FROM preguntas p
+JOIN alternativas a ON a.pregunta_id = p.id
+WHERE p.evaluacion_id = $1
+GROUP BY p.id
+ORDER BY p.orden`;
+
+// Un intento (enviado o no) del estudiante en la evaluación: para responder 409 si ya la rindió.
+export const INTENTO_DEL_ESTUDIANTE = `
+SELECT id, fecha_envio
+FROM intentos_evaluacion
+WHERE evaluacion_id = $1 AND estudiante_id = $2`;
 
 export const CREAR_EVALUACION = `
 INSERT INTO evaluaciones (curso_id, titulo, fecha_cierre)
@@ -124,13 +169,27 @@ INSERT INTO preguntas (evaluacion_id, enunciado, orden, retroalimentacion)
 VALUES ($1, $2, $3, $4)
 RETURNING id`;
 
+// $4 = posición de la alternativa (0, 1, 2…): el índice que usan correct_option y selected_option.
 export const CREAR_ALTERNATIVA = `
-INSERT INTO alternativas (pregunta_id, texto, es_correcta)
-VALUES ($1, $2, $3)
+INSERT INTO alternativas (pregunta_id, texto, es_correcta, orden)
+VALUES ($1, $2, $3, $4)
 RETURNING id`;
 
 // La BD garantiza "como máximo una correcta"; "al menos una" lo valida la API
 // antes de publicar: si esto devuelve filas -> 422.
+// Editar un borrador: cambia el título y el cierre, y se vuelven a crear las preguntas (las alternativas caen en cascada).
+export const ACTUALIZAR_BORRADOR = `
+UPDATE evaluaciones SET titulo = $2, fecha_cierre = $3
+WHERE id = $1 AND estado = 'borrador'
+RETURNING id`;
+
+export const BORRAR_PREGUNTAS = `
+DELETE FROM preguntas WHERE evaluacion_id = $1`;
+
+export const BORRAR_BORRADOR = `
+DELETE FROM evaluaciones WHERE id = $1 AND estado = 'borrador'
+RETURNING id`;
+
 export const PREGUNTAS_SIN_CORRECTA = `
 SELECT p.id, p.orden
 FROM preguntas p
@@ -160,7 +219,7 @@ ORDER BY fecha_publicacion DESC`;
 // Lo que ve el estudiante: alternativas SIN es_correcta (vista alternativas_publicas).
 export const PREGUNTAS_PARA_RENDIR = `
 SELECT p.id, p.orden, p.enunciado,
-       json_agg(json_build_object('id', a.id, 'texto', a.texto) ORDER BY a.id) AS alternativas
+       json_agg(json_build_object('id', a.id, 'texto', a.texto) ORDER BY a.orden, a.id) AS alternativas
 FROM preguntas p
 JOIN alternativas_publicas a ON a.pregunta_id = p.id
 WHERE p.evaluacion_id = $1
@@ -266,7 +325,7 @@ FROM cursos c
 WHERE c.id = $1 AND c.activo`;
 
 export const EVALUACION_ACCESO = `
-SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, c.docente_id
+SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, e.fecha_publicacion, e.fecha_cierre, c.docente_id
 FROM evaluaciones e
 JOIN cursos c ON c.id = e.curso_id
 WHERE e.id = $1`;
@@ -275,7 +334,8 @@ WHERE e.id = $1`;
 // notas todavía, con su docente y si el tutor tiene apuntes. $2 NULL = todos los ramos.
 export const RAMOS_ESTUDIANTE = `
 SELECT c.id AS curso_id, c.nombre AS curso, c.asignatura, c.periodo, d.nombre AS docente,
-       EXISTS (SELECT 1 FROM apuntes_embeddings e WHERE e.curso_id = c.id) AS tutor_disponible
+       EXISTS (SELECT 1 FROM apuntes_embeddings e JOIN apuntes_curso a ON a.id = e.apunte_id
+               WHERE e.curso_id = c.id AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)') AS tutor_disponible
 FROM matriculas m
 JOIN cursos c   ON c.id = m.curso_id
 JOIN usuarios d ON d.id = c.docente_id
@@ -451,7 +511,7 @@ ORDER BY created_at DESC`;
 // --- Idempotency-Key (contrato S05) ----------------------------------------------------
 
 export const IDEMPOTENCIA_BUSCAR = `
-SELECT operacion, status_http, respuesta
+SELECT usuario_id, operacion, status_http, respuesta
 FROM claves_idempotencia
 WHERE clave = $1 AND creada_at > now() - interval '24 hours'`;
 

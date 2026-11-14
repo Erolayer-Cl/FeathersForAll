@@ -27,16 +27,18 @@ export async function toApiError(res) {
  * Petición JSON al backend.
  * @param {string} path  ruta desde la raíz de la API (p. ej. '/v1/me')
  * @param {object} [opts]
- * @param {'GET'|'POST'|'PATCH'|'DELETE'} [opts.method]
+ * @param {'GET'|'POST'|'PUT'|'PATCH'|'DELETE'} [opts.method]
  * @param {string} [opts.token]   JWT de la sesión (Authorization: Bearer)
+ * @param {string} [opts.idempotencyKey]  UUID de la operación (POST que crean recursos): repetirla no duplica nada
  * @param {unknown} [opts.body]   se envía como JSON
  * @param {AbortSignal} [opts.signal]
  * @param {typeof fetch} [opts.fetchImpl]  inyectable en las pruebas
  */
-export async function requestJson(path, { method = 'GET', token, body, signal, fetchImpl = fetch } = {}) {
+export async function requestJson(path, { method = 'GET', token, body, idempotencyKey, signal, fetchImpl = fetch } = {}) {
   const headers = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (token) headers.authorization = `Bearer ${token}`;
+  if (idempotencyKey) headers['idempotency-key'] = idempotencyKey;
 
   let res;
   try {

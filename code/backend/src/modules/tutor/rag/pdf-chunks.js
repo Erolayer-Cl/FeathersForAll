@@ -13,10 +13,42 @@ import { chunkText } from './chunker.js';
 const PAGE_NUMBER = /^(p[aá]g(ina)?\.?\s*)?\d{1,4}(\s*(de|\/)\s*\d{1,4})?$/i;
 const BULLET = /^([•·▪●○◦■\-–—*]|\d{1,2}[.)]|[a-z][.)])\s+/;
 const SENTENCE_END = /[.!?:;…)»"”]$/;
-const HEADING_WORDS = /^(OA\s*\d+|objetivos?\b|unidad\b|eje\b|cap[ií]tulo\b|m[oó]dulo\b|presentaci[oó]n\b|anexo\b|bibliograf[ií]a\b|[0-9]+(\.[0-9]+)*\.?\s+\p{Lu})/iu;
+const HEADING_WORDS = /^(OA\s*\d+|objetivos?\b|unidad\b|eje\b|cap[ií]tulo\b|m[oó]dulo\b|presentaci[oó]n\b|anexo\b|bibliograf[ií]a\b)/iu;
+// "1. Introducción", "3. La Independencia de Chile". Sin la bandera i: con ella \p{Lu} acepta minúsculas y
+// "4 x 8 = 32" pasaba por título (y la operación desaparecía del texto); además isHeading descarta las líneas con "=".
+const NUMBERED_HEADING = /^\d+(\.\d+)*\.?\s+\p{Lu}/u;
 
 const letters = (s) => s.replace(/[^\p{L}]/gu, '');
-const normalizeLine = (s) => s.replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().toLowerCase();
+// Encabezados y pies con número de página solo se buscan en las primeras o últimas líneas de la página.
+const EDGE_LINES = 2;
+const exactKey = (s) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+// Una línea sirve para comparar entre páginas si tiene texto: "7 x 8 = 56" (menos de 3 letras) nunca es encabezado.
+const useful = (key) => key.length > 2 && key.length < 140 && letters(key).length >= 3;
+
+/**
+ * Línea de borde con un número que podría ser el de la página: "Página 3 de 10", "45 Bases Curriculares",
+ * "Guía de fracciones 7". Devuelve la línea sin ese número (`key`) y el número (`n`), o n = null si no tiene.
+ */
+function numberedKey(line) {
+  let n = null;
+  let key = exactKey(line).replace(/p[aá]g(ina)?\.?\s*(\d{1,4})(\s*(de|\/)\s*\d{1,4})?/i, (_m, _ina, num) => {
+    n = Number(num);
+    return '#';
+  });
+  if (n === null) {
+    key = key.replace(/^(\d{1,4})\b|\b(\d{1,4})$/, (_m, lead, trail) => {
+      n = Number(lead ?? trail);
+      return '#';
+    });
+  }
+  return { key, n };
+}
+
+/** Posiciones de las primeras y últimas líneas con texto de una página (candidatas a encabezado o pie). */
+function edgeIndexes(lines) {
+  const filled = lines.flatMap((l, i) => (l ? [i] : []));
+  return new Set([...filled.slice(0, EDGE_LINES), ...filled.slice(-EDGE_LINES)]);
+}
 
 // Una línea que termina en artículo o preposición es una frase cortada por el ancho de la página, no un título.
 const DANGLING = /\s(de|del|la|el|los|las|y|e|o|u|en|a|al|que|con|por|para|un|una|su|sus|se|lo)$/i;
@@ -25,21 +57,44 @@ function isHeading(line) {
   if (line.length < 4 || line.length > 90 || /[.;]$/.test(line)) return false;
   const l = letters(line);
   if (l.length >= 4 && l === l.toUpperCase()) return true; // TODO EN MAYÚSCULAS (aunque el título siga en la línea siguiente)
-  return HEADING_WORDS.test(line) && /^[\p{Lu}\d]/u.test(line) && !line.includes(',') && line.split(/\s+/).length <= 10 && !DANGLING.test(line);
+  return (HEADING_WORDS.test(line) || NUMBERED_HEADING.test(line)) && !line.includes('=') && /^[\p{Lu}\d]/u.test(line) && !line.includes(',') && line.split(/\s+/).length <= 10 && !DANGLING.test(line);
 }
 
-/** Líneas (normalizadas) que se repiten en muchas páginas: encabezados y pies. */
+/**
+ * Encabezados y pies que se repiten en muchas páginas:
+ *   - `exact`: la misma línea, idéntica, en cualquier posición (un encabezado de 3 líneas, el nombre del colegio);
+ *   - `numbered`: línea de borde cuyo número avanza con la página (mismo desfase número − página en la mayoría):
+ *     "Página 3 de 10", "Bases Curriculares 45". Un número que no avanza ("Respuesta: 18", "Respuesta: 25") es
+ *     contenido y se conserva. Devuelve, para cada línea, el desfase con que se reconoce el número de página.
+ * @returns {{exact: Set<string>, numbered: Map<string, number>}}
+ */
 function repeatedLines(pageLines) {
   const total = pageLines.length;
-  if (total < 4) return new Set();
-  const seen = new Map();
-  for (const lines of pageLines) {
-    for (const key of new Set(lines.map(normalizeLine))) {
-      if (key.length > 2 && key.length < 140) seen.set(key, (seen.get(key) ?? 0) + 1);
-    }
-  }
+  const none = { exact: new Set(), numbered: new Map() };
+  if (total < 4) return none;
   const threshold = Math.max(3, Math.ceil(total * 0.3));
-  return new Set([...seen].filter(([, n]) => n >= threshold).map(([key]) => key));
+  const exact = new Map();
+  const numbered = new Map(); // key -> Map(desfase -> páginas)
+  pageLines.forEach((lines, pageIdx) => {
+    for (const key of new Set(lines.filter(Boolean).map(exactKey))) {
+      if (useful(key)) exact.set(key, (exact.get(key) ?? 0) + 1);
+    }
+    const seenHere = new Set();
+    for (const i of edgeIndexes(lines)) {
+      const { key, n } = numberedKey(lines[i]);
+      if (n === null || !useful(key) || seenHere.has(key)) continue;
+      seenHere.add(key);
+      const offsets = numbered.get(key) ?? new Map();
+      offsets.set(n - pageIdx, (offsets.get(n - pageIdx) ?? 0) + 1);
+      numbered.set(key, offsets);
+    }
+  });
+  const pageNumbered = new Map();
+  for (const [key, offsets] of numbered) {
+    const [offset, count] = [...offsets].sort((a, b) => b[1] - a[1])[0];
+    if (count >= threshold) pageNumbered.set(key, offset);
+  }
+  return { exact: new Set([...exact].filter(([, c]) => c >= threshold).map(([k]) => k)), numbered: pageNumbered };
 }
 
 /**
@@ -62,15 +117,20 @@ export function pagesToParagraphs(pages, { pageOffset = 0 } = {}) {
 
   pageLines.forEach((lines, pageIdx) => {
     const page = pageIdx + 1 + pageOffset;
-    for (const line of lines) {
-      if (!line) { flush(); continue; }
-      if (PAGE_NUMBER.test(line) || noise.has(normalizeLine(line))) continue;
+    const edge = edgeIndexes(lines);
+    lines.forEach((line, lineIdx) => {
+      if (!line) { flush(); return; }
+      if (PAGE_NUMBER.test(line) || noise.exact.has(exactKey(line))) return;
+      if (edge.has(lineIdx)) {
+        const { key, n } = numberedKey(line);
+        if (n !== null && noise.numbered.get(key) === n - pageIdx) return; // número de página en el encabezado o pie
+      }
 
       if (isHeading(line)) {
         flush();
         section = (afterHeading ? `${section} ${line}` : line).slice(0, 110);
         afterHeading = true;
-        continue; // el título viaja en la cabecera de cada fragmento, no en el cuerpo
+        return; // el título viaja en la cabecera de cada fragmento, no en el cuerpo
       }
       afterHeading = false;
       const startsNew = BULLET.test(line) || (current && SENTENCE_END.test(current.text) && /^[\p{Lu}¿¡]/u.test(line) && current.text.length > 200);
@@ -83,7 +143,7 @@ export function pagesToParagraphs(pages, { pageOffset = 0 } = {}) {
       } else {
         current.text += ` ${line}`;
       }
-    }
+    });
     // Una frase que sigue en la página siguiente se mantiene unida; solo se corta si terminó.
     if (current && SENTENCE_END.test(current.text)) flush();
   });

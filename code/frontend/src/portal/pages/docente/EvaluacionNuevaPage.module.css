@@ -1,0 +1,9 @@
+/* Docente · Nueva evaluación: una tarjeta por pregunta, con la alternativa correcta marcada con un botón de opción. */
+.pregunta { display: flex; flex-direction: column; gap: 14px; margin: 0; border: 0; }
+.legend { padding: 0; font-family: var(--fp-font-heading); font-size: 17px; }
+.opciones { display: flex; flex-direction: column; gap: 10px; }
+.opcion { display: flex; align-items: center; gap: 10px; }
+.opcion > input[type="radio"] { flex: none; width: 20px; height: 20px; accent-color: var(--fp-success-ink); }
+.opcionCampo { flex: 1; min-width: 0; }
+.usarApuntes { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 22px; background: var(--fp-field); font-size: 14px; cursor: pointer; }
+.usarApuntes input { flex: none; width: 20px; height: 20px; accent-color: var(--fp-brand); }

@@ -76,6 +76,12 @@ describe('doc-kinds', () => {
     assert.deepEqual(parseLevel('3° medio'), { stage: 'medio', grade: 3 });
     assert.deepEqual(parseLevel('NT1'), { stage: 'parvularia', grade: null });
     for (const bad of ['', null, undefined, 'abc', '9B', '5M']) assert.equal(parseLevel(bad), null, String(bad));
+    // Números romanos, como aparecen en muchos colegios.
+    assert.deepEqual(parseLevel('IV Medio'), { stage: 'medio', grade: 4 });
+    assert.deepEqual(parseLevel('III° Medio'), { stage: 'medio', grade: 3 });
+    assert.deepEqual(parseLevel('VII básico'), { stage: 'basico', grade: 7 });
+    assert.deepEqual(parseLevel('IVº Medio'), { stage: 'medio', grade: 4 });
+    assert.deepEqual(parseLevel('7º básico'), { stage: 'basico', grade: 7 });
   });
 
   test('un curso de 7° básico recibe solo las Bases de 7° básico a 2° medio', () => {
@@ -138,7 +144,7 @@ describe('relevance', () => {
 
   test('isMathExpression: solo operaciones, sin palabras que digan el tema', () => {
     for (const q of ['1+1', '10x10', 'cuanto es 10x10', 'cuánto es 3/4 + 1/2', '2 + 2 =']) assert.equal(isMathExpression(q), true, q);
-    for (const q of ['qué es una fracción', 'cómo sumo 2/7 + 3/7', 'calcula 25 por 4', 'hola', '¿y eso?']) assert.equal(isMathExpression(q), false, q);
+    for (const q of ['qué es una fracción', 'cómo sumo 2/7 + 3/7', 'calcula 25 por 4', 'hola', '¿y eso?', 'OA 3', 'OA 3?', 'unidad 2', 'OA 3-4']) assert.equal(isMathExpression(q), false, q);
   });
 
   test('isCurricularQuestion distingue "qué se espera aprender" de una duda de contenido', () => {
@@ -640,5 +646,14 @@ describe('retrieve: Bases por asignatura', () => {
     const { hits } = await rag.retrieve({ ...A, query: 'objetivos de aprendizaje de matemática', curricular: true });
     assert.equal(hits.length, 4);
     assert.equal(hits.filter((h) => h.doc_id === MAT_7).length, 4);
+  });
+});
+
+describe('asignaturas cuyo nombre contiene el de otra', () => {
+  test('"Ciencias para la Ciudadanía" es de ciencias y "Artes Musicales" es de música', () => {
+    assert.equal(subjectKey('Ciencias para la Ciudadanía 3° medio'), 'ciencias');
+    assert.equal(subjectKey('Artes Musicales'), 'musica');
+    assert.equal(subjectKey('Educación Ciudadana'), 'educacion-ciudadana');
+    assert.equal(subjectKey('Artes Visuales'), 'artes-visuales');
   });
 });

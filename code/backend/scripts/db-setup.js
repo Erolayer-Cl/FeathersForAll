@@ -49,6 +49,10 @@ try {
   const { rows: v5 } = await client.query("SELECT to_regclass('public.conversaciones_tutor') IS NOT NULL AS hay");
   if (v5[0].hay) console.log('· 05_conversaciones_tutor.sql ya estaba aplicado');
   else await apply('05_conversaciones_tutor.sql');
+  // 06 (orden de las alternativas): se aplica si la columna todavía no existe.
+  const { rows: v6 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alternativas' AND column_name = 'orden') AS hay");
+  if (v6[0].hay) console.log('· 06_alternativas_orden.sql ya estaba aplicado');
+  else await apply('06_alternativas_orden.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN

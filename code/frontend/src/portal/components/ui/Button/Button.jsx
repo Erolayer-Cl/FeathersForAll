@@ -8,7 +8,7 @@ export function Button({ variant = 'primary', size = 'md', block = false, href, 
   const cls = `${styles.button} ${styles[variant]} ${size === 'sm' ? styles.sm : ''} ${block ? styles.block : ''} ${className}`;
   if (href) {
     return (
-      <a href={href} className={cls}>
+      <a href={href} className={cls} {...rest}>
         {children}
       </a>
     );

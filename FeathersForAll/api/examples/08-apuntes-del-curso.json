@@ -1,0 +1,7 @@
+{
+  "name": "Apuntes del tutor · El docente lista los apuntes de su curso (v1.3)",
+  "method": "GET",
+  "path": "/courses/c0000000-0000-0000-0000-000000000001/documents",
+  "headers": {},
+  "expect_status": 200
+}

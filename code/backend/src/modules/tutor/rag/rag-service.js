@@ -115,8 +115,9 @@ export function createRagService({
 
   /** Guarda un documento ya preparado (`prepare`) en un curso. Reemplaza el de igual nombre. */
   async function save({ tenantId, courseId, docId, prepared, actor }) {
-    await store.replaceDocument({ tenantId, courseId, docId, text: prepared.text, actor, chunks: prepared.chunks });
-    return { doc_id: docId, chunks: prepared.chunks.length };
+    const saved = await store.replaceDocument({ tenantId, courseId, docId, text: prepared.text, actor, chunks: prepared.chunks });
+    // `created` (solo PostgreSQL): true si el documento es nuevo, false si reemplazó a uno con ese nombre.
+    return { doc_id: docId, chunks: prepared.chunks.length, ...(typeof saved?.created === 'boolean' && { created: saved.created }) };
   }
 
   return {

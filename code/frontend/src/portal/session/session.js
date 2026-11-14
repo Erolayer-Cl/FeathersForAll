@@ -13,6 +13,35 @@ export const PORTAL_ROLE = Object.freeze({ estudiante: 'est', docente: 'doc', ad
 /** Rol del portal del usuario, o null si su rol no tiene portal. */
 export const portalRoleOf = (user) => PORTAL_ROLE[user?.role] ?? null;
 
+/**
+ * La cuenta inició sesión bien, pero no es del rol elegido en la pantalla de acceso (por ejemplo, un docente
+ * en la pestaña Estudiante). La sesión NO se guarda: el login avisa y ofrece cambiar de pestaña.
+ * `actual` es el rol del portal de la cuenta (null si su rol no tiene portal).
+ */
+export class RoleMismatchError extends Error {
+  constructor(expected, actual) {
+    super('La cuenta no corresponde al tipo de acceso elegido');
+    this.name = 'RoleMismatchError';
+    this.expected = expected;
+    this.actual = actual;
+  }
+}
+
+/** Lanza RoleMismatchError si `user` no es del rol `expected` del portal. Sin `expected`, acepta cualquiera. */
+export function assertPortalRole(user, expected) {
+  const actual = portalRoleOf(user);
+  if (expected && actual !== expected) throw new RoleMismatchError(expected, actual);
+}
+
+/**
+ * Respuesta del login -> sesión, solo si la cuenta es del rol de la pestaña. Es la ÚNICA forma de obtener la sesión
+ * que se guarda: si el rol no coincide lanza RoleMismatchError antes de que exista algo que guardar.
+ */
+export function acceptLogin(body, { expectedRole, now = Date.now() } = {}) {
+  assertPortalRole(body?.user, expectedRole);
+  return sessionFromLogin(body, now);
+}
+
 function browserStorages() {
   try {
     return { session: window.sessionStorage, local: window.localStorage };
@@ -78,6 +107,19 @@ export function saveSession(session, { remember = false, storages = browserStora
 export function clearSession({ storages = browserStorages() } = {}) {
   write(storages.session, SESSION_KEY, null);
   write(storages.local, SESSION_KEY, null);
+}
+
+/**
+ * Inicio de sesión completo: llama al login, recuerda el RBD y guarda la sesión SOLO si la cuenta es del rol de la
+ * pestaña (acceptLogin lanza RoleMismatchError antes de guardar). `loginFn` y `storages` se inyectan en las pruebas.
+ * @returns {Promise<{token: string, expiresAt: number, user: object}>}
+ */
+export async function signInWith(loginFn, { rbd, email, password, remember = false }, { expectedRole, storages, now } = {}) {
+  const body = await loginFn({ rbd, email, password });
+  saveLastRbd(rbd, { storages });
+  const session = acceptLogin(body, { expectedRole, now });
+  saveSession(session, { remember, storages });
+  return session;
 }
 
 /** Último RBD usado (comodidad: el estudiante no lo escribe cada vez). No es un dato sensible. */

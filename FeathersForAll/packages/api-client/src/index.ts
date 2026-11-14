@@ -24,6 +24,10 @@ export type TutorConversationDetail = Schemas["TutorConversationDetail"];
 export type TutorMessage = Schemas["TutorMessage"];
 export type TutorMessageInput = Schemas["TutorMessageInput"];
 export type TutorSource = Schemas["TutorSource"];
+// v1.3.0 — apuntes del tutor por curso (docente y admin). La subida es PUT con el archivo como cuerpo binario:
+// usar fetch directo con el File del navegador (ver portalApi.js del frontend).
+export type CourseDocument = Schemas["CourseDocument"];
+export type CourseDocumentList = Schemas["CourseDocumentList"];
 
 export interface ClientOptions {
   /** Ej: "http://localhost:3000/v1" o el mock de Prism "http://127.0.0.1:4010" (sin /v1). */
@@ -56,3 +60,12 @@ export function createFeathersForAllClient({ baseUrl, getToken }: ClientOptions)
 //     params: { path: { assessmentId } , header: { "Idempotency-Key": crypto.randomUUID() } },
 //     body: { answers: [{ question_id, selected_option: 1 }] },
 //   });
+// v1.4.0 — ciclo mínimo: matrículas, evaluaciones (crear, publicar, rendir) y notas del docente.
+export type EnrollmentList = Schemas["EnrollmentList"];
+export type AssessmentSummaryList = Schemas["AssessmentSummaryList"];
+export type SubmissionInput = Schemas["SubmissionInput"];
+export type Gradebook = Schemas["Gradebook"];
+export type GradesSummary = Schemas["GradesSummary"];
+export type StudentCourseGrades = Schemas["StudentCourseGrades"];
+export type GenerateAssessmentInput = Schemas["GenerateAssessmentInput"];
+export type GeneratedAssessment = Schemas["GeneratedAssessment"];

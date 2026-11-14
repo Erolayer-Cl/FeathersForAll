@@ -24,5 +24,9 @@ El mock valida cada request contra `openapi.yaml`: si un ejemplo no cumple el co
 | 05-error-sin-idempotency-key.json | — | POST /courses sin Idempotency-Key | 422 |
 | 06-login-estudiante.json | — | POST /auth/login (v1.1) | 200 |
 | 07-mis-notas.json | — | GET /me/grades (v1.1) | 200 |
+| 08-apuntes-del-curso.json | — | GET /courses/{courseId}/documents (v1.3) | 200 |
+| 09-evaluaciones-del-curso.json | H2, H4 | GET /courses/{courseId}/assessments (v1.4) | 200 |
+| 10-matriculados.json | H1 | GET /courses/{courseId}/enrollments (v1.4) | 200 |
+| 11-libro-de-notas.json | H3 | GET /courses/{courseId}/gradebook (v1.4) | 200 |
 
 Los datos son sintéticos (el proyecto trata datos de menores).

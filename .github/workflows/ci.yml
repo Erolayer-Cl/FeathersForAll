@@ -142,7 +142,7 @@ jobs:
           JWT_SECRET="$(openssl rand -hex 32)" nohup node src/server.js > api.log 2>&1 &
           for _ in $(seq 1 30); do curl -sf http://localhost:3000/livez && exit 0; sleep 1; done
           cat api.log; exit 1
-      - name: Newman (salud, login, perfil, cursos, notas, privacidad, seguridad)
+      - name: Newman (salud, login, perfil, cursos, notas, privacidad, seguridad, apuntes, ciclo mínimo)
         run: >-
           npx --yes newman@6 run requests/postman/FeathersForAll.postman_collection.json
           -e requests/postman/FeathersForAll.local.postman_environment.json
@@ -153,6 +153,8 @@ jobs:
           --folder "4 · Mis notas (solo lectura)"
           --folder "5 · Privacidad y permisos (deben fallar)"
           --folder "7 · Seguridad"
+          --folder "9 · Apuntes del tutor (v1.3; sin Ollama)"
+          --folder "10 · Ciclo mínimo H1, H2, H4 (sin Ollama)"
       - name: Log de la API si algo falló
         if: failure()
         run: cat api.log
@@ -348,11 +350,22 @@ jobs:
           [ -n "$token" ] && [ "$token" != "null" ] || { echo "::error::el login del scanner falló"; exit 1; }
           echo "::add-mask::$token"
           mkdir -p zap && cp dast/zap-rules.tsv zap/ && chmod -R a+rwX zap   # ZAP corre como uid 1000
+          status=0
           docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" \
             -e ZAP_AUTH_HEADER_VALUE="Bearer $token" -e ZAP_AUTH_HEADER_SITE=localhost \
             "$ZAP_IMAGE" zap-baseline.py -t http://localhost:8088 \
             -c zap-rules.tsv -m 2 -T 10 -I \
-            -r zap-report.html -J zap-report.json -w zap-report.md
+            -r zap-report.html -J zap-report.json -w zap-report.md || status=$?
+          # El reporte sube como artefacto (90 días) y su resumen va al GITHUB_STEP_SUMMARY: ZAP puede copiar el
+          # encabezado Authorization en la evidencia de una alerta. Se borra el token (y cualquier Bearer) antes.
+          for f in zap/zap-report.*; do
+            [ -f "$f" ] || continue
+            sed -i -e "s|$token|[TOKEN-REDACTADO]|g" -E -e 's/Bearer [A-Za-z0-9._-]{20,}/Bearer [REDACTADO]/g' "$f"
+          done
+          if grep -q -E "$token|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\." zap/zap-report.* 2>/dev/null; then
+            echo "::error::el reporte de ZAP todavía contiene un JWT: no se publica"; rm -f zap/zap-report.*; exit 1
+          fi
+          exit "$status"
       - name: Resumen del reporte
         if: always()
         run: |

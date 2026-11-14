@@ -9,7 +9,7 @@ metadata:
     # El chat responde en streaming: sin buffer, el texto llega a medida que el LLM lo genera.
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
-    # Apuntes de hasta 2 MB (límite propio de /v1/dev/courses/{id}/documents).
+    # El resto de la API no recibe cuerpos grandes (JSON de hasta 100 kB); los apuntes van por el Ingress de abajo.
     nginx.ingress.kubernetes.io/proxy-body-size: "2m"
 spec:
   ingressClassName: nginx
@@ -28,3 +28,26 @@ spec:
             pathType: Prefix
             backend:
               service: { name: ffa-web, port: { name: http } }
+---
+# /v1/courses aparte: el docente sube apuntes de hasta 40 MB (PUT /v1/courses/{id}/documents/{nombre}, contrato v1.3)
+# y el servidor responde recién cuando terminó de indexarlos (un PDF largo tarda minutos con Ollama en CPU).
+# ingress-nginx elige el prefijo más largo, así que estas anotaciones solo valen bajo /v1/courses.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: feathersforall-cursos
+  annotations:
+    # Las conversaciones del tutor (/v1/courses/{id}/tutor-conversations/...) también responden en streaming.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-body-size: "40m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /v1/courses
+            pathType: Prefix
+            backend:
+              service: { name: ffa-api, port: { name: http } }

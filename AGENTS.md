@@ -37,8 +37,8 @@
 
 | Pieza | Dónde | Notas |
 |---|---|---|
-| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
-| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `05`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
+| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`, `evaluaciones`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
+| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `06`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
 | Frontend | `code/frontend/` | React 19 + Vite (ADR 0005). `index.html` = chat del tutor; `portal.html` = portal por rol (`src/portal/`, router por hash `#/portal/<id>`) |
 | Contrato | `FeathersForAll/api/` | OpenAPI 3.1 con ejemplos ejecutables contra Prism |
 | Infra | `k8s/`, `terraform/` | Laboratorio S07: kind + Kustomize + Terraform (ADR 0006) |
@@ -94,6 +94,8 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **S08 (CI/CD y GitOps):** preparada el 26-10-2026 en la rama `Ignacio` y mergeada en `main` (PR #13).
 - **S09 (DevSecOps I):** preparada el 06-11-2026 en la rama `feat/s09-devsecops` (detalle abajo). Su PPT ya está en `models.md`.
 - **S10 (DevSecOps II):** preparada el 11-11-2026 sobre la rama de la S09 (detalle abajo). Su PPT ya está en `models.md`.
+- **RAG v1.0 (PR #16, rama `rag-V1.0`):** revisado y corregido el 14-11-2026 (detalle abajo). Falta la decisión del equipo sobre el Mineduc antes de mergear.
+- **Ciclo mínimo H1, H2, H4:** hecho el 14-11-2026 sobre la misma rama (detalle abajo): el docente crea curso, matricula y crea y publica evaluaciones; el estudiante las rinde y ve su nota.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
@@ -144,13 +146,67 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - **No verificado en local** (sin acceso a registros de imágenes ni clúster): la firma y las attestations, ZAP, la policy de Kyverno, la NetworkPolicy y las reglas Falco. La primera run en `main` y una pasada en kind son la verificación.
   - **Falta (equipo):** mergear primero la S09; primera run en `main` y copiar la salida de `cosign verify` al PR; instalar Kyverno y Falco en kind y probar que la policy rechaza una imagen sin firma y que disparan las 3 reglas; copiar `networkpolicy.yaml` a `base/` del repo gitops; agregar `iac-scan` y `dast` a la protección de rama; definir el canal de alertas de Falco.
 
+- **RAG v1.0 — PR #16** (Cristofer, revisado el 14-11-2026):
+  - Trae búsqueda híbrida (pgvector + texto en español, mezcladas con RRF), apuntes en PDF (`unpdf`), Bases Curriculares del Mineduc por asignatura y nivel (`npm run ingest:mineduc`) y la pantalla Docente · Curso para subir apuntes.
+  - Arreglos de la revisión:
+    - Apuntes en el contrato **v1.3.0**: `GET /v1/courses/{id}/documents`, `PUT` y `DELETE .../documents/{nombre}` (`src/modules/tutor/apuntes.routes.js`). `PUT` porque reemplaza por nombre (sin `Idempotency-Key`). 404 si no participas, 403 al estudiante. Se quitó la ruta de desarrollo `/v1/dev/courses/{id}/files`.
+    - El nombre `MINEDUC…` queda reservado para las Bases, y los nombres de archivo llegan saneados al prompt dentro de `<temas>` (T-4).
+    - Ingress aparte `feathersforall-cursos` para `/v1/courses` (40 MB y 600 s); el resto de `/v1` sigue en 2 MB.
+    - Vuelve `body { margin: 0 }` a `base.css` (lo había borrado el PR; es de la S10).
+    - El apunte de aritmética pasó a `samples/operaciones-basicas.md`; se borró `scripts/ingest-aritmetica.js` (usaba el superusuario e IDs fijos).
+    - Fuera: código muerto (`withMathExpression`) y "gay" de la lista de insultos de la charla.
+  - Segunda revisión (agente revisor, 14-11-2026), corregida con pruebas de regresión:
+    - PDF de ejercicios (antes una guía de multiplicación quedaba vacía): se quitan las líneas idénticas que se repiten en muchas páginas (encabezados de varias líneas) y, en las 2 primeras y últimas líneas, las que llevan un número que avanza con la página ("Página 3 de 10", "Bases… 45"). Un número que no avanza ("Respuesta: 18") es contenido y se queda. `4 x 8 = 32` ya no pasa por título numerado (la regex tenía la bandera `i`).
+    - Búsqueda por texto: `toTsQuery` descarta las palabras de pedir ayuda ("dame", "ejemplo", "dice"…) pero no las de tema ("materia", "clase"), y arma frases término curricular + número (`oa <-> 3`, `decreto <-> 97`, `unidad <-> 2`; lista `PHRASE_TERMS`), nunca un número suelto. "OA 3" y "OA 3-4" ya no se toman como cálculo.
+    - Dos `PUT` del mismo nombre a la vez ya no duplican el apunte (`pg_advisory_xact_lock` en `replaceDocument`); el 200/201 sale de la misma transacción.
+    - `.txt`/`.md` en UTF-16 o Windows-1252 se leen bien (antes, 500 o texto dañado); sin NUL ni BOM.
+    - URL mal codificada → 400 (antes 500, en todas las rutas); multipart/urlencoded → 415; `DELETE` recorta espacios igual que `PUT`.
+    - "¿Qué temas hay?" ya no captura preguntas de materia ("¿Qué lecciones nos dejó la Guerra del Pacífico?").
+    - `tutor_documents` y `tutor_available` no cuentan las Bases del Mineduc (en `/v1/courses` y en `/v1/me/grades`).
+    - Niveles en romanos ("IV Medio", "IVº Medio") y asignaturas "Ciencias para la Ciudadanía" / "Artes Musicales" bien clasificadas.
+    - Portal docente: no se sube en paralelo al soltar archivos mientras otro se procesa.
+    - El agente revisor verificó las correcciones; lo que quedó a medias y sus 5 regresiones nuevas también se corrigieron.
+  - **Verificado en local:** lint; backend 259 pruebas sin base y 388 con PostgreSQL (cobertura 98,45 %); frontend 101; Spectral sin errores ni advertencias; cliente TS regenerado; 8 ejemplos Prism; Newman como en CI (50 requests, 88 aserciones, con la carpeta nueva 9); Checkov sobre kustomize (269 OK, 0 fallas); Semgrep con `.semgrep/`; recorrido en Chrome headless del build con la CSP de NGINX (subir `.md` y PDF, rechazar `.docx`, quitar, 360 px, estudiante 403, sin violaciones de CSP). Embeddings con un Ollama falso: la calidad de las respuestas con `bge-m3` no se volvió a medir.
+  - **Falta (equipo):**
+    - Decidir el diseño del Mineduc con un ADR. Hoy el PR copia las Bases en cada curso, dentro de `apuntes_curso` (el docente puede borrarlas); lo conversado era un corpus compartido de solo lectura, sin `colegio_id`. Además, validar la fuente (Ignacio) antes de cargar los PDF.
+    - Copiar el Ingress nuevo a `base/` del repo gitops.
+- **Login por rol** (14-11-2026, sobre la misma rama):
+  - Selector **Estudiante / Docente** arriba del formulario (`pages/login/LoginPage.jsx`, `LOGIN_TABS` en `textos.js`); la administración entra por un enlace aparte. Las tres rutas de acceso usan el mismo componente (`LoginRoute`): al cambiar de pestaña no se pierde lo escrito.
+  - Si la cuenta es de otro rol, la sesión **no** se guarda (`signInWith` / `acceptLogin` / `RoleMismatchError` en `session/session.js`, probado de punta a punta con login y almacenamiento falsos): el login avisa, pasa el foco a «Cambiar a …» y conserva la contraseña. Mientras se envía, ningún enlace de la pantalla navega; al navegar, el aviso anterior se borra. Las credenciales malas siguen dando el mismo 401 genérico (no se revela el rol).
+  - Ayuda del RBD según el rol. Sin cambios en la API ni en el contrato.
+  - **Verificado en local:** frontend 101 pruebas y lint; recorrido en Chrome headless del build con la CSP y la API real (27 comprobaciones, foco incluido: los tres roles, cruce de rol, clave mala, teclado, 360 px y tema oscuro, sin violaciones de CSP); contraste AA de los elementos nuevos en ambos temas (mínimo 5,5:1).
+
+- **Ciclo mínimo H1, H2, H4** (14-11-2026, contrato v1.4.0):
+  - **Decisiones:** empezar por el ciclo mínimo; `tutor-questions` queda **deprecado** en el contrato (nunca se implementó; lo reemplazan las conversaciones); se quita «Colegios» del menú del administrador (es del rol master, que no tiene login).
+  - **API:** `POST /v1/courses`, `POST` y `GET /v1/courses/{id}/enrollments`, `POST` y `GET /v1/courses/{id}/assessments`, `GET` y `PATCH /v1/assessments/{id}` (publicar y cerrar) y `POST /v1/assessments/{id}/submissions`. Código en `src/modules/cursos/` y `src/modules/evaluaciones/`. Las rutas de notas del docente (libro, resumen, notas de un estudiante, exigencia) ya existían y ahora están en el contrato.
+  - **Idempotency-Key** (`src/platform/idempotency.js`): candado, búsqueda, operación y guardado en UNA transacción; dos envíos simultáneos con la misma clave crean un solo recurso, y la misma clave en otra operación u otro usuario da 422. Los errores de PostgreSQL esperables (RLS 42501, único 23505, FK/formato) se traducen a 403/409/422 en `problem.js`.
+  - **Migración `06_alternativas_orden.sql`:** las alternativas no tenían orden, así que `correct_option` y `selected_option` (índices) no eran estables. Columna `orden` (sin UNIQUE, para no romper los SQL de prueba); quien lee ordena por `(orden, id)`. Hay que aplicarla en las bases existentes (`npm run db:setup` lo hace).
+  - **Reglas:** el estudiante nunca recibe la alternativa correcta ni la retroalimentación antes de entregar; un borrador no existe para él (404); un solo intento (409 con su resultado anterior); no se publica sin alternativa correcta en todas las preguntas (422 con cuáles); otro docente o admin sin permiso 403, estudiante sin matrícula 404.
+  - **Portal:** docente — Nuevo curso, matricular por correo, lista de estudiantes, Nueva evaluación (preguntas y alternativas con la correcta marcada), publicar y cerrar, resultados con acierto por pregunta y menú Evaluaciones; estudiante — «Por rendir» en el curso, rendir con confirmación y resultado con nota y retroalimentación al instante. El formulario reutiliza la `Idempotency-Key` si la red falla.
+  - **Verificado en local:** lint; backend 322 pruebas sin base y 480 con PostgreSQL (cobertura 98,57 %; incluye `test/ciclo.pg.test.js`); frontend 116 pruebas; Spectral sin errores ni advertencias; cliente TS regenerado; 11 ejemplos Prism; Newman (66 requests, 120 aserciones, con la carpeta 10 del ciclo); recorrido en Chrome headless del build con la CSP y la API real (docente, estudiante y administrador, 360 px, sin violaciones de CSP).
+  - **Falta:** gestión de usuarios del administrador; pantallas «Mis estudiantes», «Reportes» y «Progreso», aún marcadores; rate limit en el resto de los POST (el contrato declara 429).
+
+- **Evaluaciones con IA y edición de borradores** (14-11-2026, contrato v1.5.0):
+  - Tres formas de crear: a mano, con IA, o con IA y el docente la edita. `POST /v1/courses/{id}/assessments/generate` (`src/modules/evaluaciones/generar-ia.js`) **solo propone**: no guarda nada; el docente revisa, edita y guarda con el POST normal. Usa el tema y, por defecto, los apuntes del curso (RAG del colegio y curso del token; sin apuntes sobre el tema, 422).
+  - La salida del modelo es un dato no confiable: se extrae el JSON, se valida pregunta por pregunta y se descarta lo inválido (nunca se "arregla"); los apuntes van dentro de `<apuntes>` como material, no como instrucciones; sin respuesta utilizable, 502. Tope por usuario (10 generaciones cada 10 min, 429 con `Retry-After`; en memoria, por pod). No se registra el tema ni el contenido.
+  - Editar y borrar solo borradores: `PUT` y `DELETE /v1/assessments/{id}` (409 si ya está publicada: tiene entregas y notas). Fecha de cierre (`closes_at`) en el formulario.
+  - Portal: `EditorEvaluacion` compartido por «Nueva evaluación» y «Editar borrador» (`doc-evaluacion-editar/<id>`), con el panel «Generar con IA» solo al crear (en edición reemplazaría lo guardado) y aviso de que la IA puede equivocarse.
+  - **Verificado en local:** backend 335 sin base y 506 con PostgreSQL (cobertura 98,67 %); frontend 123; Spectral sin errores; recorrido en Chrome headless con la CSP, la API real y un Ollama falso (tema sin apuntes, generar, editar lo generado, guardar, editar, publicar, eliminar, 360 px). **No verificado:** la calidad de las preguntas con `qwen2.5:3b` real (solo se probó el parser con respuestas simuladas); conviene que un docente las revise.
+
+- **Auditoría de secretos y logs** (14-11-2026): sin llaves ni contraseñas reales en los archivos ni en el historial (patrones conocidos, `.env`, `tfstate`, llaves). Hallazgos corregidos:
+  - `k8s/configmap.yaml` ya no deja el chat sin token ni las rutas `/v1/dev/*` abiertas (`ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`): el frontend ya tiene login. Hay que replicarlo en `base/` del repo gitops.
+  - Logs de la API (`src/platform/logger.js`): `redact` de password, token, authorization, cookie y secretos; los errores de PostgreSQL se serializan sin `detail`/`where`/`parameters` (traen valores de filas, p. ej. correos). El log de cada request registra el patrón de la ruta (`/v1/courses/:courseId`), no la ruta real (ids y nombres de archivos de apuntes).
+  - CI: el reporte de ZAP se sanea (token y `Bearer …`) antes de subirse como artefacto y al `GITHUB_STEP_SUMMARY`; si queda un JWT, el job falla y no se publica.
+  - gitleaks: excepción acotada para el UUID de `Idempotency-Key` de `portalApi.test.js`.
+  - Sigue siendo válido: las claves de laboratorio (`postgres:postgres`, `cambiar`, `demo1234`) son sintéticas y no deben llegar a producción.
+
 ## Pendientes y deuda conocida
 
 - En `main` hay cambios sin commitear de antes de la etapa 1:
   - el Dockerfile ahora copia `db/queries.js`;
   - arreglos del chat y del almacén JSON;
   - el rebrand a FeathersForAll.
-- **Contrato S05 sin implementar:** evaluaciones (crear, publicar, rendir) y tutor asíncrono (`tutor-questions`). El Tutor IA del portal ya usa las rutas del contrato v1.2 (`tutor-conversations`); `POST /v1/dev/chat` queda para desarrollo y docentes.
+- **Contrato sin implementar:** solo el tutor asíncrono (`tutor-questions`), deprecado desde la v1.4. El Tutor IA del portal usa las rutas del contrato v1.2 (`tutor-conversations`); `POST /v1/dev/chat` queda para desarrollo y docentes.
 - **CORS:** el backend no tiene. Hoy no hace falta (Vite y NGINX sirven todo desde un solo origen), pero la demo pública (Vercel + Render) sí lo necesita, exponiendo `X-Tutor-Turn`, `X-Rag-Sources` y `X-Conversation-Mode` con `Access-Control-Expose-Headers`.
 - **Propuestas de la auditoría sin decidir** (detalle en el informe): LLM con GPU o proveedor externo, reordenar el prompt del tutor (~2 s menos), quitar el índice HNSW que no se usa (750 MB), RLS del docente sin consulta por fila y `UV_THREADPOOL_SIZE` (login ~25/s por proceso).
 - **Imagen de la API: 211 MB**, sobre la meta de < 200 MB del ADR 0006 (la base distroless debian13 ya pesa 203 MB).
@@ -158,6 +214,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **Puerto 5432:** si hay un PostgreSQL nativo instalado, el contenedor no arranca (ver README del backend).
 - **Del threat model del tutor (S09):** sin rate limit por usuario en el tutor (D-1, prioridad alta), prompt injection indirecta desde apuntes (T-4) y sin audit log de apuntes (R-1). La CSP (S-4) se cerró en la S10.
 - **Del DAST (S10):** las respuestas JSON de la API no envían `X-Content-Type-Options` ni `Cache-Control: no-store` (hoy WARN en `dast/zap-rules.tsv`; cambia el contrato). Las fuentes vienen de Google Fonts: sin SRI y cada visita le entrega la IP del estudiante a Google; conviene servirlas desde el propio sitio. Falta un escaneo de la API con el contrato (`zap-api-scan`).
+- **Del RAG v1.0:** el PDF se procesa en el hilo principal de la API (un archivo grande frena a los demás mientras se lee; D-1); la búsqueda por texto calcula `to_tsvector` fila por fila, sin índice GIN; las pantallas docentes (`.jsx`) no tienen pruebas propias.
 - **Supply chain (S10):** SLSA Build L2; para L3 falta generar la provenance fuera del job (`actions/attest-build-provenance` o `slsa-github-generator`). Sin respaldo de firmas y attestations fuera de GHCR. Con la policy de Kyverno, `publicar-imagenes.ps1` ya no sirve para desplegar.
 - **Limitador del login:** guarda los intentos en memoria, así que cada pod cuenta los suyos. En producción iría en Redis o en el Ingress.
 - **Funciones `SECURITY DEFINER`** (`colegio_por_rbd`, `credenciales_login`): en producción su dueño debe ser `feathersforall_plataforma`. Hoy, en local, es el superusuario.

@@ -29,3 +29,13 @@ condition = "AND"
 regexTarget = "line"
 paths = ['''^FeathersForAll/api/examples/[^/]+\.json$''']
 regexes = ['''"Idempotency-Key":\s*"[0-9a-fA-F-]{36}"''']
+
+# Idempotency-Key de prueba en el cliente del portal: un UUID inventado en el test (`const KEY = '…'`) para
+# comprobar que la cabecera viaja. No es una credencial; gitleaks lo marca como "generic-api-key" por llamarse KEY.
+# Se exceptúa solo esa línea y solo en ese archivo (el historial ya la contiene, así que la prueba nueva no basta).
+[[allowlists]]
+description = "UUID de Idempotency-Key en portalApi.test.js"
+condition = "AND"
+regexTarget = "line"
+paths = ['''^code/frontend/src/api/portalApi\.test\.js$''']
+regexes = ['''const KEY = '[0-9a-fA-F-]{36}';''']

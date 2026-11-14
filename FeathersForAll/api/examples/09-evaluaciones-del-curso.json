@@ -1,0 +1,7 @@
+{
+  "name": "Evaluaciones · Lista de evaluaciones de un curso (v1.4)",
+  "method": "GET",
+  "path": "/courses/c0000000-0000-0000-0000-000000000001/assessments",
+  "headers": {},
+  "expect_status": 200
+}

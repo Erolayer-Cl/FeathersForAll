@@ -1,12 +1,23 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../../components/icons.jsx';
 import { PortalLogo } from '../../components/PortalLogo/PortalLogo.jsx';
-import { ROLES, ROLE_IDS } from '../../config/roles.js';
+import { ROLES } from '../../config/roles.js';
 import { usePreferences } from '../../preferences/usePreferences.js';
-import { loadLastRbd } from '../../session/session.js';
+import { RoleMismatchError, loadLastRbd } from '../../session/session.js';
 import { useSession } from '../../session/useSession.js';
-import { LOGIN_TEXTOS } from './textos.js';
+import { LOGIN_TABS, LOGIN_TEXTOS } from './textos.js';
 import styles from './LoginPage.module.css';
+
+const TAB_ICON = { est: 'book', doc: 'users' };
+const LOGIN_ROLE = { 'login-est': 'est', 'login-doc': 'doc', 'login-adm': 'adm' };
+
+/**
+ * Un mismo componente para las tres rutas de acceso (pages/index.jsx): al cambiar de pestaña React lo conserva
+ * y no se pierde lo escrito (RBD, correo, contraseña).
+ */
+export function LoginRoute({ route }) {
+  return <LoginPage role={LOGIN_ROLE[route.id]} />;
+}
 
 /** Mensaje para la persona según el error de la API (el detalle técnico queda en el problema RFC 7807). */
 function mensajeDeError(error) {
@@ -18,6 +29,9 @@ function mensajeDeError(error) {
 
 /**
  * Acceso por rol: RBD del colegio + correo + contraseña (POST /v1/auth/login).
+ * Arriba se elige el tipo de cuenta (Estudiante o Docente); la administración entra por un enlace aparte.
+ * Si la cuenta es de otro rol, no se entra: se avisa y se ofrece cambiar de pestaña (sin perder lo escrito,
+ * porque las tres rutas de acceso usan este mismo componente; ver pages/index.jsx).
  * El RBD no está en el prototipo: hace falta porque un mismo correo puede existir en dos colegios.
  * En producción vendría del subdominio del colegio; aquí se recuerda el último usado.
  * Tras entrar, la guardia de rutas (PortalFrame) lleva a cada rol a su inicio.
@@ -28,9 +42,14 @@ export function LoginPage({ role }) {
   const text = LOGIN_TEXTOS[role];
 
   const [form, setForm] = useState(() => ({ rbd: loadLastRbd(), email: '', password: '', remember: false }));
-  const [error, setError] = useState(null);
+  // Resultado del último intento, atado a la pestaña donde ocurrió: al cambiar de pestaña deja de mostrarse.
+  // { role, error } = mensaje de error; { role, mismatch } = la cuenta es de otro rol ('none' = sin portal).
+  const [feedback, setFeedback] = useState(null);
   const [sending, setSending] = useState(false);
   const passwordRef = useRef(null);
+  const current = feedback?.role === role ? feedback : null;
+  const error = current?.error ?? null;
+  const mismatch = current?.mismatch ?? null;
 
   const change = (field) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -40,12 +59,17 @@ export function LoginPage({ role }) {
   async function onSubmit(e) {
     e.preventDefault();
     if (sending) return; // el botón sigue habilitado (aria-disabled) para no perder el foco mientras envía
-    setError(null);
+    setFeedback(null);
     setSending(true);
     try {
-      await signIn(form);
+      await signIn(form, { expectedRole: role });
     } catch (err) {
-      setError(mensajeDeError(err));
+      if (err instanceof RoleMismatchError) {
+        // Las credenciales son correctas: se conserva la contraseña para entrar con un clic desde la otra pestaña.
+        setFeedback({ role, mismatch: err.actual ?? 'none', at: Date.now() });
+        return;
+      }
+      setFeedback({ role, error: mensajeDeError(err) });
       setForm((f) => ({ ...f, password: '' }));
       passwordRef.current?.focus(); // quien usa teclado sigue donde estaba: en la contraseña, ahora vacía
     } finally {
@@ -53,7 +77,16 @@ export function LoginPage({ role }) {
     }
   }
 
-  const aviso = error ?? notice;
+  const aviso = error ?? (mismatch ? null : notice);
+
+  /** Clic en un enlace de la pantalla de acceso: mientras se envía no navega; si navega, el aviso anterior se va. */
+  const alNavegar = (e) => {
+    if (sending) {
+      e.preventDefault();
+      return;
+    }
+    setFeedback(null);
+  };
 
   return (
     <div className={styles.login}>
@@ -68,6 +101,24 @@ export function LoginPage({ role }) {
       </header>
 
       <form className={styles.box} onSubmit={onSubmit} aria-busy={sending}>
+        {role !== 'adm' && (
+          <nav className={styles.tabs} aria-label="Tipo de cuenta">
+            {LOGIN_TABS.map((id) => (
+              <a
+                key={id}
+                href={`#/portal/${ROLES[id].login}`}
+                className={id === role ? styles.tabOn : styles.tab}
+                aria-current={id === role ? 'page' : undefined}
+                // Mientras se inicia sesión no se cambia de pestaña: el resultado (o el aviso) es de la pestaña enviada.
+                aria-disabled={sending || undefined}
+                onClick={alNavegar}
+              >
+                <Icon name={TAB_ICON[id]} size={18} />
+                {ROLES[id].label}
+              </a>
+            ))}
+          </nav>
+        )}
         <h2>{text.titulo}</h2>
         <p className={styles.sub}>{text.detalle}</p>
 
@@ -76,6 +127,7 @@ export function LoginPage({ role }) {
             {aviso}
           </p>
         )}
+        {mismatch && <AvisoOtroRol key={current.at} actual={mismatch} onNavigate={alNavegar} />}
 
         <label className={styles.field}>
           <span>Colegio (RBD)</span>
@@ -91,7 +143,7 @@ export function LoginPage({ role }) {
             aria-describedby="fp-rbd-ayuda"
           />
           <small id="fp-rbd-ayuda" className={styles.help}>
-            El código de tu colegio. Si no lo sabes, pídeselo a tu profesor jefe.
+            {text.ayudaRbd}
           </small>
         </label>
         <label className={styles.field}>
@@ -131,14 +183,48 @@ export function LoginPage({ role }) {
         <button type="submit" className={styles.submit} aria-disabled={sending}>
           {sending ? 'Ingresando…' : 'Iniciar sesión'}
         </button>
-        <div className={styles.roles}>
-          {ROLE_IDS.map((id) => (
-            <a key={id} href={`#/portal/${ROLES[id].login}`} className={id === role ? styles.roleOn : ''}>
-              {ROLES[id].label}
+        <p className={styles.other}>
+          {role === 'adm' ? (
+            <a href={`#/portal/${ROLES.est.login}`} aria-disabled={sending || undefined} onClick={alNavegar}>
+              ¿Eres estudiante o docente? Vuelve al acceso general
             </a>
-          ))}
-        </div>
+          ) : (
+            <a href={`#/portal/${ROLES.adm.login}`} aria-disabled={sending || undefined} onClick={alNavegar}>
+              ¿Administras un colegio? Ingresa aquí
+            </a>
+          )}
+        </p>
       </form>
+    </div>
+  );
+}
+
+/**
+ * La cuenta es de otro rol: dice cuál y ofrece ir a su pestaña (o explica que no tiene portal).
+ * El foco pasa a «Cambiar a …»: con teclado, el siguiente Enter lleva a la pestaña correcta.
+ */
+function AvisoOtroRol({ actual, onNavigate }) {
+  const linkRef = useRef(null);
+  useEffect(() => {
+    linkRef.current?.focus();
+  }, []);
+  if (actual === 'none') {
+    return (
+      <p className={styles.error} role="alert">
+        Esta cuenta no tiene acceso al portal. Consulta con la administración de tu colegio.
+      </p>
+    );
+  }
+  const destino = ROLES[actual];
+  return (
+    <div className={styles.error} role="alert">
+      <p>
+        Esta cuenta es de {destino.label.toLowerCase()}. Para entrar, cambia a «{destino.label}» y vuelve a presionar
+        Iniciar sesión.
+      </p>
+      <a ref={linkRef} className={styles.switch} href={`#/portal/${destino.login}`} onClick={onNavigate}>
+        Cambiar a {destino.label}
+      </a>
     </div>
   );
 }
