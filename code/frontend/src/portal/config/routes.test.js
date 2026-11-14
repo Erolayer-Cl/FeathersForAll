@@ -19,10 +19,16 @@ describe('tabla de rutas', () => {
   });
 
   it('las pantallas «Ver …» y de curso son de detalle (reciben un id)', () => {
-    for (const id of ['est-curso', 'est-tutor', 'doc-curso', 'adm-colegio', 'adm-usuario', 'adm-curso', 'adm-evaluacion']) {
+    for (const id of ['est-curso', 'est-tutor', 'est-evaluacion', 'doc-curso', 'doc-evaluacion', 'doc-evaluacion-nueva', 'adm-usuario', 'adm-curso', 'adm-evaluacion']) {
       expect(findRoute(id).detail).toBe(true);
     }
-    expect(findRoute('adm-colegio-nuevo').detail).toBeUndefined();
+    expect(findRoute('doc-curso-nuevo').detail).toBeUndefined();
+    expect(findRoute('adm-usuario-nuevo').detail).toBeUndefined();
+  });
+
+  it('el administrador no tiene «Colegios»: eso es del rol master, que no entra por este portal', () => {
+    expect(ROLES.adm.nav.map((i) => i.key)).not.toContain('colegios');
+    expect(PORTAL_ROUTES.filter((r) => r.id.startsWith('adm-colegio'))).toEqual([]);
   });
 
   it('una ruta desconocida cae en el acceso por defecto', () => {

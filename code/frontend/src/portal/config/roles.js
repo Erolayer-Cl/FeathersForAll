@@ -43,7 +43,6 @@ export const ROLES = {
     login: 'login-adm',
     nav: [
       { key: 'inicio', label: 'Inicio', icon: 'home', route: 'adm-inicio' },
-      { key: 'colegios', label: 'Colegios', icon: 'school', route: 'adm-colegios' },
       { key: 'usuarios', label: 'Usuarios', icon: 'users', route: 'adm-usuarios' },
       { key: 'cursos', label: 'Cursos', icon: 'book', route: 'adm-cursos' },
       { key: 'evaluaciones', label: 'Evaluaciones', icon: 'check', route: 'adm-evaluaciones' },

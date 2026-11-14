@@ -37,8 +37,8 @@
 
 | Pieza | Dónde | Notas |
 |---|---|---|
-| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
-| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `05`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
+| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`, `evaluaciones`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
+| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `06`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
 | Frontend | `code/frontend/` | React 19 + Vite (ADR 0005). `index.html` = chat del tutor; `portal.html` = portal por rol (`src/portal/`, router por hash `#/portal/<id>`) |
 | Contrato | `FeathersForAll/api/` | OpenAPI 3.1 con ejemplos ejecutables contra Prism |
 | Infra | `k8s/`, `terraform/` | Laboratorio S07: kind + Kustomize + Terraform (ADR 0006) |
@@ -95,6 +95,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **S09 (DevSecOps I):** preparada el 06-11-2026 en la rama `feat/s09-devsecops` (detalle abajo). Su PPT ya está en `models.md`.
 - **S10 (DevSecOps II):** preparada el 11-11-2026 sobre la rama de la S09 (detalle abajo). Su PPT ya está en `models.md`.
 - **RAG v1.0 (PR #16, rama `rag-V1.0`):** revisado y corregido el 14-11-2026 (detalle abajo). Falta la decisión del equipo sobre el Mineduc antes de mergear.
+- **Ciclo mínimo H1, H2, H4:** hecho el 14-11-2026 sobre la misma rama (detalle abajo): el docente crea curso, matricula y crea y publica evaluaciones; el estudiante las rinde y ve su nota.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
@@ -175,13 +176,23 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - Ayuda del RBD según el rol. Sin cambios en la API ni en el contrato.
   - **Verificado en local:** frontend 101 pruebas y lint; recorrido en Chrome headless del build con la CSP y la API real (27 comprobaciones, foco incluido: los tres roles, cruce de rol, clave mala, teclado, 360 px y tema oscuro, sin violaciones de CSP); contraste AA de los elementos nuevos en ambos temas (mínimo 5,5:1).
 
+- **Ciclo mínimo H1, H2, H4** (14-11-2026, contrato v1.4.0):
+  - **Decisiones:** empezar por el ciclo mínimo; `tutor-questions` queda **deprecado** en el contrato (nunca se implementó; lo reemplazan las conversaciones); se quita «Colegios» del menú del administrador (es del rol master, que no tiene login).
+  - **API:** `POST /v1/courses`, `POST` y `GET /v1/courses/{id}/enrollments`, `POST` y `GET /v1/courses/{id}/assessments`, `GET` y `PATCH /v1/assessments/{id}` (publicar y cerrar) y `POST /v1/assessments/{id}/submissions`. Código en `src/modules/cursos/` y `src/modules/evaluaciones/`. Las rutas de notas del docente (libro, resumen, notas de un estudiante, exigencia) ya existían y ahora están en el contrato.
+  - **Idempotency-Key** (`src/platform/idempotency.js`): candado, búsqueda, operación y guardado en UNA transacción; dos envíos simultáneos con la misma clave crean un solo recurso, y la misma clave en otra operación u otro usuario da 422. Los errores de PostgreSQL esperables (RLS 42501, único 23505, FK/formato) se traducen a 403/409/422 en `problem.js`.
+  - **Migración `06_alternativas_orden.sql`:** las alternativas no tenían orden, así que `correct_option` y `selected_option` (índices) no eran estables. Columna `orden` (sin UNIQUE, para no romper los SQL de prueba); quien lee ordena por `(orden, id)`. Hay que aplicarla en las bases existentes (`npm run db:setup` lo hace).
+  - **Reglas:** el estudiante nunca recibe la alternativa correcta ni la retroalimentación antes de entregar; un borrador no existe para él (404); un solo intento (409 con su resultado anterior); no se publica sin alternativa correcta en todas las preguntas (422 con cuáles); otro docente o admin sin permiso 403, estudiante sin matrícula 404.
+  - **Portal:** docente — Nuevo curso, matricular por correo, lista de estudiantes, Nueva evaluación (preguntas y alternativas con la correcta marcada), publicar y cerrar, resultados con acierto por pregunta y menú Evaluaciones; estudiante — «Por rendir» en el curso, rendir con confirmación y resultado con nota y retroalimentación al instante. El formulario reutiliza la `Idempotency-Key` si la red falla.
+  - **Verificado en local:** lint; backend 322 pruebas sin base y 480 con PostgreSQL (cobertura 98,57 %; incluye `test/ciclo.pg.test.js`); frontend 116 pruebas; Spectral sin errores ni advertencias; cliente TS regenerado; 11 ejemplos Prism; Newman (66 requests, 120 aserciones, con la carpeta 10 del ciclo); recorrido en Chrome headless del build con la CSP y la API real (docente, estudiante y administrador, 360 px, sin violaciones de CSP).
+  - **Falta:** editar o borrar un borrador (hoy, si te equivocas, creas otra evaluación); fecha de cierre en el formulario (la API acepta `closes_at`); gestión de usuarios del administrador; pantallas «Mis estudiantes», «Reportes» y «Progreso», aún marcadores; rate limit en los POST (el contrato declara 429).
+
 ## Pendientes y deuda conocida
 
 - En `main` hay cambios sin commitear de antes de la etapa 1:
   - el Dockerfile ahora copia `db/queries.js`;
   - arreglos del chat y del almacén JSON;
   - el rebrand a FeathersForAll.
-- **Contrato S05 sin implementar:** evaluaciones (crear, publicar, rendir) y tutor asíncrono (`tutor-questions`). El Tutor IA del portal ya usa las rutas del contrato v1.2 (`tutor-conversations`); `POST /v1/dev/chat` queda para desarrollo y docentes.
+- **Contrato sin implementar:** solo el tutor asíncrono (`tutor-questions`), deprecado desde la v1.4. El Tutor IA del portal usa las rutas del contrato v1.2 (`tutor-conversations`); `POST /v1/dev/chat` queda para desarrollo y docentes.
 - **CORS:** el backend no tiene. Hoy no hace falta (Vite y NGINX sirven todo desde un solo origen), pero la demo pública (Vercel + Render) sí lo necesita, exponiendo `X-Tutor-Turn`, `X-Rag-Sources` y `X-Conversation-Mode` con `Access-Control-Expose-Headers`.
 - **Propuestas de la auditoría sin decidir** (detalle en el informe): LLM con GPU o proveedor externo, reordenar el prompt del tutor (~2 s menos), quitar el índice HNSW que no se usa (750 MB), RLS del docente sin consulta por fila y `UV_THREADPOOL_SIZE` (login ~25/s por proceso).
 - **Imagen de la API: 211 MB**, sobre la meta de < 200 MB del ADR 0006 (la base distroless debian13 ya pesa 203 MB).

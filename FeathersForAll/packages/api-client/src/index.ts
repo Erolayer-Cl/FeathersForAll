@@ -60,3 +60,10 @@ export function createFeathersForAllClient({ baseUrl, getToken }: ClientOptions)
 //     params: { path: { assessmentId } , header: { "Idempotency-Key": crypto.randomUUID() } },
 //     body: { answers: [{ question_id, selected_option: 1 }] },
 //   });
+// v1.4.0 — ciclo mínimo: matrículas, evaluaciones (crear, publicar, rendir) y notas del docente.
+export type EnrollmentList = Schemas["EnrollmentList"];
+export type AssessmentSummaryList = Schemas["AssessmentSummaryList"];
+export type SubmissionInput = Schemas["SubmissionInput"];
+export type Gradebook = Schemas["Gradebook"];
+export type GradesSummary = Schemas["GradesSummary"];
+export type StudentCourseGrades = Schemas["StudentCourseGrades"];

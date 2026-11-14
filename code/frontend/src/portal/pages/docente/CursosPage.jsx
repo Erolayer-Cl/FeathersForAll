@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getCourses } from '../../../api/portalApi.js';
-import { Chip, EmptyState, LoadState, PageHead } from '../../components/ui/index.js';
+import { Button, Chip, EmptyState, LoadState, PageHead } from '../../components/ui/index.js';
+import { routeHref } from '../../router/parseRoute.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import styles from './CursosPage.module.css';
@@ -17,7 +18,8 @@ export function DocenteCursosPage() {
 
   return (
     <>
-      <PageHead title="Mis cursos" subtitle="Sube los apuntes de cada curso: el Tutor IA responde a tus estudiantes con ese material.">
+      <PageHead title="Mis cursos" subtitle="Crea cursos, matricula a tus estudiantes, arma evaluaciones y sube los apuntes que usa el Tutor IA.">
+        <Button size="sm" href={routeHref('doc-curso-nuevo')}>Nuevo curso</Button>
         <input
           className={styles.search}
           type="search"
@@ -29,7 +31,7 @@ export function DocenteCursosPage() {
       </PageHead>
 
       <LoadState loading={loading} error={error} onRetry={reload}>
-        {data?.length === 0 && <EmptyState title="Aún no tienes cursos">Aparecerán aquí cuando tu colegio te asigne una asignatura.</EmptyState>}
+        {data?.length === 0 && <EmptyState title="Aún no tienes cursos">Crea el primero con «Nuevo curso» o espera a que tu colegio te asigne una asignatura.</EmptyState>}
         {data?.length > 0 && cursos.length === 0 && <EmptyState>Ningún curso coincide con «{busqueda}».</EmptyState>}
 
         <div className={styles.grid}>
@@ -43,7 +45,7 @@ export function DocenteCursosPage() {
                   {curso.tutor_available ? `${curso.tutor_documents} apunte${curso.tutor_documents === 1 ? '' : 's'} en el tutor` : 'Sin apuntes aún'}
                 </Chip>
                 <PortalLink to="doc-curso" param={curso.id} className={styles.enter}>
-                  Gestionar apuntes
+                  Gestionar curso
                 </PortalLink>
               </div>
             </article>

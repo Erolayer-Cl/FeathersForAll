@@ -4,6 +4,8 @@ import { Button, Card, Chip, EmptyState, LoadState, PageHead } from '../../compo
 import { useApiData } from '../../hooks/useApiData.js';
 import { routeHref } from '../../router/parseRoute.js';
 import { useSession } from '../../session/useSession.js';
+import { EvaluacionesCard } from './EvaluacionesCard.jsx';
+import { MatriculadosCard } from './MatriculadosCard.jsx';
 import styles from './CursoPage.module.css';
 
 const NO_DISPONIBLE = {
@@ -100,8 +102,13 @@ export function DocenteCursoPage({ param: courseId }) {
       <LoadState loading={curso.loading} error={curso.error} onRetry={curso.reload} notFound={NO_DISPONIBLE}>
         <PageHead
           title={curso.data?.subject ?? curso.data?.name ?? 'Curso'}
-          subtitle={`${curso.data?.name ?? ''} · Apuntes del Tutor IA`}
+          subtitle={`${curso.data?.name ?? ''} · Estudiantes, evaluaciones y apuntes del Tutor IA`}
         />
+
+        <div className={styles.split}>
+          <MatriculadosCard courseId={courseId} />
+          <EvaluacionesCard courseId={courseId} />
+        </div>
 
         <div className={styles.split}>
           <Card as="section" aria-labelledby="subir-titulo">

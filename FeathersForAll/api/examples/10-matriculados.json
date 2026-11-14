@@ -1,0 +1,7 @@
+{
+  "name": "Matrícula · El docente ve a los matriculados (v1.4)",
+  "method": "GET",
+  "path": "/courses/c0000000-0000-0000-0000-000000000001/enrollments",
+  "headers": {},
+  "expect_status": 200
+}

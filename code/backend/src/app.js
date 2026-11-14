@@ -9,6 +9,7 @@ import { createApuntesRouter } from './modules/tutor/apuntes.routes.js';
 import { createNotasRouter } from './modules/notas/notas.routes.js';
 import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
 import { createCursosRouter } from './modules/cursos/cursos.routes.js';
+import { createEvaluacionesRouter } from './modules/evaluaciones/evaluaciones.routes.js';
 import { createLoginLimiter } from './platform/login-limiter.js';
 
 /**
@@ -72,6 +73,7 @@ export function createApp({
     app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
     app.use(createCursosRouter({ db }));
+    app.use(createEvaluacionesRouter({ db }));
     app.use(createNotasRouter({ db }));
     // Conversaciones guardadas del tutor (ADR 0008) y apuntes del curso (v1.3): necesitan el RAG en PostgreSQL.
     if (rag?.backend === 'postgres') {

@@ -142,7 +142,7 @@ jobs:
           JWT_SECRET="$(openssl rand -hex 32)" nohup node src/server.js > api.log 2>&1 &
           for _ in $(seq 1 30); do curl -sf http://localhost:3000/livez && exit 0; sleep 1; done
           cat api.log; exit 1
-      - name: Newman (salud, login, perfil, cursos, notas, privacidad, seguridad, apuntes)
+      - name: Newman (salud, login, perfil, cursos, notas, privacidad, seguridad, apuntes, ciclo mínimo)
         run: >-
           npx --yes newman@6 run requests/postman/FeathersForAll.postman_collection.json
           -e requests/postman/FeathersForAll.local.postman_environment.json
@@ -154,6 +154,7 @@ jobs:
           --folder "5 · Privacidad y permisos (deben fallar)"
           --folder "7 · Seguridad"
           --folder "9 · Apuntes del tutor (v1.3; sin Ollama)"
+          --folder "10 · Ciclo mínimo H1, H2, H4 (sin Ollama)"
       - name: Log de la API si algo falló
         if: failure()
         run: cat api.log

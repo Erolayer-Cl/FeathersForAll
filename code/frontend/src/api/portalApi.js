@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.3.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.4.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
@@ -106,4 +106,59 @@ export async function uploadCourseFile(token, courseId, file, { signal, fetchImp
 /** DELETE /v1/courses/{id}/documents/{nombre} → null (204). El tutor deja de usar ese apunte. */
 export function deleteCourseDocument(token, courseId, name, opts) {
   return requestJson(documentoPath(courseId, name), { method: 'DELETE', token, ...opts });
+}
+
+// --- Ciclo mínimo (contrato v1.4): cursos y matrículas (H1), evaluaciones (H2, H3) y rendir (H4).
+// Los POST llevan `idempotencyKey` (un UUID por operación): si la respuesta se pierde y se reintenta con la
+// misma clave, el servidor devuelve lo mismo sin crear nada dos veces.
+
+/** POST /v1/courses → el curso creado. `input`: { name, period, subject?, grade_level? } (el admin agrega teacher_id). */
+export function createCourse(token, input, idempotencyKey, opts) {
+  return requestJson('/v1/courses', { method: 'POST', token, body: input, idempotencyKey, ...opts });
+}
+
+/** GET /v1/courses/{id}/enrollments → { data: [{ id, student_id, name, email, enrolled_at }] } (docente y admin). */
+export function getEnrollments(token, courseId, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/enrollments`, { token, ...opts });
+}
+
+/** POST /v1/courses/{id}/enrollments → { id, course_id, student_id, enrolled_at }. 404 si el correo no es de un estudiante del colegio. */
+export function enrollStudent(token, courseId, email, idempotencyKey, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/enrollments`, {
+    method: 'POST', token, body: { student_email: email }, idempotencyKey, ...opts,
+  });
+}
+
+/** GET /v1/courses/{id}/assessments → { data: [...] }: docente, todas; estudiante, las publicadas con su nota. */
+export function getAssessments(token, courseId, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/assessments`, { token, ...opts });
+}
+
+/** GET /v1/assessments/{id} → la evaluación (docente: con la alternativa correcta; estudiante: sin ella). */
+export function getAssessment(token, assessmentId, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { token, ...opts });
+}
+
+/** POST /v1/courses/{id}/assessments → la evaluación en borrador. `input`: { title, questions: [{ statement, options, correct_option, feedback }] }. */
+export function createAssessment(token, courseId, input, idempotencyKey, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/assessments`, {
+    method: 'POST', token, body: input, idempotencyKey, ...opts,
+  });
+}
+
+/** PATCH /v1/assessments/{id} → la evaluación con su nuevo estado ('published' | 'closed'). 422 si falta una alternativa correcta. */
+export function setAssessmentStatus(token, assessmentId, status, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'PATCH', token, body: { status }, ...opts });
+}
+
+/** GET /v1/assessments/{id}/results → resumen, acierto por pregunta y entregas (docente y admin). */
+export function getAssessmentResults(token, assessmentId, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/results`, { token, ...opts });
+}
+
+/** POST /v1/assessments/{id}/submissions → { score, max_score, percentage, grade, answers: [{ question_id, correct, feedback }] }. 409 si ya la rindió. */
+export function submitAssessment(token, assessmentId, answers, idempotencyKey, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/submissions`, {
+    method: 'POST', token, body: { answers }, idempotencyKey, ...opts,
+  });
 }

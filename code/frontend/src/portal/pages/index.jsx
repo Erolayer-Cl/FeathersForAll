@@ -9,6 +9,11 @@ import { MisNotasPage } from './estudiante/MisNotasPage.jsx';
 import { TutorPage } from './estudiante/TutorPage.jsx';
 import { DocenteCursosPage } from './docente/CursosPage.jsx';
 import { DocenteCursoPage } from './docente/CursoPage.jsx';
+import { DocenteCursoNuevoPage } from './docente/CursoNuevoPage.jsx';
+import { DocenteEvaluacionesPage } from './docente/EvaluacionesPage.jsx';
+import { DocenteEvaluacionNuevaPage } from './docente/EvaluacionNuevaPage.jsx';
+import { DocenteEvaluacionPage } from './docente/EvaluacionPage.jsx';
+import { EvaluacionPage } from './estudiante/EvaluacionPage.jsx';
 import { SettingsPage } from './shared/SettingsPage.jsx';
 
 export const PAGES = {
@@ -23,6 +28,11 @@ export const PAGES = {
   'doc-inicio': DocenteCursosPage,
   'doc-cursos': DocenteCursosPage,
   'doc-curso': DocenteCursoPage,
+  'doc-curso-nuevo': DocenteCursoNuevoPage,
+  'doc-evaluaciones': DocenteEvaluacionesPage,
+  'doc-evaluacion-nueva': DocenteEvaluacionNuevaPage,
+  'doc-evaluacion': DocenteEvaluacionPage,
+  'est-evaluacion': EvaluacionPage,
   'est-config': () => <SettingsPage role="est" />,
   'doc-config': () => <SettingsPage role="doc" />,
   'adm-config': () => <SettingsPage role="adm" />,

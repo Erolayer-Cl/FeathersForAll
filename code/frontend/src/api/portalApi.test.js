@@ -1,7 +1,15 @@
 import { describe, expect, test } from 'vitest';
 import { ApiError } from './http.js';
 import {
+  createAssessment,
+  createCourse,
   deleteCourseDocument,
+  enrollStudent,
+  getAssessment,
+  getAssessments,
+  getEnrollments,
+  setAssessmentStatus,
+  submitAssessment,
   deleteTutorConversation,
   getCourseDocuments,
   getCourses,
@@ -160,5 +168,46 @@ describe('apuntes del tutor por curso (v1.3)', () => {
     expect(await deleteCourseDocument('t1', 'c1', 'MINEDUC · Matemática', { fetchImpl })).toBeNull();
     expect(calls[0].url).toBe(`/v1/courses/c1/documents/${encodeURIComponent('MINEDUC · Matemática')}`);
     expect(calls[0].init.method).toBe('DELETE');
+  });
+});
+
+describe('ciclo mínimo (v1.4)', () => {
+  const KEY = '3b1f7c1e-2a4d-4c1b-9d7e-0c5a1e2f3a4b';
+
+  test('los POST envían la Idempotency-Key y el cuerpo JSON', async () => {
+    const { fetchImpl, calls } = fakeFetch({ status: 201, body: { id: 'c1' } }, { status: 201, body: {} }, { status: 201, body: {} }, { status: 201, body: {} });
+    await createCourse('t', { name: 'Lenguaje 7° B', period: '2026-S2' }, KEY, { fetchImpl });
+    await enrollStudent('t', 'c1', 'camila@demo-a.cl', KEY, { fetchImpl });
+    await createAssessment('t', 'c1', { title: 'Prueba', questions: [] }, KEY, { fetchImpl });
+    await submitAssessment('t', 'e1', [{ question_id: 'q1', selected_option: 1 }], KEY, { fetchImpl });
+    expect(calls.map((c) => [c.init.method, c.url])).toEqual([
+      ['POST', '/v1/courses'], ['POST', '/v1/courses/c1/enrollments'], ['POST', '/v1/courses/c1/assessments'], ['POST', '/v1/assessments/e1/submissions'],
+    ]);
+    for (const c of calls) {
+      expect(c.init.headers['idempotency-key']).toBe(KEY);
+      expect(c.init.headers.authorization).toBe('Bearer t');
+    }
+    expect(JSON.parse(calls[1].init.body)).toEqual({ student_email: 'camila@demo-a.cl' });
+    expect(JSON.parse(calls[3].init.body)).toEqual({ answers: [{ question_id: 'q1', selected_option: 1 }] });
+  });
+
+  test('las lecturas y el PATCH no llevan Idempotency-Key; los ids van codificados', async () => {
+    const { fetchImpl, calls } = fakeFetch({ body: { data: [] } }, { body: { data: [] } }, { body: {} }, { body: {} });
+    await getEnrollments('t', 'a/b', { fetchImpl });
+    await getAssessments('t', 'c1', { fetchImpl });
+    await getAssessment('t', 'e1', { fetchImpl });
+    await setAssessmentStatus('t', 'e1', 'published', { fetchImpl });
+    expect(calls[0].url).toBe('/v1/courses/a%2Fb/enrollments');
+    expect(calls.map((c) => c.init.method)).toEqual(['GET', 'GET', 'GET', 'PATCH']);
+    expect(JSON.parse(calls[3].init.body)).toEqual({ status: 'published' });
+    for (const c of calls) expect(c.init.headers['idempotency-key']).toBeUndefined();
+  });
+
+  test('un 409 (ya rindió) o un 422 (falta la correcta) llegan como ApiError con su detalle', async () => {
+    const { fetchImpl } = fakeFetch({ status: 409, body: { status: 409, detail: 'Ya rendiste esta evaluación.' } }, { status: 422, body: { status: 422, detail: 'No se puede publicar: la pregunta 2 no tiene respuesta correcta.' } });
+    const a = await submitAssessment('t', 'e1', [], KEY, { fetchImpl }).catch((e) => e);
+    const b = await setAssessmentStatus('t', 'e1', 'published', { fetchImpl }).catch((e) => e);
+    expect([a.status, a.message]).toEqual([409, 'Ya rendiste esta evaluación.']);
+    expect(b.status).toBe(422);
   });
 });

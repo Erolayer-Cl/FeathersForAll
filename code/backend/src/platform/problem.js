@@ -5,12 +5,14 @@ const TYPE_BASE = 'https://api.feathersforall.example/errors/';
 
 /** Error HTTP que se serializa como RFC 7807 (application/problem+json). */
 export class HttpProblem extends Error {
-  constructor(status, title, detail, type = slug(title)) {
+  /** `extra`: campos adicionales del problema (extensiones RFC 7807), p. ej. `errors` en un 422. */
+  constructor(status, title, detail, type = slug(title), extra = undefined) {
     super(detail ?? title);
     this.status = status;
     this.title = title;
     this.detail = detail;
     this.type = type;
+    this.extra = extra;
   }
 }
 
@@ -30,6 +32,12 @@ function toProblem(err) {
   }
   if (err instanceof DbUnavailableError) {
     return new HttpProblem(503, 'Base de datos no disponible', err.message, 'db-unavailable');
+  }
+  // Errores de PostgreSQL que son del cliente y no un fallo del servidor. El mensaje de la base nunca sale.
+  if (err.code === '42501') return new HttpProblem(403, 'Prohibido', 'Tu rol no puede hacer esta operación', 'forbidden');
+  if (err.code === '23505') return new HttpProblem(409, 'Conflicto', 'Ya existe un registro con esos datos', 'conflict');
+  if (['23503', '23514', '22001', '22P02', '22021', '22023'].includes(err.code)) {
+    return new HttpProblem(422, 'Datos inválidos', 'Los datos enviados no cumplen las reglas del sistema', 'validation-error');
   }
   // Express no pudo decodificar un parámetro de la URL ("%E0%A4%A"): es un error del cliente.
   if (err instanceof URIError) {
@@ -67,5 +75,6 @@ export function problemHandler(err, req, res, _next) {
       detail: problem.detail,
       instance: req.originalUrl,
       trace_id: req.traceId,
+      ...problem.extra,
     });
 }

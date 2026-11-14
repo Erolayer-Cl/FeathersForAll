@@ -17,6 +17,7 @@ export const PORTAL_ROUTES = [
   { id: 'est-cursos', title: 'Mis cursos', group: 'Estudiante', role: 'est', nav: 'cursos' },
   { id: 'est-curso', title: 'Curso', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-contenido', title: 'Curso · Contenido', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
+  { id: 'est-evaluacion', title: 'Rendir evaluación', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-notas', title: 'Mis notas', group: 'Estudiante', role: 'est', nav: 'notas' },
   // El id (opcional) es el curso cuyos apuntes usa el tutor: #/portal/est-tutor/<curso>.
   { id: 'est-tutor', title: 'Tutor IA (chat y aprendizaje guiado)', group: 'Estudiante', role: 'est', nav: 'tutor', detail: true },
@@ -25,16 +26,16 @@ export const PORTAL_ROUTES = [
 
   { id: 'doc-inicio', title: 'Inicio', group: 'Docente', role: 'doc', nav: 'inicio' },
   { id: 'doc-cursos', title: 'Cursos', group: 'Docente', role: 'doc', nav: 'cursos' },
+  { id: 'doc-curso-nuevo', title: 'Nuevo curso', group: 'Docente', role: 'doc', nav: 'cursos' },
   { id: 'doc-curso', title: 'Curso (resumen y contenidos)', group: 'Docente', role: 'doc', nav: 'cursos', detail: true },
+  { id: 'doc-evaluacion-nueva', title: 'Nueva evaluación', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
+  { id: 'doc-evaluacion', title: 'Evaluación (preguntas y resultados)', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
   { id: 'doc-estudiantes', title: 'Mis estudiantes', group: 'Docente', role: 'doc', nav: 'estudiantes' },
   { id: 'doc-evaluaciones', title: 'Evaluaciones', group: 'Docente', role: 'doc', nav: 'evaluaciones' },
   { id: 'doc-reportes', title: 'Reportes', group: 'Docente', role: 'doc', nav: 'reportes' },
   { id: 'doc-config', title: 'Configuración', group: 'Docente', role: 'doc', nav: 'config' },
 
   { id: 'adm-inicio', title: 'Inicio', group: 'Administrador', role: 'adm', nav: 'inicio' },
-  { id: 'adm-colegios', title: 'Colegios', group: 'Administrador', role: 'adm', nav: 'colegios' },
-  { id: 'adm-colegio', title: 'Ver colegio', group: 'Administrador', role: 'adm', nav: 'colegios', detail: true },
-  { id: 'adm-colegio-nuevo', title: 'Agregar colegio', group: 'Administrador', role: 'adm', nav: 'colegios' },
   { id: 'adm-usuarios', title: 'Usuarios', group: 'Administrador', role: 'adm', nav: 'usuarios' },
   { id: 'adm-usuario', title: 'Ver usuario', group: 'Administrador', role: 'adm', nav: 'usuarios', detail: true },
   { id: 'adm-usuario-nuevo', title: 'Agregar usuario', group: 'Administrador', role: 'adm', nav: 'usuarios' },

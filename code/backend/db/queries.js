@@ -114,7 +114,50 @@ FROM usuarios u
 WHERE u.email = $2 AND u.rol = 'estudiante' AND u.activo
 RETURNING id, curso_id, estudiante_id, fecha_matricula`;
 
+// Alumnos matriculados (activos) de un curso. Solo para el docente del curso y el admin.
+export const ESTUDIANTES_CURSO = `
+SELECT m.id AS matricula_id, m.fecha_matricula, u.id AS estudiante_id, u.nombre, u.email
+FROM matriculas m
+JOIN usuarios u ON u.id = m.estudiante_id
+WHERE m.curso_id = $1 AND m.activo
+ORDER BY u.nombre, u.id`;
+
 // --- Evaluaciones (H2) -----------------------------------------------------------
+
+// Lista para el docente/admin: todas, borradores incluidos.
+export const EVALUACIONES_DEL_CURSO = `
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+       (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
+       (SELECT count(*) FROM intentos_evaluacion i WHERE i.evaluacion_id = e.id AND i.fecha_envio IS NOT NULL)::int AS entregas
+FROM evaluaciones e
+WHERE e.curso_id = $1
+ORDER BY e.created_at DESC, e.id`;
+
+// Lista para el estudiante ($2 = su id): solo publicadas y cerradas (nunca borradores), con su nota si ya la rindió.
+export const EVALUACIONES_PARA_ESTUDIANTE = `
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+       (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
+       n.nota, n.puntaje, n.fecha_envio AS entregada_at
+FROM evaluaciones e
+LEFT JOIN notas n ON n.evaluacion_id = e.id AND n.estudiante_id = $2
+WHERE e.curso_id = $1 AND e.estado IN ('publicada', 'cerrada')
+ORDER BY e.fecha_publicacion DESC, e.id`;
+
+// Evaluación completa, CON las alternativas correctas: solo para el docente del curso y el admin.
+export const PREGUNTAS_PARA_DOCENTE = `
+SELECT p.id, p.orden, p.enunciado, p.retroalimentacion,
+       json_agg(json_build_object('texto', a.texto, 'es_correcta', a.es_correcta) ORDER BY a.orden, a.id) AS alternativas
+FROM preguntas p
+JOIN alternativas a ON a.pregunta_id = p.id
+WHERE p.evaluacion_id = $1
+GROUP BY p.id
+ORDER BY p.orden`;
+
+// Un intento (enviado o no) del estudiante en la evaluación: para responder 409 si ya la rindió.
+export const INTENTO_DEL_ESTUDIANTE = `
+SELECT id, fecha_envio
+FROM intentos_evaluacion
+WHERE evaluacion_id = $1 AND estudiante_id = $2`;
 
 export const CREAR_EVALUACION = `
 INSERT INTO evaluaciones (curso_id, titulo, fecha_cierre)
@@ -126,9 +169,10 @@ INSERT INTO preguntas (evaluacion_id, enunciado, orden, retroalimentacion)
 VALUES ($1, $2, $3, $4)
 RETURNING id`;
 
+// $4 = posición de la alternativa (0, 1, 2…): el índice que usan correct_option y selected_option.
 export const CREAR_ALTERNATIVA = `
-INSERT INTO alternativas (pregunta_id, texto, es_correcta)
-VALUES ($1, $2, $3)
+INSERT INTO alternativas (pregunta_id, texto, es_correcta, orden)
+VALUES ($1, $2, $3, $4)
 RETURNING id`;
 
 // La BD garantiza "como máximo una correcta"; "al menos una" lo valida la API
@@ -162,7 +206,7 @@ ORDER BY fecha_publicacion DESC`;
 // Lo que ve el estudiante: alternativas SIN es_correcta (vista alternativas_publicas).
 export const PREGUNTAS_PARA_RENDIR = `
 SELECT p.id, p.orden, p.enunciado,
-       json_agg(json_build_object('id', a.id, 'texto', a.texto) ORDER BY a.id) AS alternativas
+       json_agg(json_build_object('id', a.id, 'texto', a.texto) ORDER BY a.orden, a.id) AS alternativas
 FROM preguntas p
 JOIN alternativas_publicas a ON a.pregunta_id = p.id
 WHERE p.evaluacion_id = $1
@@ -268,7 +312,7 @@ FROM cursos c
 WHERE c.id = $1 AND c.activo`;
 
 export const EVALUACION_ACCESO = `
-SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, c.docente_id
+SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, e.fecha_publicacion, e.fecha_cierre, c.docente_id
 FROM evaluaciones e
 JOIN cursos c ON c.id = e.curso_id
 WHERE e.id = $1`;
@@ -454,7 +498,7 @@ ORDER BY created_at DESC`;
 // --- Idempotency-Key (contrato S05) ----------------------------------------------------
 
 export const IDEMPOTENCIA_BUSCAR = `
-SELECT operacion, status_http, respuesta
+SELECT usuario_id, operacion, status_http, respuesta
 FROM claves_idempotencia
 WHERE clave = $1 AND creada_at > now() - interval '24 hours'`;
 
