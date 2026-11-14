@@ -94,6 +94,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **S08 (CI/CD y GitOps):** preparada el 26-10-2026 en la rama `Ignacio` y mergeada en `main` (PR #13).
 - **S09 (DevSecOps I):** preparada el 06-11-2026 en la rama `feat/s09-devsecops` (detalle abajo). Su PPT ya está en `models.md`.
 - **S10 (DevSecOps II):** preparada el 11-11-2026 sobre la rama de la S09 (detalle abajo). Su PPT ya está en `models.md`.
+- **RAG v1.0 (PR #16, rama `rag-V1.0`):** revisado y corregido el 14-11-2026 (detalle abajo). Falta la decisión del equipo sobre el Mineduc antes de mergear.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
@@ -144,6 +145,36 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - **No verificado en local** (sin acceso a registros de imágenes ni clúster): la firma y las attestations, ZAP, la policy de Kyverno, la NetworkPolicy y las reglas Falco. La primera run en `main` y una pasada en kind son la verificación.
   - **Falta (equipo):** mergear primero la S09; primera run en `main` y copiar la salida de `cosign verify` al PR; instalar Kyverno y Falco en kind y probar que la policy rechaza una imagen sin firma y que disparan las 3 reglas; copiar `networkpolicy.yaml` a `base/` del repo gitops; agregar `iac-scan` y `dast` a la protección de rama; definir el canal de alertas de Falco.
 
+- **RAG v1.0 — PR #16** (Cristofer, revisado el 14-11-2026):
+  - Trae búsqueda híbrida (pgvector + texto en español, mezcladas con RRF), apuntes en PDF (`unpdf`), Bases Curriculares del Mineduc por asignatura y nivel (`npm run ingest:mineduc`) y la pantalla Docente · Curso para subir apuntes.
+  - Arreglos de la revisión:
+    - Apuntes en el contrato **v1.3.0**: `GET /v1/courses/{id}/documents`, `PUT` y `DELETE .../documents/{nombre}` (`src/modules/tutor/apuntes.routes.js`). `PUT` porque reemplaza por nombre (sin `Idempotency-Key`). 404 si no participas, 403 al estudiante. Se quitó la ruta de desarrollo `/v1/dev/courses/{id}/files`.
+    - El nombre `MINEDUC…` queda reservado para las Bases, y los nombres de archivo llegan saneados al prompt dentro de `<temas>` (T-4).
+    - Ingress aparte `feathersforall-cursos` para `/v1/courses` (40 MB y 600 s); el resto de `/v1` sigue en 2 MB.
+    - Vuelve `body { margin: 0 }` a `base.css` (lo había borrado el PR; es de la S10).
+    - El apunte de aritmética pasó a `samples/operaciones-basicas.md`; se borró `scripts/ingest-aritmetica.js` (usaba el superusuario e IDs fijos).
+    - Fuera: código muerto (`withMathExpression`) y "gay" de la lista de insultos de la charla.
+  - Segunda revisión (agente revisor, 14-11-2026), corregida con pruebas de regresión:
+    - PDF de ejercicios (antes una guía de multiplicación quedaba vacía): se quitan las líneas idénticas que se repiten en muchas páginas (encabezados de varias líneas) y, en las 2 primeras y últimas líneas, las que llevan un número que avanza con la página ("Página 3 de 10", "Bases… 45"). Un número que no avanza ("Respuesta: 18") es contenido y se queda. `4 x 8 = 32` ya no pasa por título numerado (la regex tenía la bandera `i`).
+    - Búsqueda por texto: `toTsQuery` descarta las palabras de pedir ayuda ("dame", "ejemplo", "dice"…) pero no las de tema ("materia", "clase"), y arma frases término curricular + número (`oa <-> 3`, `decreto <-> 97`, `unidad <-> 2`; lista `PHRASE_TERMS`), nunca un número suelto. "OA 3" y "OA 3-4" ya no se toman como cálculo.
+    - Dos `PUT` del mismo nombre a la vez ya no duplican el apunte (`pg_advisory_xact_lock` en `replaceDocument`); el 200/201 sale de la misma transacción.
+    - `.txt`/`.md` en UTF-16 o Windows-1252 se leen bien (antes, 500 o texto dañado); sin NUL ni BOM.
+    - URL mal codificada → 400 (antes 500, en todas las rutas); multipart/urlencoded → 415; `DELETE` recorta espacios igual que `PUT`.
+    - "¿Qué temas hay?" ya no captura preguntas de materia ("¿Qué lecciones nos dejó la Guerra del Pacífico?").
+    - `tutor_documents` y `tutor_available` no cuentan las Bases del Mineduc (en `/v1/courses` y en `/v1/me/grades`).
+    - Niveles en romanos ("IV Medio", "IVº Medio") y asignaturas "Ciencias para la Ciudadanía" / "Artes Musicales" bien clasificadas.
+    - Portal docente: no se sube en paralelo al soltar archivos mientras otro se procesa.
+    - El agente revisor verificó las correcciones; lo que quedó a medias y sus 5 regresiones nuevas también se corrigieron.
+  - **Verificado en local:** lint; backend 259 pruebas sin base y 388 con PostgreSQL (cobertura 98,45 %); frontend 101; Spectral sin errores ni advertencias; cliente TS regenerado; 8 ejemplos Prism; Newman como en CI (50 requests, 88 aserciones, con la carpeta nueva 9); Checkov sobre kustomize (269 OK, 0 fallas); Semgrep con `.semgrep/`; recorrido en Chrome headless del build con la CSP de NGINX (subir `.md` y PDF, rechazar `.docx`, quitar, 360 px, estudiante 403, sin violaciones de CSP). Embeddings con un Ollama falso: la calidad de las respuestas con `bge-m3` no se volvió a medir.
+  - **Falta (equipo):**
+    - Decidir el diseño del Mineduc con un ADR. Hoy el PR copia las Bases en cada curso, dentro de `apuntes_curso` (el docente puede borrarlas); lo conversado era un corpus compartido de solo lectura, sin `colegio_id`. Además, validar la fuente (Ignacio) antes de cargar los PDF.
+    - Copiar el Ingress nuevo a `base/` del repo gitops.
+- **Login por rol** (14-11-2026, sobre la misma rama):
+  - Selector **Estudiante / Docente** arriba del formulario (`pages/login/LoginPage.jsx`, `LOGIN_TABS` en `textos.js`); la administración entra por un enlace aparte. Las tres rutas de acceso usan el mismo componente (`LoginRoute`): al cambiar de pestaña no se pierde lo escrito.
+  - Si la cuenta es de otro rol, la sesión **no** se guarda (`signInWith` / `acceptLogin` / `RoleMismatchError` en `session/session.js`, probado de punta a punta con login y almacenamiento falsos): el login avisa, pasa el foco a «Cambiar a …» y conserva la contraseña. Mientras se envía, ningún enlace de la pantalla navega; al navegar, el aviso anterior se borra. Las credenciales malas siguen dando el mismo 401 genérico (no se revela el rol).
+  - Ayuda del RBD según el rol. Sin cambios en la API ni en el contrato.
+  - **Verificado en local:** frontend 101 pruebas y lint; recorrido en Chrome headless del build con la CSP y la API real (27 comprobaciones, foco incluido: los tres roles, cruce de rol, clave mala, teclado, 360 px y tema oscuro, sin violaciones de CSP); contraste AA de los elementos nuevos en ambos temas (mínimo 5,5:1).
+
 ## Pendientes y deuda conocida
 
 - En `main` hay cambios sin commitear de antes de la etapa 1:
@@ -158,6 +189,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **Puerto 5432:** si hay un PostgreSQL nativo instalado, el contenedor no arranca (ver README del backend).
 - **Del threat model del tutor (S09):** sin rate limit por usuario en el tutor (D-1, prioridad alta), prompt injection indirecta desde apuntes (T-4) y sin audit log de apuntes (R-1). La CSP (S-4) se cerró en la S10.
 - **Del DAST (S10):** las respuestas JSON de la API no envían `X-Content-Type-Options` ni `Cache-Control: no-store` (hoy WARN en `dast/zap-rules.tsv`; cambia el contrato). Las fuentes vienen de Google Fonts: sin SRI y cada visita le entrega la IP del estudiante a Google; conviene servirlas desde el propio sitio. Falta un escaneo de la API con el contrato (`zap-api-scan`).
+- **Del RAG v1.0:** el PDF se procesa en el hilo principal de la API (un archivo grande frena a los demás mientras se lee; D-1); la búsqueda por texto calcula `to_tsvector` fila por fila, sin índice GIN; las pantallas docentes (`.jsx`) no tienen pruebas propias.
 - **Supply chain (S10):** SLSA Build L2; para L3 falta generar la provenance fuera del job (`actions/attest-build-provenance` o `slsa-github-generator`). Sin respaldo de firmas y attestations fuera de GHCR. Con la policy de Kyverno, `publicar-imagenes.ps1` ya no sirve para desplegar.
 - **Limitador del login:** guarda los intentos en memoria, así que cada pod cuenta los suyos. En producción iría en Redis o en el Ingress.
 - **Funciones `SECURITY DEFINER`** (`colegio_por_rbd`, `credenciales_login`): en producción su dueño debe ser `feathersforall_plataforma`. Hoy, en local, es el superusuario.
