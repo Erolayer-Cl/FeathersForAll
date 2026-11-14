@@ -20,15 +20,23 @@
 .submit { display: block; width: 100%; padding: 16px; border: 0; border-radius: var(--fp-radius-pill); background: var(--fp-brand); color: var(--fp-on-brand); font-family: var(--fp-font-heading); font-size: 17px; transition: filter 0.2s ease, transform 0.2s var(--fp-ease); }
 .submit:hover { filter: brightness(1.12); }
 .submit:active { transform: scale(0.99); }
-.roles { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 26px; }
-.roles a { padding: 11px 30px; border-radius: 99px; background: var(--fp-accent-soft); color: var(--fp-brand-text); font-size: 13px; font-weight: 600; transition: transform 0.2s var(--fp-ease); }
-.roles a:hover { transform: translateY(-2px); }
-/* El prototipo usa --success (#10b981): con texto blanco da 2,5:1. Con --fp-success-ink y el color de la
-   superficie como texto: 5,5:1 en tema claro (blanco sobre verde oscuro) y 10:1 en oscuro (azul noche sobre verde claro). */
-.roles a.roleOn { background: var(--fp-success-ink); color: var(--fp-surface); }
+/* Selector del tipo de cuenta (arriba del formulario): dos mitades iguales, la elegida con el color de marca
+   (el mismo par fondo/texto que el botón Iniciar sesión, que ya cumple AA en ambos temas). */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-width: 460px; margin: 0 0 28px; padding: 6px; border-radius: var(--fp-radius-pill); background: var(--fp-field); }
+.tab,
+.tabOn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 14px; border-radius: var(--fp-radius-pill); font-size: 14.5px; font-weight: 600; text-decoration: none; transition: background 0.2s ease; }
+.tab { color: var(--fp-brand-text); }
+.tab:hover { background: var(--fp-accent-soft); }
+.tabOn { background: var(--fp-brand); color: var(--fp-on-brand); }
+.tab[aria-disabled="true"],
+.other a[aria-disabled="true"] { cursor: progress; opacity: 0.6; }
+.other { margin: 22px 0 0; text-align: center; font-size: 13px; }
+.other a { color: var(--fp-brand-text); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.switch { display: inline-block; margin-top: 10px; padding: 8px 18px; border-radius: var(--fp-radius-pill); background: var(--fp-danger-ink); color: var(--fp-surface); font-weight: 700; text-decoration: none; }
 @media (max-width: 860px) {
   .hero { padding: 44px 20px 170px; }
   .box { margin-top: -110px; padding: 28px 20px 24px; }
+  .tabs { max-width: none; }
 }
 .help { display: block; margin-top: 2px; color: var(--fp-muted); font-size: 12px; }
 .error,

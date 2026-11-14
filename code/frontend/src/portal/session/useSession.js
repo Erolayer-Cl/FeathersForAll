@@ -8,7 +8,8 @@ import { SessionContext } from './SessionContext.js';
  *   token: string | null,
  *   portalRole: 'est' | 'doc' | 'adm' | null,
  *   notice: string | null,
- *   signIn: (credentials: {rbd: string, email: string, password: string, remember: boolean}) => Promise<object>,
+ *   signIn: (credentials: {rbd: string, email: string, password: string, remember: boolean},
+ *     options?: {expectedRole?: 'est' | 'doc' | 'adm'}) => Promise<object>,
  *   signOut: (notice?: string | null) => void,
  *   expire: () => void,
  * }}

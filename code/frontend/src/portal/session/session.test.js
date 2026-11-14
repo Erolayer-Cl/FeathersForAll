@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  SESSION_KEY, clearSession, isUsable, loadLastRbd, loadSession, portalRoleOf, saveLastRbd, saveSession, sessionFromLogin,
+  LAST_RBD_KEY, RoleMismatchError, SESSION_KEY, acceptLogin, assertPortalRole, clearSession, isUsable, loadLastRbd, loadSession, portalRoleOf, saveLastRbd,
+  saveSession, sessionFromLogin, signInWith,
 } from './session.js';
 
 function fakeStorage(initial = {}) {
@@ -85,5 +86,86 @@ describe('sesión del portal', () => {
     const storages = { session: roto, local: roto };
     expect(() => saveSession(sessionFromLogin(login, NOW), { storages })).not.toThrow();
     expect(loadSession({ storages, now: NOW })).toBeNull();
+  });
+});
+
+describe('rol elegido en el login', () => {
+  const ana = { id: 'a1', role: 'docente' };
+  const marta = { id: 'a3', role: 'admin_colegio' };
+
+  it('acepta la cuenta si es del rol de la pestaña (o si no se pidió rol)', () => {
+    expect(() => assertPortalRole(camila, 'est')).not.toThrow();
+    expect(() => assertPortalRole(ana, 'doc')).not.toThrow();
+    expect(() => assertPortalRole(ana)).not.toThrow();
+  });
+
+  it('una cuenta de otro rol lanza RoleMismatchError con el rol esperado y el real', () => {
+    const err = (() => { try { assertPortalRole(ana, 'est'); } catch (e) { return e; } })();
+    expect(err).toBeInstanceOf(RoleMismatchError);
+    expect(err.expected).toBe('est');
+    expect(err.actual).toBe('doc');
+    expect(() => assertPortalRole(camila, 'doc')).toThrow(RoleMismatchError);
+    expect(() => assertPortalRole(marta, 'doc')).toThrow(RoleMismatchError);
+  });
+
+  it('un rol sin portal también se rechaza, con actual = null', () => {
+    const err = (() => { try { assertPortalRole({ role: 'apoderado' }, 'est'); } catch (e) { return e; } })();
+    expect(err).toBeInstanceOf(RoleMismatchError);
+    expect(err.actual).toBeNull();
+  });
+});
+
+describe('acceptLogin: la sesión solo existe si la cuenta es del rol de la pestaña', () => {
+  const ana = { id: 'a1', role: 'docente' };
+
+  it('con el rol correcto entrega la sesión, lista para guardar', () => {
+    expect(acceptLogin({ access_token: 'jwt', expires_in: 60, user: ana }, { expectedRole: 'doc', now: NOW }))
+      .toEqual({ token: 'jwt', expiresAt: NOW + 60_000, user: ana });
+  });
+
+  it('con otro rol lanza antes de crear la sesión: el almacenamiento queda vacío', () => {
+    const storages = fakeStorages();
+    let saved = false;
+    try {
+      saveSession(acceptLogin({ access_token: 'jwt', expires_in: 60, user: ana }, { expectedRole: 'est', now: NOW }), { storages });
+      saved = true;
+    } catch (err) {
+      expect(err).toBeInstanceOf(RoleMismatchError);
+    }
+    expect(saved).toBe(false);
+    expect(storages.session.data).toEqual({});
+    expect(storages.local.data).toEqual({});
+    expect(loadSession({ storages, now: NOW })).toBeNull();
+  });
+});
+
+describe('signInWith: el flujo completo del login', () => {
+  const ana = { id: 'a1', role: 'docente' };
+  const fakeLogin = (user) => async () => ({ access_token: 'jwt', expires_in: 60, user });
+  const credenciales = { rbd: '99901', email: 'ana@demo-a.cl', password: 'x' };
+
+  it('con el rol de la pestaña guarda la sesión y el RBD', async () => {
+    const storages = fakeStorages();
+    const s = await signInWith(fakeLogin(ana), credenciales, { expectedRole: 'doc', storages, now: NOW });
+    expect(s.user).toEqual(ana);
+    expect(loadSession({ storages, now: NOW })).toEqual(s);
+    expect(storages.local.data[LAST_RBD_KEY]).toBe('99901');
+  });
+
+  it('con otro rol lanza RoleMismatchError y NO guarda la sesión (sí recuerda el RBD)', async () => {
+    const storages = fakeStorages();
+    await expect(signInWith(fakeLogin(ana), credenciales, { expectedRole: 'est', storages, now: NOW })).rejects.toBeInstanceOf(RoleMismatchError);
+    expect(storages.session.data[SESSION_KEY]).toBeUndefined();
+    expect(storages.local.data[SESSION_KEY]).toBeUndefined();
+    expect(loadSession({ storages, now: NOW })).toBeNull();
+    expect(storages.local.data[LAST_RBD_KEY]).toBe('99901');
+  });
+
+  it('si el login falla (401), no guarda nada', async () => {
+    const storages = fakeStorages();
+    const failing = async () => { throw Object.assign(new Error('no'), { status: 401 }); };
+    await expect(signInWith(failing, credenciales, { expectedRole: 'est', storages })).rejects.toThrow('no');
+    expect(storages.session.data).toEqual({});
+    expect(storages.local.data).toEqual({});
   });
 });
