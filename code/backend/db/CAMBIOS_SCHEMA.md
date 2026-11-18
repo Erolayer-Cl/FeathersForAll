@@ -127,3 +127,15 @@ Hasta `03`, el RLS limitaba **qué colegio** se ve y **quién escribe**, pero de
 **Para el backend:** las lecturas de datos de estudiantes requieren `app.rol` y `app.usuario_id` (`db.withUser`). `db.withColegio` (sin rol) ya no ve matrículas, intentos ni notas. Se verificó con `98_test_s06_ajustes.sql` (52/52) y con las pruebas de integración del backend.
 
 **Pendiente para producción:** el dueño de `colegio_por_rbd` y `credenciales_login` debe ser `feathersforall_plataforma` (BYPASSRLS, sin superusuario); en local es el superusuario que ejecuta los scripts.
+
+## Índices del RAG (`07_rag_indices.sql`)
+
+| # | Cambio | Por qué |
+|---|--------|---------|
+| 38 | Columna generada `apuntes_embeddings.tsv` (`to_tsvector('spanish', chunk_texto)`) + índice GIN `idx_embeddings_tsv` | La rama léxica de la búsqueda híbrida calculaba el tsvector al vuelo por cada fila del curso en cada pregunta; con las Bases del Mineduc (miles de fragmentos) escalaba mal. |
+| 39 | `hnsw.iterative_scan = relaxed_order` por sesión (`db.withSession(..., { iterativeScan: true })`, usado en la búsqueda del RAG) | Con `WHERE curso_id = ...` el HNSW trae los vecinos y filtra después, así que podía devolver menos fragmentos de los pedidos. Requiere pgvector 0.8 o superior. |
+| 40 | `purgar_conversaciones_tutor()` con `search_path = public, pg_temp` (antes solo `public`) | Es `SECURITY DEFINER`: si `pg_temp` no está en la lista, PostgreSQL busca ahí primero y una tabla temporal con el mismo nombre taparía la real. Ahora queda igual que `colegio_por_rbd()` y `credenciales_login()`. |
+
+**Para el backend:** la búsqueda del RAG ahora hace las dos consultas (apuntes y Bases) en una sola sesión (`store.searchGroups`), y los títulos y datos del curso se leen en una consulta y se guardan 30 s por curso (se invalidan al subir o borrar un apunte; una lectura que empezó antes de la subida no deja guardado el dato viejo).
+
+**Para una base ya creada:** `psql -d feathersforall -f db/07_rag_indices.sql` (es repetible). Reescribe `apuntes_embeddings`, mejor fuera de horario.

@@ -1,5 +1,5 @@
 // Crea la base de desarrollo SIN psql (alternativa a db/crear_bdd.sql).
-//   npm run db:setup              → esquema (01 a 05), usuario feathersforall_app y sus permisos
+//   npm run db:setup              → esquema (01 a 07), usuario feathersforall_app y sus permisos
 //   npm run db:setup -- --demo    → además los datos demo (90_seed_demo.sql), si la base está vacía
 //
 // Requiere en .env:
@@ -53,6 +53,10 @@ try {
   const { rows: v6 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'alternativas' AND column_name = 'orden') AS hay");
   if (v6[0].hay) console.log('· 06_alternativas_orden.sql ya estaba aplicado');
   else await apply('06_alternativas_orden.sql');
+  // 07 (índice GIN del RAG): se aplica si la columna tsv todavía no existe.
+  const { rows: v7 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'apuntes_embeddings' AND column_name = 'tsv') AS hay");
+  if (v7[0].hay) console.log('· 07_rag_indices.sql ya estaba aplicado');
+  else await apply('07_rag_indices.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN

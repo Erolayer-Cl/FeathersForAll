@@ -202,11 +202,17 @@ export function createRagService({
           ? known.filter((t) => isReferenceDoc(t) && referenceAppliesToLevel(t, info?.nivel) && referenceAppliesToSubject(t, courseSubject))
           : [];
         subjectOfCourse = subjectKey(courseSubject);
-        const search = (docIds) => (docIds.length
-          ? store.search({ ...ref, embedding, topK: topK * POOL_FACTOR, queryText: text, docIds })
-          : []);
         // Cada grupo por separado: unos pocos apuntes del docente no pueden quedar tapados por miles de fragmentos de las Bases.
-        const [fromNotes, fromReference] = await Promise.all([search(notesDocs), search(refDocs)]);
+        const params = { ...ref, embedding, topK: topK * POOL_FACTOR, queryText: text };
+        let fromNotes;
+        let fromReference;
+        if (store.searchGroups) {
+          // PostgreSQL: los dos grupos en una sola sesión (una conexión, no dos).
+          [fromNotes, fromReference] = await store.searchGroups({ ...params, groups: [notesDocs, refDocs] });
+        } else {
+          const search = (docIds) => (docIds.length ? store.search({ ...params, docIds }) : []);
+          [fromNotes, fromReference] = await Promise.all([search(notesDocs), search(refDocs)]);
+        }
         found = [...fromNotes, ...fromReference];
       }
       const timings = { embed_ms: Math.round(t1 - t0), search_ms: Math.round(performance.now() - t1) };
