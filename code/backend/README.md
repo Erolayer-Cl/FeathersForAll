@@ -200,7 +200,7 @@ Los errores usan RFC 7807 (`application/problem+json`, con `trace_id`). Si Ollam
 ```text
 db/
   01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql, 04_privacidad_login.sql,
-  05_conversaciones_tutor.sql, 06_alternativas_orden.sql                       # esquema (aplicar en orden)
+  05_conversaciones_tutor.sql, 06_alternativas_orden.sql, 07_rag_indices.sql  # esquema (aplicar en orden)
   permisos_app.sql          # GRANT del rol de la API (sin lectura de password_hash)
   docker-init.sh            # lo usa compose.yaml en el primer arranque
   crear_bdd.sql             # crea todo en un paso: esquema + usuario de la API (+ demo)

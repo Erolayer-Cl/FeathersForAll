@@ -32,15 +32,18 @@ export function createDb({ connectionString, max = 10, logger }) {
    *   app.colegio_id -> RLS por colegio (01_schema.sql)
    *   app.usuario_id, app.rol -> permisos por rol (02_s06_ajustes.sql §9)
    * Los tres deben salir del JWT verificado (req.user), nunca del cuerpo de la petición.
+   * iterativeScan: para búsquedas vectoriales con filtro (WHERE curso_id = ...). Sin esto el índice HNSW trae
+   * pocos vecinos y el filtro se aplica después, así que puede devolver menos filas de las pedidas
+   * (pgvector 0.8 o superior). Va en el mismo set_config, sin un viaje extra a la base.
    */
-  async function withSession({ colegioId, usuarioId = '', rol = '' }, fn, { readOnly = false } = {}) {
+  async function withSession({ colegioId, usuarioId = '', rol = '' }, fn, { readOnly = false, iterativeScan = false } = {}) {
     const client = await connect();
     try {
       await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
       await client.query(
         `SELECT set_config('app.colegio_id', $1, true),
                 set_config('app.usuario_id', $2, true),
-                set_config('app.rol', $3, true)`,
+                set_config('app.rol', $3, true)${iterativeScan ? ",\n                set_config('hnsw.iterative_scan', 'relaxed_order', true)" : ''}`,
         [colegioId, usuarioId ?? '', rol ?? ''],
       );
       const result = await fn(client);

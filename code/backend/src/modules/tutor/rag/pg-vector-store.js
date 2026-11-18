@@ -8,7 +8,8 @@
 //   - RLS por colegio: otro colegio no existe (0 filas).
 //   - Permisos por rol: solo el docente del curso o el admin escriben apuntes; el
 //     estudiante solo lee. Si la API se equivoca, la base igual lo rechaza.
-// La búsqueda la hace PostgreSQL con el índice HNSW (distancia coseno, operador <=>).
+// La búsqueda la hace PostgreSQL con el índice HNSW (distancia coseno, operador <=>) y, para las palabras exactas,
+// con el índice GIN sobre la columna tsv (07_rag_indices.sql).
 //
 // Mapeo con el resto del RAG: tenantId = colegios.id, courseId = cursos.id, docId = apuntes_curso.titulo.
 import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError } from './errors.js';
@@ -51,13 +52,95 @@ function translate(err) {
   return err;
 }
 
+// Búsqueda híbrida de un grupo de documentos. $1 curso, $2 embedding, $3 topK, $4 consulta de texto (o null), $5 docIds (o null).
+// Las dos ramas se piden más abajo con hnsw.iterative_scan (ver db.withSession) para que el filtro por curso no deje el HNSW corto.
+const SEARCH_SQL = `WITH q AS (
+     SELECT CASE WHEN $4::text IS NULL THEN NULL ELSE to_tsquery('spanish', $4::text) END AS tsq
+   ),
+   vec AS (
+     -- El ORDER BY ... LIMIT va en la consulta interna para que PostgreSQL use el índice HNSW.
+     -- Con iterative_scan el índice puede devolver los vecinos algo desordenados: el ROW_NUMBER de acá los reordena.
+     SELECT s.*, ROW_NUMBER() OVER (ORDER BY s.dist) AS rn
+     FROM (
+       SELECT e.id, a.titulo, e.chunk_indice, e.chunk_texto,
+              e.embedding <=> $2::vector AS dist, 1 - (e.embedding <=> $2::vector) AS score
+       FROM apuntes_embeddings e
+       JOIN apuntes_curso a ON a.id = e.apunte_id
+       WHERE e.curso_id = $1
+         AND ($5::text[] IS NULL OR a.titulo = ANY($5::text[]))
+       ORDER BY e.embedding <=> $2::vector
+       LIMIT $3
+     ) s
+   ),
+   lex AS (
+     SELECT s.*, ROW_NUMBER() OVER (ORDER BY s.rk DESC) AS rn
+     FROM (
+       SELECT e.id, a.titulo, e.chunk_indice, e.chunk_texto,
+              1 - (e.embedding <=> $2::vector) AS score,
+              ts_rank_cd(e.tsv, q.tsq) AS rk
+       FROM q, apuntes_embeddings e
+       JOIN apuntes_curso a ON a.id = e.apunte_id
+       WHERE q.tsq IS NOT NULL
+         AND e.curso_id = $1
+         AND ($5::text[] IS NULL OR a.titulo = ANY($5::text[]))
+         AND e.tsv @@ q.tsq
+       ORDER BY rk DESC
+       LIMIT $3
+     ) s
+   )
+   SELECT titulo AS doc_id, chunk_indice AS chunk_index, chunk_texto AS text, score,
+          SUM(1.0 / (60 + rn)) AS rrf, BOOL_OR(from_lex) AS lexical
+   FROM (
+     SELECT id, titulo, chunk_indice, chunk_texto, score, rn, false AS from_lex FROM vec
+     UNION ALL
+     SELECT id, titulo, chunk_indice, chunk_texto, score, rn, true AS from_lex FROM lex
+   ) u
+   GROUP BY id, titulo, chunk_indice, chunk_texto, score
+   ORDER BY rrf DESC
+   LIMIT $3`;
+
+const toHits = (rows) => rows.map((r) => ({ doc_id: r.doc_id, chunk_index: r.chunk_index, text: r.text, score: Number(r.score), lexical: r.lexical }));
+
 /**
  * @param {object} deps
  * @param {{withSession: Function}} deps.db  ver src/platform/db.js
  */
-export function createPgVectorStore({ db }) {
+export function createPgVectorStore({ db, contextTtlMs = 30_000 }) {
   const session = ({ tenantId }, actor) => ({ colegioId: tenantId, usuarioId: actor?.id ?? '', rol: actor?.rol ?? '' });
-  const read = (ref, actor, fn) => db.withSession(session(ref, actor), fn, { readOnly: true });
+  const read = (ref, actor, fn, opts) => db.withSession(session(ref, actor), fn, { readOnly: true, ...opts });
+
+  // Títulos y datos del curso cambian poco: se guardan un rato por curso para no ir a la base en cada pregunta.
+  // Subir o borrar un apunte desde este mismo proceso lo invalida; con varias réplicas, otra puede tardar hasta contextTtlMs.
+  // `version` cuenta las invalidaciones: una lectura que empezó antes de una subida no guarda su resultado viejo.
+  const contextCache = new Map();
+  const version = new Map();
+  const contextKey = ({ tenantId, courseId }) => `${tenantId}:${courseId}`;
+  const invalidate = (ref) => {
+    const key = contextKey(ref);
+    contextCache.delete(key);
+    version.set(key, (version.get(key) ?? 0) + 1);
+  };
+
+  /** Títulos de los documentos + nivel/asignatura/nombre del curso, en una sola consulta. null si el curso no se ve. */
+  async function courseContext(ref) {
+    const key = contextKey(ref);
+    const hit = contextCache.get(key);
+    if (hit && hit.expires > Date.now()) return hit.value;
+    const seen = version.get(key) ?? 0;
+    const value = await read({ tenantId: ref.tenantId }, null, async (client) => {
+      const { rows } = await client.query(
+        `SELECT c.nivel, c.asignatura, c.nombre,
+                COALESCE((SELECT array_agg(a.titulo ORDER BY a.created_at DESC) FROM apuntes_curso a WHERE a.curso_id = c.id), '{}') AS titulos
+         FROM cursos c WHERE c.id = $1`,
+        [ref.courseId],
+      );
+      if (rows.length === 0) return null;
+      const { titulos, ...info } = rows[0];
+      return { titles: titulos, info };
+    });
+    if (value && (version.get(key) ?? 0) === seen) contextCache.set(key, { value, expires: Date.now() + contextTtlMs });
+    return value;
+  }
 
   async function write(ref, actor, fn) {
     try {
@@ -81,7 +164,8 @@ export function createPgVectorStore({ db }) {
         if (c.embedding.length !== EMBEDDING_DIM) throw new EmbeddingDimensionError(c.embedding.length, EMBEDDING_DIM);
       }
 
-      return write({ tenantId }, actor, async (client) => {
+      invalidate({ tenantId, courseId });
+      const result = await write({ tenantId }, actor, async (client) => {
         const course = await client.query('SELECT 1 FROM cursos WHERE id = $1', [courseId]);
         if (course.rowCount === 0) throw new CourseNotFoundError();
         // Dos subidas del mismo nombre a la vez (doble clic, reintento del proxy): FOR UPDATE no bloquea una fila que
@@ -117,15 +201,19 @@ export function createPgVectorStore({ db }) {
         );
         return { apunteId, created: existing.rowCount === 0 };
       });
+      invalidate({ tenantId, courseId });
+      return result;
     },
 
     /** @returns {Promise<number>} apuntes eliminados (sus fragmentos caen por ON DELETE CASCADE). 0 si no existe o no hay permiso. */
     async deleteDocument({ tenantId, courseId, docId, actor }) {
       if (!validRef({ tenantId, courseId }) || !actor) return 0;
-      return write({ tenantId }, actor, async (client) => {
+      const count = await write({ tenantId }, actor, async (client) => {
         const res = await client.query('DELETE FROM apuntes_curso WHERE curso_id = $1 AND titulo = $2', [courseId, docId]);
         return res.rowCount;
       });
+      invalidate({ tenantId, courseId });
+      return count;
     },
 
     async listDocuments({ tenantId, courseId }) {
@@ -141,22 +229,16 @@ export function createPgVectorStore({ db }) {
       )).rows);
     },
 
-    /** Nombres de los documentos del curso, sin contar sus fragmentos (consulta barata: una fila por documento). */
+    /** Nombres de los documentos del curso, sin contar sus fragmentos (una fila por documento; se guarda un rato, ver courseContext). */
     async listTitles({ tenantId, courseId }) {
       if (!validRef({ tenantId, courseId })) return [];
-      return read({ tenantId }, null, async (client) => (await client.query(
-        'SELECT titulo FROM apuntes_curso WHERE curso_id = $1 ORDER BY created_at DESC',
-        [courseId],
-      )).rows.map((r) => r.titulo));
+      return (await courseContext({ tenantId, courseId }))?.titles ?? [];
     },
 
     /** Nivel, asignatura y nombre del curso (para elegir las Bases Curriculares de su nivel y asignatura). */
     async courseInfo({ tenantId, courseId }) {
       if (!validRef({ tenantId, courseId })) return null;
-      return read({ tenantId }, null, async (client) => (await client.query(
-        'SELECT nivel, asignatura, nombre FROM cursos WHERE id = $1',
-        [courseId],
-      )).rows[0] ?? null);
+      return (await courseContext({ tenantId, courseId }))?.info ?? null;
     },
 
     /** ¿El curso tiene al menos un fragmento indexado? (solo visible si es del colegio) */
@@ -200,52 +282,35 @@ export function createPgVectorStore({ db }) {
       if (!validRef({ tenantId, courseId })) return [];
       if (embedding.length !== EMBEDDING_DIM) throw new EmbeddingDimensionError(embedding.length, EMBEDDING_DIM);
       try {
-        return await read({ tenantId }, null, async (client) => (await client.query(
-          `WITH q AS (
-             SELECT CASE WHEN $4::text IS NULL THEN NULL ELSE to_tsquery('spanish', $4::text) END AS tsq
-           ),
-           vec AS (
-             -- El ORDER BY ... LIMIT va en la consulta interna para que PostgreSQL use el índice HNSW.
-             SELECT s.*, ROW_NUMBER() OVER (ORDER BY s.dist) AS rn
-             FROM (
-               SELECT e.id, a.titulo, e.chunk_indice, e.chunk_texto,
-                      e.embedding <=> $2::vector AS dist, 1 - (e.embedding <=> $2::vector) AS score
-               FROM apuntes_embeddings e
-               JOIN apuntes_curso a ON a.id = e.apunte_id
-               WHERE e.curso_id = $1
-                 AND ($5::text[] IS NULL OR a.titulo = ANY($5::text[]))
-               ORDER BY e.embedding <=> $2::vector
-               LIMIT $3
-             ) s
-           ),
-           lex AS (
-             SELECT s.*, ROW_NUMBER() OVER (ORDER BY s.rk DESC) AS rn
-             FROM (
-               SELECT e.id, a.titulo, e.chunk_indice, e.chunk_texto,
-                      1 - (e.embedding <=> $2::vector) AS score,
-                      ts_rank_cd(to_tsvector('spanish', e.chunk_texto), q.tsq) AS rk
-               FROM q, apuntes_embeddings e
-               JOIN apuntes_curso a ON a.id = e.apunte_id
-               WHERE q.tsq IS NOT NULL
-                 AND e.curso_id = $1
-                 AND ($5::text[] IS NULL OR a.titulo = ANY($5::text[]))
-                 AND to_tsvector('spanish', e.chunk_texto) @@ q.tsq
-               ORDER BY rk DESC
-               LIMIT $3
-             ) s
-           )
-           SELECT titulo AS doc_id, chunk_indice AS chunk_index, chunk_texto AS text, score,
-                  SUM(1.0 / (60 + rn)) AS rrf, BOOL_OR(from_lex) AS lexical
-           FROM (
-             SELECT id, titulo, chunk_indice, chunk_texto, score, rn, false AS from_lex FROM vec
-             UNION ALL
-             SELECT id, titulo, chunk_indice, chunk_texto, score, rn, true AS from_lex FROM lex
-           ) u
-           GROUP BY id, titulo, chunk_indice, chunk_texto, score
-           ORDER BY rrf DESC
-           LIMIT $3`,
+        return await read({ tenantId }, null, async (client) => toHits((await client.query(
+          SEARCH_SQL,
           [courseId, toVector(embedding), topK, toTsQuery(queryText), docIds ?? null],
-        )).rows.map((r) => ({ doc_id: r.doc_id, chunk_index: r.chunk_index, text: r.text, score: Number(r.score), lexical: r.lexical })));
+        )).rows), { iterativeScan: true });
+      } catch (err) {
+        throw translate(err);
+      }
+    },
+
+    /**
+     * Varias búsquedas (una por grupo de documentos: apuntes del docente, Bases del Mineduc) en UNA sola sesión:
+     * una conexión, un BEGIN/COMMIT y un set_config en vez de uno por grupo. Devuelve un arreglo de resultados,
+     * en el mismo orden que `groups`; un grupo vacío da [] sin consultar.
+     * @param {{groups: string[][]}} p  cada grupo es la lista de documentos (docIds) donde buscar
+     */
+    async searchGroups({ tenantId, courseId, embedding, topK, queryText, groups }) {
+      if (!validRef({ tenantId, courseId })) return groups.map(() => []);
+      if (embedding.length !== EMBEDDING_DIM) throw new EmbeddingDimensionError(embedding.length, EMBEDDING_DIM);
+      if (groups.every((g) => g.length === 0)) return groups.map(() => []);
+      const vector = toVector(embedding);
+      const tsq = toTsQuery(queryText);
+      try {
+        return await read({ tenantId }, null, async (client) => {
+          const out = [];
+          for (const docIds of groups) {
+            out.push(docIds.length ? toHits((await client.query(SEARCH_SQL, [courseId, vector, topK, tsq, docIds])).rows) : []);
+          }
+          return out;
+        }, { iterativeScan: true });
       } catch (err) {
         throw translate(err);
       }
