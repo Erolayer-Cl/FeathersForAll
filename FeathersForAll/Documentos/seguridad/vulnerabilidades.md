@@ -117,3 +117,33 @@ Por eso el Dockerfile corre `apk upgrade --no-cache` como root y vuelve a `USER 
 ### Lección para el pipeline
 
 La vulnerabilidad se publicó el 23-10-2026 y el gate la encontró tres días después, en la primera corrida. Sin el gate habría seguido en el lockfile hasta la próxima actualización manual de dependencias. Para que no dependa de que alguien haga un push, en S09 se propone Dependabot o una corrida programada (`schedule`) del job de SCA.
+
+---
+
+## VULN-004 · NGINX 1.30.6 en la imagen del frontend
+
+| Campo | Valor |
+|---|---|
+| **Componente** | `nginxinc/nginx-unprivileged:1.30-alpine`, paquete `nginx` 1.30.6-r1 (la última imagen de la línea stable es del 19-10-2026) |
+| **Detectada por** | Gate Trivy de CI (`build-and-push (web)`), PR de `feat/portal-mejoras`, 20-11-2026 |
+| **Corregida** | 20-11-2026: runtime cambiado a `nginx-unprivileged:1.31-alpine` (mainline, nginx 1.31.7, Alpine 3.24.2) + el `apk upgrade --no-cache` que ya estaba: **0** High/Critical |
+| **Responsable** | Ignacio (DevSecOps) |
+
+Trivy encontró 4 Critical y 2 High en el propio NGINX, todos arreglados en 1.30.7-r0:
+
+| CVE | Severidad | Qué es | ¿Lo usamos? |
+|---|---|---|---|
+| CVE-2026-113425 | Critical | Use-after-free en el proxy de correo | No (sin módulo `mail`) |
+| CVE-2026-121810 | Critical | Use-after-free con HTTP/3 | No (sin `quic`) |
+| CVE-2026-123007 | Critical | Desborde de la ventana de control de flujo en HTTP/2 | No (sin `http2`) |
+| CVE-2026-123633 | Critical | Use-after-free con HTTP/2 | No (sin `http2`) |
+| CVE-2026-118899 | High | DoS con una conexión TLS manipulada | No (sin TLS: lo termina el Ingress) |
+| CVE-2026-123634 | High | Use-after-free en el `resolver` | No (sin `resolver`) |
+
+Además, `zlib` 1.3.2-r0 (CVE-2026-85091) y `musl`, que ya corregía el `apk upgrade`.
+
+**¿Nos afectaba?** No en la práctica: `nginx.conf` solo escucha HTTP/1.1 sin TLS en el puerto 8080 y sirve archivos estáticos. Igual se corrige en vez de justificarlo con VEX, porque el arreglo es barato y cualquier cambio futuro de la config (por ejemplo, activar `http2`) dejaría expuesto el código vulnerable.
+
+**Por qué mainline y no `apk upgrade`:** el paquete `nginx` de esta imagen viene del repositorio de nginx.org, no del de Alpine, así que `apk upgrade` no lo actualiza. La imagen `1.30.7-alpine` todavía no existe. La línea mainline (1.31) es la que nginx recomienda para uso general y ya trae el arreglo. Se verificó `nginx -t`, `/livez`, la redirección `/portal`, la CSP y el arranque con `--read-only` sobre la nueva base.
+
+**Pendiente:** se puede volver a la línea stable cuando se publique `nginx-unprivileged:1.30.7-alpine`, pero no es necesario.
