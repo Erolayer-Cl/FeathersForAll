@@ -11,7 +11,7 @@ const SIN_DATOS = 'Sin datos todavía';
 /** Estudiante · Inicio (Figma: «Estudiante / Inicio»), con sus ramos y notas reales (GET /v1/me/grades). */
 export function EstudianteInicioPage() {
   const { user } = useSession();
-  const { data, loading, error, reload } = useApiData(getMyGrades);
+  const { data, loading, error, reload } = useApiData(getMyGrades, '', { cache: 'me/grades' });
   // Mismo criterio que Mis notas: el promedio general es el del período más reciente.
   const todos = data?.courses ?? [];
   const periodo = periodosDe(todos)[0];

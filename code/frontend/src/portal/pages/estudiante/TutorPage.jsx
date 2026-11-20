@@ -232,7 +232,7 @@ function TutorChat({ ramo, ramos, mode, conversationId, onPickCourse, onSaved, o
 
 /** Estudiante · Tutor IA: chat con Pluma sobre los apuntes de una asignatura (est-tutor o est-tutor/<curso>). */
 export function TutorPage({ param }) {
-  const { data, loading, error, reload } = useApiData(getMyGrades);
+  const { data, loading, error, reload } = useApiData(getMyGrades, '', { cache: 'me/grades' });
   const { navigate } = usePortalRoute();
   const [mode, setMode] = useState('tutor');
   // Conversación abierta, atada al ramo y al modo en que se abrió: si cambian, se empieza una nueva.

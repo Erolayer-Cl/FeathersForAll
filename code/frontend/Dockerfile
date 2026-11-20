@@ -18,7 +18,7 @@ ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine AS runtime
 # Parches de Alpine publicados después de la imagen base (el gate Trivy de CI rechaza CVE High/Critical
 # con arreglo). Root solo para apk; el proceso corre como 101.
 USER root

@@ -109,7 +109,7 @@ Roles, reglas de trabajo, Definition of Done y política de IA: **[CHARTER.md](F
 | Pieza | Dónde | Resumen |
 |---|---|---|
 | Imagen de la API | `code/backend/Dockerfile` | Multi-stage: `deps` → `test` (corre `npm test`) → runtime **distroless** `nodejs22-debian13:nonroot`. Sin shell, sin root (211 MB; meta < 200 MB pendiente) |
-| Imagen del frontend | `code/frontend/Dockerfile` | Build con Vite → `nginx-unprivileged:1.30-alpine` + parches de Alpine (uid 101, puerto 8080) |
+| Imagen del frontend | `code/frontend/Dockerfile` | Build con Vite → `nginx-unprivileged:1.31-alpine` (mainline, ver VULN-004) + parches de Alpine (uid 101, puerto 8080) |
 | Manifiestos | `k8s/` | Kustomize: Deployment, Service, Ingress, ConfigMap, HPA (2–6 réplicas, CPU 65 %), PDB. Imágenes por **digest** |
 | Infraestructura | `terraform/` | Namespace con Pod Security `restricted`, ResourceQuota, LimitRange y Secret. State remoto con locking (backend `pg`), un workspace por ambiente |
 | Decisión | [ADR 0006](FeathersForAll/Documentos/adr/0006-plataforma-k8s.md) | kind + Kustomize + Terraform; base images distroless / nginx-unprivileged |

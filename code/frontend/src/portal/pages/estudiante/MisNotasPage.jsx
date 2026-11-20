@@ -13,7 +13,7 @@ import styles from './MisNotasPage.module.css';
  * muestran porque esos datos no existen todavía en la base.
  */
 export function MisNotasPage() {
-  const { data, loading, error, reload } = useApiData(getMyGrades);
+  const { data, loading, error, reload } = useApiData(getMyGrades, '', { cache: 'me/grades' });
   const todos = data?.courses ?? [];
   const periodos = periodosDe(todos);
   const [elegido, setElegido] = useState(null);

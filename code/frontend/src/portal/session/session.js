@@ -122,6 +122,19 @@ export async function signInWith(loginFn, { rbd, email, password, remember = fal
   return session;
 }
 
+/**
+ * ¿Un evento `storage` (otra pestaña escribió en localStorage) cambia la sesión de esta pestaña?
+ * Solo cuentan la clave de la sesión o un `clear()` (key null), y solo si cambió el token:
+ * una pestaña con su propia sesión en sessionStorage no se ve afectada (loadSession la prioriza).
+ * @param {{key: string | null}} event
+ * @param {{token: string} | null} current  sesión actual de esta pestaña
+ * @param {{token: string} | null} next     lo que devuelve loadSession() ahora
+ */
+export function isSessionChange(event, current, next) {
+  if (event.key !== null && event.key !== SESSION_KEY) return false;
+  return (current?.token ?? null) !== (next?.token ?? null);
+}
+
 /** Último RBD usado (comodidad: el estudiante no lo escribe cada vez). No es un dato sensible. */
 export const loadLastRbd = ({ storages = browserStorages() } = {}) => read(storages.local, LAST_RBD_KEY) ?? '';
 export const saveLastRbd = (rbd, { storages = browserStorages() } = {}) => write(storages.local, LAST_RBD_KEY, rbd);
