@@ -1,6 +1,6 @@
 // Clientes del tutor con respuesta en streaming: el chat de desarrollo (POST /v1/dev/chat, lo usa la
 // app del chat, sin sesión) y las conversaciones guardadas del Tutor IA del portal (ADR 0008).
-import { API_URL, ApiError, toApiError } from './http.js';
+import { API_URL, ApiError, SIN_CONEXION, toApiError } from './http.js';
 
 export { ApiError };
 
@@ -26,30 +26,43 @@ export function readTutorMeta(headers) {
 
 /**
  * POST que responde texto en streaming: entrega la respuesta del tutor en fragmentos.
- * Errores RFC 7807 → ApiError (con `detail` si viene).
+ * Errores RFC 7807 → ApiError (con `detail` si viene); sin respuesta del servidor → ApiError con status 0.
  */
 async function* streamText(path, body, { token, onMeta, signal, fetchImpl = fetch }) {
   const headers = { 'content-type': 'application/json' };
   if (token) headers.authorization = `Bearer ${token}`;
 
-  const res = await fetchImpl(`${API_URL}${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-  });
+  let res;
+  try {
+    res = await fetchImpl(`${API_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    throw new ApiError(SIN_CONEXION, 0);
+  }
 
   if (!res.ok) throw await toApiError(res);
   onMeta?.(readTutorMeta(res.headers));
+  if (!res.body) return;
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let terminado = false;
   try {
     for (;;) {
       const { value, done } = await reader.read();
-      if (done) return;
+      if (done) {
+        terminado = true;
+        return;
+      }
       if (value) yield value;
     }
   } finally {
+    // Si quien lee se detuvo antes (break, error o salió de la pantalla), se corta la descarga.
+    if (!terminado) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

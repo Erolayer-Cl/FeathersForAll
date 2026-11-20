@@ -14,7 +14,7 @@ const coincide = (ramo, texto) =>
 
 /** Estudiante · Mis cursos: sus asignaturas, con profesor, promedio y si el tutor tiene apuntes. */
 export function MisCursosPage() {
-  const { data, loading, error, reload } = useApiData(getMyGrades);
+  const { data, loading, error, reload } = useApiData(getMyGrades, '', { cache: 'me/grades' });
   const [busqueda, setBusqueda] = useState('');
   const ramos = (data?.courses ?? []).filter((r) => coincide(r, busqueda.trim().toLowerCase()));
 

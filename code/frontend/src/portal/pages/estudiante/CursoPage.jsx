@@ -26,7 +26,9 @@ async function cargarCurso(token, courseId, opts) {
 
 /** Respuestas de una evaluación entregada, con la retroalimentación del docente (solo lectura). */
 function DetalleEvaluacion({ assessmentId }) {
-  const { data, loading, error, reload } = useApiData((token, opts) => getGradeDetail(token, assessmentId, opts), assessmentId);
+  const { data, loading, error, reload } = useApiData((token, opts) => getGradeDetail(token, assessmentId, opts), assessmentId, {
+    cache: 'evaluacion',
+  });
   return (
     <LoadState loading={loading} error={error} onRetry={reload}>
       {data?.answers.length === 0 && (
@@ -52,7 +54,7 @@ function DetalleEvaluacion({ assessmentId }) {
 
 /** Estudiante · Curso: asignatura, profesor, tutor y mis evaluaciones con su nota (est-curso/<id>). */
 export function CursoPage({ param: courseId }) {
-  const { data, loading, error, reload } = useApiData((token, opts) => cargarCurso(token, courseId, opts), courseId);
+  const { data, loading, error, reload } = useApiData((token, opts) => cargarCurso(token, courseId, opts), courseId, { cache: 'curso' });
   const [abierta, setAbierta] = useState(null);
   const curso = data?.curso;
   const notas = data?.ramo?.grades ?? [];

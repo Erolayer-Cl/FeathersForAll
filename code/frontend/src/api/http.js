@@ -17,6 +17,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Mensaje cuando no hubo respuesta (red caída o servidor apagado): ApiError con status 0. */
+export const SIN_CONEXION = 'No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
+
 /** Convierte una respuesta de error (RFC 7807) en ApiError, usando `detail` si viene. */
 export async function toApiError(res) {
   const problem = await res.json().catch(() => null);
@@ -50,7 +53,7 @@ export async function requestJson(path, { method = 'GET', token, body, idempoten
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
-    throw new ApiError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.', 0);
+    throw new ApiError(SIN_CONEXION, 0);
   }
 
   if (!res.ok) throw await toApiError(res);

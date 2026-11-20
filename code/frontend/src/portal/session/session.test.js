@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LAST_RBD_KEY, RoleMismatchError, SESSION_KEY, acceptLogin, assertPortalRole, clearSession, isUsable, loadLastRbd, loadSession, portalRoleOf, saveLastRbd,
-  saveSession, sessionFromLogin, signInWith,
+  LAST_RBD_KEY, RoleMismatchError, SESSION_KEY, acceptLogin, assertPortalRole, clearSession, isSessionChange, isUsable, loadLastRbd, loadSession,
+  portalRoleOf, saveLastRbd, saveSession, sessionFromLogin, signInWith,
 } from './session.js';
 
 function fakeStorage(initial = {}) {
@@ -167,5 +167,31 @@ describe('signInWith: el flujo completo del login', () => {
     await expect(signInWith(failing, credenciales, { expectedRole: 'est', storages })).rejects.toThrow('no');
     expect(storages.session.data).toEqual({});
     expect(storages.local.data).toEqual({});
+  });
+});
+
+describe('isSessionChange (sesión entre pestañas)', () => {
+  const a = { token: 'jwt-a' };
+  const b = { token: 'jwt-b' };
+
+  it('cerrar sesión en otra pestaña cambia la sesión de esta', () => {
+    expect(isSessionChange({ key: SESSION_KEY }, a, null)).toBe(true);
+  });
+
+  it('otro usuario en la sesión recordada también cuenta como cambio', () => {
+    expect(isSessionChange({ key: SESSION_KEY }, a, b)).toBe(true);
+  });
+
+  it('localStorage.clear() (key null) se revisa igual', () => {
+    expect(isSessionChange({ key: null }, a, null)).toBe(true);
+  });
+
+  it('otras claves (preferencias, último RBD) no cambian nada', () => {
+    expect(isSessionChange({ key: 'fp:last-rbd' }, a, null)).toBe(false);
+  });
+
+  it('si el token sigue igual (p. ej. esta pestaña tiene su propia sesión) no hay cambio', () => {
+    expect(isSessionChange({ key: SESSION_KEY }, a, { token: 'jwt-a' })).toBe(false);
+    expect(isSessionChange({ key: SESSION_KEY }, null, null)).toBe(false);
   });
 });

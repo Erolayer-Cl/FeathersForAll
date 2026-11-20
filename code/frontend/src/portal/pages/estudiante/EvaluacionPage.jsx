@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { clearCache } from '../../../api/cache.js';
 import { getAssessment, getAssessments, submitAssessment } from '../../../api/portalApi.js';
 import { Button, Card, Chip, EmptyState, FormMessage, Kpi, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
@@ -73,6 +74,8 @@ export function EvaluacionPage({ param: assessmentId }) {
     try {
       setResultado(await submitAssessment(token, assessmentId, respuestasACuerpo(elegidas), key.get()));
       key.renew();
+      clearCache(); // Inicio, Curso y Mis notas guardados tienen la evaluación sin nota: que no se vean así al volver
+
     } catch (err) {
       if (err.status === 401) {
         expire();
