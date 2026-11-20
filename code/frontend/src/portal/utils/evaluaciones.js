@@ -11,8 +11,15 @@ const ESTADOS = {
   closed: { label: 'Cerrada', tone: 'warning' },
 };
 
-/** Etiqueta y tono del kit ui para el estado de una evaluación. */
-export const estadoEvaluacion = (status) => ESTADOS[status] ?? { label: status ?? '—', tone: 'neutral' };
+// El libro de notas y el resumen (gradebook, grades/summary) entregan el estado en español, como dice su
+// contrato; las rutas de evaluaciones, en inglés. Se normaliza aquí para tratarlos igual.
+const ALIAS_ESTADO = { borrador: 'draft', publicada: 'published', cerrada: 'closed' };
+
+/** 'publicada' -> 'published'; los valores en inglés quedan igual. */
+export const normalizarEstado = (status) => ALIAS_ESTADO[status] ?? status;
+
+/** Etiqueta y tono del kit ui para el estado de una evaluación (acepta el estado en inglés o en español). */
+export const estadoEvaluacion = (status) => ESTADOS[normalizarEstado(status)] ?? { label: status ?? '—', tone: 'neutral' };
 
 let contador = 0;
 /** Clave estable para la lista de preguntas del formulario (el índice cambia al borrar). */

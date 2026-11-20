@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+  normalizarEstado,
   borradorACuerpo, borradorDesdeApi, borradorDesdeIa, borradorTieneTexto, borradorVacio, isoALocal, estadoEvaluacion, periodosDisponibles, preguntaVacia, quitarOpcion, respuestasACuerpo, revisarBorrador, sinResponder,
 } from './evaluaciones.js';
 
 const pregunta = (extra = {}) => ({ ...preguntaVacia(), statement: '¿Cuánto es 3/4 + 1/4?', options: ['1/2', '1', '4/8'], correct: 1, feedback: 'Es 1.', ...extra });
 
 describe('estado de una evaluación', () => {
+  it('acepta el estado en español del libro de notas y del resumen', () => {
+    expect(normalizarEstado('publicada')).toBe('published');
+    expect(normalizarEstado('cerrada')).toBe('closed');
+    expect(normalizarEstado('borrador')).toBe('draft');
+    expect(normalizarEstado('published')).toBe('published');
+    expect(estadoEvaluacion('cerrada')).toEqual(estadoEvaluacion('closed'));
+  });
+
   it('traduce draft, published y closed a etiqueta y tono', () => {
     expect(estadoEvaluacion('draft')).toEqual({ label: 'Borrador', tone: 'neutral' });
     expect(estadoEvaluacion('published')).toEqual({ label: 'Publicada', tone: 'success' });

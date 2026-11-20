@@ -185,7 +185,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
   - **Reglas:** el estudiante nunca recibe la alternativa correcta ni la retroalimentación antes de entregar; un borrador no existe para él (404); un solo intento (409 con su resultado anterior); no se publica sin alternativa correcta en todas las preguntas (422 con cuáles); otro docente o admin sin permiso 403, estudiante sin matrícula 404.
   - **Portal:** docente — Nuevo curso, matricular por correo, lista de estudiantes, Nueva evaluación (preguntas y alternativas con la correcta marcada), publicar y cerrar, resultados con acierto por pregunta y menú Evaluaciones; estudiante — «Por rendir» en el curso, rendir con confirmación y resultado con nota y retroalimentación al instante. El formulario reutiliza la `Idempotency-Key` si la red falla.
   - **Verificado en local:** lint; backend 322 pruebas sin base y 480 con PostgreSQL (cobertura 98,57 %; incluye `test/ciclo.pg.test.js`); frontend 116 pruebas; Spectral sin errores ni advertencias; cliente TS regenerado; 11 ejemplos Prism; Newman (66 requests, 120 aserciones, con la carpeta 10 del ciclo); recorrido en Chrome headless del build con la CSP y la API real (docente, estudiante y administrador, 360 px, sin violaciones de CSP).
-  - **Falta:** gestión de usuarios del administrador; pantallas «Mis estudiantes», «Reportes» y «Progreso», aún marcadores; rate limit en el resto de los POST (el contrato declara 429).
+  - **Falta:** gestión de usuarios del administrador; pantalla «Progreso», aún marcador (las del docente se hicieron en la H3); rate limit en el resto de los POST (el contrato declara 429).
 
 - **Evaluaciones con IA y edición de borradores** (14-11-2026, contrato v1.5.0):
   - Tres formas de crear: a mano, con IA, o con IA y el docente la edita. `POST /v1/courses/{id}/assessments/generate` (`src/modules/evaluaciones/generar-ia.js`) **solo propone**: no guarda nada; el docente revisa, edita y guarda con el POST normal. Usa el tema y, por defecto, los apuntes del curso (RAG del colegio y curso del token; sin apuntes sobre el tema, 422).
@@ -209,7 +209,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 
 | Rol | Ya puede | Le falta |
 |---|---|---|
-| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor | Libro de notas y resumen en pantalla (la API existe), «Mis estudiantes», «Reportes», cambiar exigencia y ponderación desde el portal |
+| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor; libro de notas con estudiantes en riesgo, notas de cada estudiante, exigencia y ponderación, «Mis estudiantes» y «Reportes» | Exportar el libro (CSV/PDF), umbral de riesgo configurable en pantalla |
 | **Estudiante** | Ver cursos y notas, rendir evaluaciones con nota y retroalimentación al instante, usar el tutor IA con historial | «Progreso», contenido del curso (`est-contenido`), columnas Examen/Final de «Mis notas» (no existen en la base) |
 | **Administrador** | Entrar y leer cursos y notas de su colegio por la API | Todo en el portal: gestión de usuarios (crear, desactivar, restablecer clave), vista de cursos, evaluaciones y reportes del colegio |
 
@@ -217,10 +217,12 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 
 1. ✅ **Cerrar lo abierto.** PR #16 revisado y mergeado (PR #17), login por rol, auditoría de secretos y logs.
 2. ✅ **Ciclo mínimo H1, H2, H4** (contrato v1.4.0) y **evaluaciones con IA y edición de borradores** (v1.5.0).
-3. 🔜 **Docente ve sus resultados (H3).** Casi todo frontend, sobre rutas que ya existen:
-   - «Mis estudiantes» y libro de notas del curso (`GET /v1/courses/{id}/gradebook`);
-   - resumen y estudiantes en riesgo (`GET .../grades/summary`);
-   - notas de un estudiante y cambio de exigencia y ponderación (`PATCH .../grading`).
+3. ✅ **Docente ve sus resultados (H3)** (20-11-2026, rama `feat/docente-resultados`, solo frontend, sin cambios de contrato):
+   - `doc-libro/<curso>` (botón «Libro de notas» en el curso): KPIs, tabla estudiantes × evaluaciones con promedio ponderado, estudiantes en riesgo (`grades/summary`), resumen por evaluación y exigencia/ponderación editables (`PATCH .../grading`, confirma antes de recalcular).
+   - `doc-estudiante/<curso>/<estudiante>`: notas de un estudiante. `doc-estudiantes`: estudiantes de todos los cursos con buscador. `doc-reportes`: promedio, en riesgo y entregas pendientes por curso.
+   - `gradebook` y `grades/summary` entregan el estado en español (`publicada`, así dice su contrato) y `/assessments` en inglés: el portal los normaliza en `utils/evaluaciones.js` (`normalizarEstado`). Unificarlo es un cambio de contrato para v2.
+   - Observación: un docente del mismo colegio que no dicta el curso recibe 403 (no 404) en estas rutas; el backend no cambió.
+   - **Verificado en local:** frontend 148 pruebas, lint y build; recorrido en Brave headless con la API real y una base desechable (docente, escritorio, 360 px y tema oscuro, sin errores de consola): cambiar la exigencia de 60 a 50 % sube la nota de Sofía de 2,3 a 2,5; permisos 403 (otro docente, estudiante) y 404 (otro colegio). No verificado: la CSP (el recorrido fue con Vite, sin NGINX).
 4. ⬜ **Administrador.** Gestión de usuarios (crear, desactivar, restablecer clave: hoy no hay cambio ni restablecimiento de contraseña), vista de cursos y evaluaciones del colegio. Pide contrato nuevo (`/users`) y probablemente un ADR (ciclo de vida de la cuenta).
 5. ⬜ **Estudiante: Progreso** (evolución de notas por ramo) y contenido del curso.
 6. ⬜ **Transversal.** Ver «Arquitectura: lo que falta» abajo.

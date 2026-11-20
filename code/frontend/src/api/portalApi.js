@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.4.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.5.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
@@ -176,4 +176,27 @@ export function submitAssessment(token, assessmentId, answers, idempotencyKey, o
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/submissions`, {
     method: 'POST', token, body: { answers }, idempotencyKey, ...opts,
   });
+}
+
+// --- Notas del curso para el docente y el admin (H3). Todas responden 403 al estudiante y 404 si no participas en el curso.
+
+/** GET /v1/courses/{id}/gradebook → { course_id, course, assessments: [{ id, title, status, pass_threshold, weight, published_at }], students: [{ student_id, name, average, grades: { [assessmentId]: nota } }], course_average }. Sin borradores. */
+export function getGradebook(token, courseId, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/gradebook`, { token, ...opts });
+}
+
+/** GET /v1/courses/{id}/grades/summary → estadísticas por evaluación y estudiantes con promedio bajo `threshold` (por defecto 4,0). */
+export function getGradesSummary(token, courseId, { threshold, ...opts } = {}) {
+  const query = threshold === undefined ? '' : `?threshold=${encodeURIComponent(threshold)}`;
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/grades/summary${query}`, { token, ...opts });
+}
+
+/** GET /v1/courses/{id}/students/{studentId}/grades → { course_id, course, student_id, average, grades: [{ assessment_id, title, score, grade, weight, submitted_at }] }. */
+export function getStudentGrades(token, courseId, studentId, opts) {
+  return requestJson(`/v1/courses/${encodeURIComponent(courseId)}/students/${encodeURIComponent(studentId)}/grades`, { token, ...opts });
+}
+
+/** PATCH /v1/assessments/{id}/grading → { assessment_id, title, pass_threshold, weight }. `input`: { pass_threshold?, weight? }; las notas se recalculan solas. */
+export function updateGrading(token, assessmentId, input, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/grading`, { method: 'PATCH', token, body: input, ...opts });
 }

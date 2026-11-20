@@ -44,10 +44,6 @@
 .brandName { font-family: var(--fp-font-heading); font-size: 20px; color: var(--fp-brand-text); white-space: nowrap; }
 .modeLabel { font-size: 13px; font-weight: 600; color: var(--fp-brand-text); white-space: nowrap; }
 .spacer { flex: 1; }
-.roleSwitch { display: flex; gap: 2px; padding: 4px; border-radius: var(--fp-radius-pill); background: var(--fp-accent-soft); }
-.role { padding: 7px 16px; border-radius: var(--fp-radius-pill); color: var(--fp-muted) !important; font-size: 14px; font-weight: 700; white-space: nowrap; transition: background var(--fp-duration) var(--fp-ease), color var(--fp-duration) ease; }
-.role:hover { color: var(--fp-ink) !important; }
-.roleOn { background: var(--fp-brand); color: var(--fp-on-brand) !important; }
 .tools { display: flex; align-items: center; gap: 2px; }
 
 .content { min-width: 0; padding: 8px 40px 80px; zoom: var(--fp-zoom, 1); }
