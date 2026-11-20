@@ -16,8 +16,9 @@ En desarrollo, Vite reenvía `/v1` y `/health` al backend (`BACKEND_URL`, por de
 
 ### Vercel (demo pública)
 
-El proyecto de Vercel (`feathers-for-all`) tiene como raíz `code/frontend/` y despliega cada push a `main`. La configuración está en [`vercel.json`](vercel.json):
+El proyecto de Vercel (`feathers-for-all`) tiene como raíz `code/frontend/`. La configuración está en [`vercel.json`](vercel.json):
 
+- **Solo `main` se despliega** (`git.deploymentEnabled`). Las demás ramas no generan deployments ni vistas previas: lo que se rompa en una rama no llega a la demo, y producción cambia solo al mergear un PR en `main`. Para probar una rama, levántala en local (`npm run dev`).
 - `/` y `/portal` redirigen a `/portal.html`. El chat de desarrollo queda en `/index.html`.
 - Usa las mismas cabeceras de seguridad que [`security-headers.conf`](security-headers.conf) (CSP con `connect-src 'self'`). Si cambias una, cambia la otra.
 - **Falta la API.** Hoy el portal carga, pero el login responde 404 porque `/v1` no existe en Vercel. Cuando el backend esté desplegado (Render, según el informe de la demo pública), agrega este rewrite a `vercel.json`:
