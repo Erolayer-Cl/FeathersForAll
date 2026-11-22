@@ -374,6 +374,9 @@ WINDOW w AS (PARTITION BY u.id)
 ORDER BY u.nombre, u.id`;
 
 // Estadísticas por evaluación: entregas, promedio, mínima, máxima, aprobados (>= 4.0).
+// Solo cuentan los estudiantes con matrícula ACTIVA, igual que el libro de notas y los
+// estudiantes en riesgo: si no, quien se retiró después de rendir seguiría en el promedio
+// y en las entregas, y "pendientes" (matriculados activos - entregas) saldría bajo.
 export const RESUMEN_NOTAS_CURSO = `
 SELECT e.id AS evaluacion_id, e.titulo, e.estado,
        count(n.intento_id)                       AS entregas,
@@ -383,7 +386,9 @@ SELECT e.id AS evaluacion_id, e.titulo, e.estado,
        count(*) FILTER (WHERE n.nota >= 4.0)     AS aprobados,
        count(*) FILTER (WHERE n.nota <  4.0)     AS reprobados
 FROM evaluaciones e
-LEFT JOIN notas n ON n.evaluacion_id = e.id
+LEFT JOIN (notas n
+           JOIN matriculas m ON m.curso_id = n.curso_id AND m.estudiante_id = n.estudiante_id AND m.activo)
+       ON n.evaluacion_id = e.id
 WHERE e.curso_id = $1 AND e.estado <> 'borrador'
 GROUP BY e.id
 ORDER BY e.fecha_publicacion, e.titulo`;

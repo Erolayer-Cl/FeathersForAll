@@ -166,6 +166,26 @@ describe('notas (PostgreSQL)', { skip: SKIP }, () => {
       assert.deepEqual(body.at_risk.map((s) => [s.student_id, s.average]), [[SOFIA, 1.4], [TOMAS, 3.5]]);
     });
 
+    test('quien se retiró del curso no cuenta en el resumen, igual que en el libro', async () => {
+      // Tomás rindió solo Fracciones (3,5). Se da de baja y se vuelve a matricular al final.
+      await testDb.superuser.query('UPDATE matriculas SET activo = false WHERE curso_id = $1 AND estudiante_id = $2', [MATE, TOMAS]);
+      try {
+        const libro = await getJson(`/v1/courses/${MATE}/gradebook`, T.ana);
+        assert.equal(libro.students.some((s) => s.student_id === TOMAS), false);
+        const body = await getJson(`/v1/courses/${MATE}/grades/summary`, T.ana);
+        assert.equal(body.enrolled_students, 3);
+        const fr = body.assessments.find((a) => a.assessment_id === FRACCIONES);
+        assert.deepEqual(
+          { submissions: fr.submissions, pending: fr.pending, passed: fr.passed, failed: fr.failed, min: fr.min, max: fr.max, average: fr.average },
+          { submissions: 3, pending: 0, passed: 2, failed: 1, min: 2.3, max: 7.0, average: 4.8 },
+        );
+        assert.equal(body.assessments.find((a) => a.assessment_id === DECIMALES).pending, 1);
+        assert.deepEqual(body.at_risk.map((s) => s.student_id), [SOFIA]);
+      } finally {
+        await testDb.superuser.query('UPDATE matriculas SET activo = true WHERE curso_id = $1 AND estudiante_id = $2', [MATE, TOMAS]);
+      }
+    });
+
     test('umbral de riesgo configurable y validado', async () => {
       const body = await getJson(`/v1/courses/${MATE}/grades/summary?threshold=5.5`, T.ana);
       // Benjamín (5.1) entra; Camila (5.7) no.
