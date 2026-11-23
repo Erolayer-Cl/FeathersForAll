@@ -1,27 +1,41 @@
+/* Indicadores del diseño nuevo: sin tarjetas antiguas ni barra vertical.
+   El componente Kpi.jsx y los datos de API permanecen sin cambios. */
 .kpi {
   --tone: var(--fp-accent);
   position: relative;
-  padding: 20px 22px 20px 26px;
-  border-radius: 24px;
-  background: var(--fp-surface);
-  box-shadow: var(--fp-shadow-sm);
+  min-width: 0;
+  padding: 12px 4px 15px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--fp-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.kpi::before {
-  content: "";
-  position: absolute;
-  top: 18px;
-  bottom: 18px;
-  left: 0;
-  width: 4px;
-  border-radius: 0 4px 4px 0;
-  background: var(--tone);
+.kpi::before,
+.kpi::after { content: none !important; display: none !important; }
+.label {
+  color: var(--fp-muted);
+  font-family: var(--fp-font);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
+.value {
+  color: var(--fp-ink);
+  font-family: var(--fp-font);
+  font-size: clamp(22px, 2vw, 29px);
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.hint { color: var(--fp-muted); font-size: 11px; line-height: 1.4; }
 .success { --tone: var(--fp-success); }
 .warning { --tone: var(--fp-warning); }
 .danger { --tone: var(--fp-danger); }
-.label { color: var(--fp-muted); font-size: 13px; }
-.value { font-family: var(--fp-font-heading); font-size: 30px; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.hint { color: var(--fp-muted); font-size: 12.5px; }
 .success .hint { color: var(--fp-success-ink); }
 .warning .hint { color: var(--fp-warning-ink); }
 .danger .hint { color: var(--fp-danger-ink); }

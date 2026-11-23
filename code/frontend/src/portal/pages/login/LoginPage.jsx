@@ -8,7 +8,9 @@ import { useSession } from '../../session/useSession.js';
 import { LOGIN_TABS, LOGIN_TEXTOS } from './textos.js';
 import styles from './LoginPage.module.css';
 
-const TAB_ICON = { est: 'book', doc: 'users' };
+const TAB_ICON = { est: 'book', doc: 'users', adm: 'school' };
+/** Las tres cuentas como pastillas bajo el formulario (diseño Figma). LOGIN_TABS sigue siendo solo est/doc. */
+const PILLS = [...LOGIN_TABS, 'adm'];
 const LOGIN_ROLE = { 'login-est': 'est', 'login-doc': 'doc', 'login-adm': 'adm' };
 
 /**
@@ -46,6 +48,7 @@ export function LoginPage({ role }) {
   // { role, error } = mensaje de error; { role, mismatch } = la cuenta es de otro rol ('none' = sin portal).
   const [feedback, setFeedback] = useState(null);
   const [sending, setSending] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const passwordRef = useRef(null);
   const current = feedback?.role === role ? feedback : null;
   const error = current?.error ?? null;
@@ -90,111 +93,110 @@ export function LoginPage({ role }) {
 
   return (
     <div className={styles.login}>
+      <div className={styles.art} aria-hidden="true" />
       <button type="button" className={styles.palette} onClick={openPanel} aria-label="Personalizar la interfaz">
         <Icon name="palette" size={22} />
       </button>
-      <header className={styles.hero}>
-        <PortalLogo size={92} className={styles.logo} />
-        <h1>FeathersForAll</h1>
-        <h2>Impulsa el aprendizaje con inteligencia artificial</h2>
-        <p>Una plataforma educativa inteligente para estudiantes, docentes y colegios.</p>
-      </header>
 
-      <form className={styles.box} onSubmit={onSubmit} aria-busy={sending}>
-        {role !== 'adm' && (
-          <nav className={styles.tabs} aria-label="Tipo de cuenta">
-            {LOGIN_TABS.map((id) => (
-              <a
-                key={id}
-                href={`#/portal/${ROLES[id].login}`}
-                className={id === role ? styles.tabOn : styles.tab}
-                aria-current={id === role ? 'page' : undefined}
-                // Mientras se inicia sesión no se cambia de pestaña: el resultado (o el aviso) es de la pestaña enviada.
-                aria-disabled={sending || undefined}
-                onClick={alNavegar}
-              >
-                <Icon name={TAB_ICON[id]} size={18} />
-                {ROLES[id].label}
-              </a>
-            ))}
-          </nav>
-        )}
-        <h2>{text.titulo}</h2>
-        <p className={styles.sub}>{text.detalle}</p>
+      <div className={styles.col}>
+        <PortalLogo size={96} className={styles.logo} />
+        <h1 className={styles.brand}>FeathersForAll</h1>
 
-        {aviso && (
-          <p className={error ? styles.error : styles.notice} role="alert">
-            {aviso}
-          </p>
-        )}
-        {mismatch && <AvisoOtroRol key={current.at} actual={mismatch} onNavigate={alNavegar} />}
+        <form className={styles.box} onSubmit={onSubmit} aria-busy={sending}>
+          <h2>{text.titulo}</h2>
+          <p className={styles.sub}>{text.detalle}</p>
 
-        <label className={styles.field}>
-          <span>Colegio (RBD)</span>
-          <input
-            name="rbd"
-            inputMode="numeric"
-            placeholder="Ej.: 99901"
-            autoComplete="off"
-            required
-            maxLength={20}
-            value={form.rbd}
-            onChange={change('rbd')}
-            aria-describedby="fp-rbd-ayuda"
-          />
-          <small id="fp-rbd-ayuda" className={styles.help}>
-            {text.ayudaRbd}
-          </small>
-        </label>
-        <label className={styles.field}>
-          <span>Correo institucional</span>
-          <input
-            name="email"
-            type="email"
-            placeholder={text.ejemplo}
-            autoComplete="username"
-            required
-            maxLength={150}
-            value={form.email}
-            onChange={change('email')}
-          />
-        </label>
-        <label className={styles.field}>
-          <span>Contraseña</span>
-          <input
-            name="password"
-            type="password"
-            placeholder="Ingresa tu contraseña"
-            autoComplete="current-password"
-            ref={passwordRef}
-            required
-            maxLength={256}
-            value={form.password}
-            onChange={change('password')}
-          />
-        </label>
-        <div className={styles.loginRow}>
-          <label className={styles.remember}>
-            <input type="checkbox" checked={form.remember} onChange={change('remember')} /> Recordar sesión
-          </label>
-          {/* Todavía no hay flujo de recuperación: se orienta en vez de mostrar un enlace que no hace nada. */}
-          <span className={styles.forgot}>¿Olvidaste tu contraseña? Pide a tu colegio que la restablezca.</span>
-        </div>
-        <button type="submit" className={styles.submit} aria-disabled={sending}>
-          {sending ? 'Ingresando…' : 'Iniciar sesión'}
-        </button>
-        <p className={styles.other}>
-          {role === 'adm' ? (
-            <a href={`#/portal/${ROLES.est.login}`} aria-disabled={sending || undefined} onClick={alNavegar}>
-              ¿Eres estudiante o docente? Vuelve al acceso general
-            </a>
-          ) : (
-            <a href={`#/portal/${ROLES.adm.login}`} aria-disabled={sending || undefined} onClick={alNavegar}>
-              ¿Administras un colegio? Ingresa aquí
-            </a>
+          {aviso && (
+            <p className={error ? styles.error : styles.notice} role="alert">
+              {aviso}
+            </p>
           )}
-        </p>
-      </form>
+          {mismatch && <AvisoOtroRol key={current.at} actual={mismatch} onNavigate={alNavegar} />}
+
+          <label className={styles.field}>
+            <span>Colegio (RBD)</span>
+            <input
+              name="rbd"
+              inputMode="numeric"
+              placeholder="Ej.: 99901"
+              autoComplete="off"
+              required
+              maxLength={20}
+              value={form.rbd}
+              onChange={change('rbd')}
+              aria-describedby="fp-rbd-ayuda"
+            />
+            <small id="fp-rbd-ayuda" className={styles.help}>
+              {text.ayudaRbd}
+            </small>
+          </label>
+          <label className={styles.field}>
+            <span>Correo institucional</span>
+            <input
+              name="email"
+              type="email"
+              placeholder={text.ejemplo}
+              autoComplete="username"
+              required
+              maxLength={150}
+              value={form.email}
+              onChange={change('email')}
+            />
+          </label>
+          <label className={styles.field}>
+            <span>Contraseña</span>
+            <div className={styles.pw}>
+              <input
+                name="password"
+                type={showPw ? 'text' : 'password'}
+                placeholder="Ingresa tu contraseña"
+                autoComplete="current-password"
+                ref={passwordRef}
+                required
+                maxLength={256}
+                value={form.password}
+                onChange={change('password')}
+              />
+              <button
+                type="button"
+                className={styles.eye}
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={showPw}
+              >
+                <Icon name={showPw ? 'eyeOff' : 'eye'} size={18} />
+              </button>
+            </div>
+          </label>
+          <div className={styles.loginRow}>
+            <label className={styles.remember}>
+              <input type="checkbox" checked={form.remember} onChange={change('remember')} /> Recordar sesión
+            </label>
+            {/* Todavía no hay flujo de recuperación: se orienta en vez de mostrar un enlace que no hace nada. */}
+            <span className={styles.forgot}>¿Olvidaste tu contraseña? Pide a tu colegio que la restablezca.</span>
+          </div>
+          <button type="submit" className={styles.submit} aria-disabled={sending}>
+            {sending ? 'Ingresando…' : 'Iniciar sesión'}
+          </button>
+        </form>
+
+        <nav className={styles.pills} aria-label="Tipo de cuenta">
+          {PILLS.map((id) => (
+            <a
+              key={id}
+              href={`#/portal/${ROLES[id].login}`}
+              className={id === role ? styles.pillOn : styles.pill}
+              aria-current={id === role ? 'page' : undefined}
+              // Mientras se inicia sesión no se cambia de pestaña: el resultado (o el aviso) es de la pestaña enviada.
+              aria-disabled={sending || undefined}
+              onClick={alNavegar}
+            >
+              <Icon name={TAB_ICON[id]} size={16} />
+              {ROLES[id].label}
+            </a>
+          ))}
+        </nav>
+      </div>
     </div>
   );
 }

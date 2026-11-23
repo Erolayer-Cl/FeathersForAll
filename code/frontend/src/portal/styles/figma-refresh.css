@@ -1,0 +1,32 @@
+/* Pantallas «Prueba 1–6»; login existente intencionalmente excluido. */
+.fp-root:has(aside[aria-label="Menú de navegación"]){--fp-brand-text:var(--fp-accent-solid);--fp-side:var(--fp-menu-bg);--fp-on-brand:#fff;--fp-bg:#fff;--fp-surface:#fff;--fp-field:#f5f8fa;--fp-ink:#12213d;--fp-muted:#627588;--fp-line:#d9e2e8;--fp-track:#e8edf1;--fp-success:#10b981;--fp-accent-solid:color-mix(in srgb,var(--fp-accent) 72%,#000);--fp-radius-sm:7px;--fp-radius-md:12px;--fp-radius-lg:16px;--fp-shadow-sm:none;--fp-shadow-md:0 4px 16px #0b17270b;--fp-shadow-lg:0 8px 25px #0b172715;--fp-font:Inter,system-ui,-apple-system,'Segoe UI',sans-serif;--fp-font-heading:Inter,system-ui,sans-serif;--fp-gap:18px;--fp-card-pad:18px 20px}
+.fp-root[data-fp-theme="dark"]:has(aside[aria-label="Menú de navegación"]){--fp-bg:#0b1220;--fp-surface:#131c30;--fp-field:#1b2742;--fp-ink:#e8edf7;--fp-muted:#a3b0c6;--fp-line:#273753;--fp-track:#2d3b5b;--fp-brand-text:color-mix(in srgb,var(--fp-accent) 62%,#fff);--fp-side:var(--fp-menu-bg)}
+/* El acceso mantiene sus estilos existentes: estos estilos afectan solo al portal autenticado. */
+.fp-root:has([aria-label="Menú de navegación"]) h1{font-size:27px;letter-spacing:-.025em;font-weight:700}
+.fp-root:has([aria-label="Menú de navegación"]) h2{font-family:var(--fp-font);font-weight:650}
+.fp-root:has([aria-label="Menú de navegación"]) input[type=search],.fp-root:has([aria-label="Menú de navegación"]) select{border:1px solid var(--fp-line);border-radius:7px;background:var(--fp-field);padding:9px 12px;color:var(--fp-ink)}
+.fp-root:has([aria-label="Menú de navegación"]) [data-fp-surface]{box-shadow:none;border:1px solid var(--fp-line)}
+.fp-root:has([aria-label="Menú de navegación"]) table{font-variant-numeric:tabular-nums}
+/* Página de notas: tablas más planas, como Prueba 3. */
+.fp-root [class*="MisNotasPage_hello"]{background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important}
+.fp-root [class*="MisNotasPage_table"]{border-collapse:collapse;border-top:1px solid var(--fp-line)}
+.fp-root [class*="MisNotasPage_table"] th,.fp-root [class*="MisNotasPage_table"] td{border-bottom:1px solid var(--fp-line);background:var(--fp-surface)}
+.fp-root [class*="MisNotasPage_table"] thead th{background:var(--fp-field);color:var(--fp-muted);font-size:11px;text-transform:uppercase}
+/* El tutor conserva su chat real y las conversaciones persistidas. */
+.fp-root [class*="TutorPage_chat"],.fp-root [class*="TutorPage_history"]{border:1px solid var(--fp-line);box-shadow:none;border-radius:14px}
+.fp-root [class*="SettingsPage_grid"]{align-items:start}
+.fp-root [class*="SettingsPage_choice"]{border-radius:7px}
+.fp-root [class*="SettingsPage_choice"][aria-pressed="true"]{background:var(--fp-accent-solid);color:white}
+
+/* Paleta dinámica: toma --fp-accent de las preferencias existentes (PortalFrame).
+   No sustituir --fp-accent aquí: el usuario lo elige en Personalizar. */
+.fp-root:has(aside[aria-label="Menú de navegación"]) {
+  --fp-menu-bg: color-mix(in srgb, var(--fp-accent) 23%, #071b27);
+  --fp-menu-profile: color-mix(in srgb, var(--fp-accent) 29%, #223d49);
+  --fp-menu-active: color-mix(in srgb, var(--fp-accent) 72%, #062c36);
+  --fp-menu-hover: color-mix(in srgb, var(--fp-accent) 18%, #243b46);
+}
+.fp-root[data-fp-theme="dark"]:has(aside[aria-label="Menú de navegación"]) {
+  --fp-menu-bg: color-mix(in srgb, var(--fp-accent) 17%, #071521);
+  --fp-menu-profile: color-mix(in srgb, var(--fp-accent) 25%, #1c3140);
+}

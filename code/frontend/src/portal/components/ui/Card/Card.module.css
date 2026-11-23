@@ -1,7 +1,4 @@
-.card {
-  padding: var(--fp-card-pad, 24px 28px);
-  border-radius: var(--fp-radius-lg);
-  background: var(--fp-surface);
-  box-shadow: var(--fp-shadow-sm);
-}
-.tight { padding: 18px 24px; }
+.card { padding:var(--fp-card-pad,24px); border:1px solid var(--fp-line); border-radius:16px; background:var(--fp-surface); box-shadow:0 1px 2px rgb(9 23 38 / .035); min-width:0; }
+.tight {padding:18px 22px}
+.card h2 {font-family:var(--fp-font);font-size:17px;font-weight:700;letter-spacing:-.02em;color:var(--fp-ink)}
+@media(max-width:600px){.card{padding:18px;border-radius:14px}}
