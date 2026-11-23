@@ -1,0 +1,22 @@
+rules:
+  - id: ffa-sql-interpolado
+    message: >-
+      SQL armado con interpolación o concatenación. Aunque el RLS limita el daño al colegio de la
+      sesión, una inyección puede leer datos de otros estudiantes del mismo colegio o cambiar
+      app.colegio_id. Usa parámetros ($1, $2…) y deja la consulta en db/queries.js. Si de verdad
+      hay que interpolar (DDL), usa client.escapeLiteral / escapeIdentifier.
+    severity: ERROR
+    languages: [javascript]
+    metadata:
+      category: security
+      cwe: "CWE-89: Improper Neutralization of Special Elements used in an SQL Command"
+      owasp: "A03:2021 - Injection"
+      stride: Tampering
+    patterns:
+      - pattern-either:
+          - pattern: $DB.query(`...${$X}...`, ...)
+          - pattern: $DB.query("..." + $X, ...)
+          - pattern: $DB.query($X + "...", ...)
+      # DDL de scripts/db-setup.js: la contraseña va escapada por el driver.
+      - pattern-not: $DB.query(`...${$C.escapeLiteral(...)}...`, ...)
+      - pattern-not: $DB.query(`...${$C.escapeIdentifier(...)}...`, ...)

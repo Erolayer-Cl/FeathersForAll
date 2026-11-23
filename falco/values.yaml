@@ -1,0 +1,19 @@
+# Valores del chart falcosecurity/falco para el clúster kind del proyecto (S10). Uso: falco/README.md
+driver:
+  kind: modern_ebpf # sin módulo de kernel ni compilación; requiere kernel >= 5.8 (WSL2 lo cumple)
+
+tty: true # las alertas salen de inmediato en `kubectl logs`
+
+falco:
+  json_output: true
+  json_include_output_property: true
+  priority: notice
+
+# Reenvía las alertas al canal del equipo. La URL del webhook es un secreto: se pasa con --set al
+# instalar (falco/README.md), nunca en este archivo.
+falcosidekick:
+  enabled: true
+  config:
+    discord:
+      webhookurl: ""
+      minimumpriority: error # error, critical, alert y emergency avisan; el resto queda en los logs

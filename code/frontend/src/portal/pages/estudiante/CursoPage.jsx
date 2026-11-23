@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getCourse, getGradeDetail, getMyGrades } from '../../../api/portalApi.js';
+import { getAssessments, getCourse, getGradeDetail, getMyGrades } from '../../../api/portalApi.js';
 import { Icon } from '../../components/icons.jsx';
 import { Button, Card, Chip, EmptyState, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
@@ -18,15 +18,17 @@ const NO_DISPONIBLE = {
   ),
 };
 
-/** Curso + mis notas en él, en una sola carga. 404 si el curso no existe o no participo en él. */
+/** Curso + mis notas + las evaluaciones publicadas, en una sola carga. 404 si el curso no existe o no participo en él. */
 async function cargarCurso(token, courseId, opts) {
-  const [curso, notas] = await Promise.all([getCourse(token, courseId, opts), getMyGrades(token, opts)]);
-  return { curso, ramo: notas.courses.find((c) => c.course_id === courseId) };
+  const [curso, notas, evaluaciones] = await Promise.all([getCourse(token, courseId, opts), getMyGrades(token, opts), getAssessments(token, courseId, opts)]);
+  return { curso, ramo: notas.courses.find((c) => c.course_id === courseId), evaluaciones: evaluaciones.data };
 }
 
 /** Respuestas de una evaluación entregada, con la retroalimentación del docente (solo lectura). */
 function DetalleEvaluacion({ assessmentId }) {
-  const { data, loading, error, reload } = useApiData((token, opts) => getGradeDetail(token, assessmentId, opts), assessmentId);
+  const { data, loading, error, reload } = useApiData((token, opts) => getGradeDetail(token, assessmentId, opts), assessmentId, {
+    cache: 'evaluacion',
+  });
   return (
     <LoadState loading={loading} error={error} onRetry={reload}>
       {data?.answers.length === 0 && (
@@ -52,10 +54,13 @@ function DetalleEvaluacion({ assessmentId }) {
 
 /** Estudiante · Curso: asignatura, profesor, tutor y mis evaluaciones con su nota (est-curso/<id>). */
 export function CursoPage({ param: courseId }) {
-  const { data, loading, error, reload } = useApiData((token, opts) => cargarCurso(token, courseId, opts), courseId);
+  const { data, loading, error, reload } = useApiData((token, opts) => cargarCurso(token, courseId, opts), courseId, { cache: 'curso' });
   const [abierta, setAbierta] = useState(null);
   const curso = data?.curso;
   const notas = data?.ramo?.grades ?? [];
+  // Pendientes: publicadas que aún no rindo. Las cerradas sin rendir se avisan aparte (ya no se pueden rendir).
+  const porRendir = (data?.evaluaciones ?? []).filter((e) => e.status === 'published' && !e.submitted);
+  const sinRendir = (data?.evaluaciones ?? []).filter((e) => e.status === 'closed' && !e.submitted);
 
   return (
     <>
@@ -76,6 +81,25 @@ export function CursoPage({ param: courseId }) {
 
             <div className={styles.split}>
               <Card as="section">
+                {porRendir.length > 0 && (
+                  <section className={styles.pendientes} aria-labelledby="por-rendir-titulo">
+                    <h2 id="por-rendir-titulo">Por rendir</h2>
+                    <ul className={styles.rows}>
+                      {porRendir.map((e) => (
+                        <li key={e.id} className={styles.pendiente}>
+                          <span className={styles.grow}>
+                            <b>{e.title}</b>
+                            <small>{e.questions_count} pregunta{e.questions_count === 1 ? '' : 's'}{e.closes_at ? ` · cierra el ${formatFecha(e.closes_at)}` : ''}</small>
+                          </span>
+                          <Button size="sm" href={routeHref('est-evaluacion', e.id)} aria-label={`Rendir ${e.title}`}>Rendir</Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {sinRendir.length > 0 && (
+                  <p className={styles.sub}>Hay {sinRendir.length} evaluación{sinRendir.length === 1 ? '' : 'es'} cerrada{sinRendir.length === 1 ? '' : 's'} que no rendiste: {sinRendir.map((e) => e.title).join(', ')}.</p>
+                )}
                 <h2>Evaluaciones de {curso.subject ?? curso.name}</h2>
                 <p className={styles.sub}>Solo lectura: las notas se calculan con el puntaje y la exigencia de cada evaluación.</p>
                 {notas.length === 0 && <EmptyState>Aún no tienes evaluaciones corregidas en este curso.</EmptyState>}

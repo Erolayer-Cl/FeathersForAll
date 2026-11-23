@@ -1,0 +1,93 @@
+# Reglas Falco de FeathersForAll (S10, ADR 0011). Detección en runtime: lo que la admisión no puede ver.
+#
+# Tres reglas pensadas para este sistema (datos de menores, multi-tenant), no las genéricas:
+#   1. Proceso inesperado en un contenedor de la app   → alguien logró ejecutar algo dentro
+#   2. Conexión saliente inesperada desde la API       → posible salida de datos de estudiantes
+#   3. Lectura del entorno de un proceso de la API     → robo de JWT_SECRET o DATABASE_URL
+#
+# El archivo no depende de las reglas por defecto de Falco (trae sus propias macros), así el job
+# iac-scan lo valida solo:   falco -V falco/rules-custom.yaml
+# Instalación, prueba de cada regla y ruta de alerta: falco/README.md
+- required_engine_version: 0.38.0
+
+# --- Dónde aplica ---
+
+- macro: ffa_namespace
+  condition: (k8s.ns.name = "feathersforall")
+
+# Imágenes de la app. La API y el job de purga comparten imagen (distroless, solo trae node).
+- macro: ffa_api
+  condition: (ffa_namespace and container.image.repository endswith "/feathersforall-api")
+
+- macro: ffa_web
+  condition: (ffa_namespace and container.image.repository endswith "/feathersforall-web")
+
+- macro: ffa_proceso_nuevo
+  condition: (evt.type in (execve, execveat) and evt.res = SUCCESS)
+
+- list: ffa_shells
+  items: [sh, ash, bash, dash, zsh, busybox]
+
+# Lo único con lo que la API habla: DNS, PostgreSQL (5433 en el laboratorio) y Ollama.
+# La misma lista está en k8s/networkpolicy.yaml: si cambia una, cambia la otra.
+- list: ffa_puertos_salida_api
+  items: [53, 5432, 5433, 11434]
+
+# --- 1. Proceso inesperado ---
+# API: la imagen es distroless, no trae shell ni utilidades. Cualquier proceso que no sea node
+#      significa que alguien subió un binario o explotó una dependencia.
+# Web: el entrypoint de nginx usa sh al arrancar, así que ahí se alerta solo por una shell con
+#      terminal (kubectl exec -it), que nadie debería necesitar: el contenedor es de solo lectura.
+- rule: FFA proceso inesperado en un contenedor de la app
+  desc: >
+    Se ejecutó algo distinto de node en la API (o en el job de purga), o se abrió una shell
+    interactiva en el frontend. Los contenedores de FeathersForAll no tienen motivo para hacerlo.
+  condition: >
+    ffa_proceso_nuevo and (
+      (ffa_api and proc.name != "node")
+      or (ffa_web and proc.name in (ffa_shells) and proc.tty != 0)
+    )
+  output: >
+    Proceso inesperado en FeathersForAll
+    (proceso=%proc.name comando=%proc.cmdline padre=%proc.pname usuario=%user.name terminal=%proc.tty
+    pod=%k8s.pod.name imagen=%container.image.repository contenedor=%container.id)
+  priority: CRITICAL
+  tags: [feathersforall, container, shell, mitre_execution, T1059]
+
+# --- 2. Conexión saliente inesperada ---
+# La base tiene notas y conversaciones de menores. Si la API abre una conexión a otro destino,
+# puede ser una dependencia comprometida enviando datos fuera (el caso XZ Utils / SolarWinds de la clase).
+- rule: FFA conexión saliente inesperada desde la API
+  desc: >
+    La API abrió una conexión a un puerto que no es DNS, PostgreSQL ni Ollama.
+    Posible exfiltración de datos de estudiantes o descarga de una segunda etapa.
+  condition: >
+    evt.type = connect and fd.type in (ipv4, ipv6)
+    and ffa_api
+    and not fd.sport in (ffa_puertos_salida_api)
+    and not fd.sip in ("127.0.0.1", "::1")
+  output: >
+    Conexión saliente inesperada desde la API de FeathersForAll
+    (destino=%fd.sip:%fd.sport proceso=%proc.name comando=%proc.cmdline
+    pod=%k8s.pod.name imagen=%container.image.repository contenedor=%container.id)
+  priority: CRITICAL
+  tags: [feathersforall, network, mitre_exfiltration, T1041]
+
+# --- 3. Lectura del entorno de un proceso ---
+# JWT_SECRET y DATABASE_URL llegan como variables de entorno (excepción CKV_K8S_35 de .checkov.yaml).
+# Con JWT_SECRET se puede firmar un token de cualquier colegio y rol. Node no lee /proc/<pid>/environ
+# por su cuenta: si pasa, es un path traversal o código ajeno buscando los secretos.
+- rule: FFA lectura del entorno de un proceso en la API
+  desc: >
+    Un proceso de la API abrió /proc/<pid>/environ, donde están JWT_SECRET y DATABASE_URL.
+    Si la alerta es real hay que rotar ambos secretos.
+  condition: >
+    evt.type in (open, openat, openat2) and evt.is_open_read = true
+    and ffa_api
+    and fd.name startswith "/proc/" and fd.name endswith "/environ"
+  output: >
+    Lectura de variables de entorno en la API de FeathersForAll
+    (archivo=%fd.name proceso=%proc.name comando=%proc.cmdline
+    pod=%k8s.pod.name imagen=%container.image.repository contenedor=%container.id)
+  priority: CRITICAL
+  tags: [feathersforall, filesystem, mitre_credential_access, T1552]

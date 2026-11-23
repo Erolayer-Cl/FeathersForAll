@@ -5,9 +5,11 @@ import { optionalAuth, requireAuth } from './platform/auth.js';
 import { createTutorRouter } from './modules/tutor/tutor.routes.js';
 import { createRagRouter } from './modules/tutor/rag/rag.routes.js';
 import { createConversacionesRouter } from './modules/tutor/conversaciones.routes.js';
+import { createApuntesRouter } from './modules/tutor/apuntes.routes.js';
 import { createNotasRouter } from './modules/notas/notas.routes.js';
 import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
 import { createCursosRouter } from './modules/cursos/cursos.routes.js';
+import { createEvaluacionesRouter } from './modules/evaluaciones/evaluaciones.routes.js';
 import { createLoginLimiter } from './platform/login-limiter.js';
 
 /**
@@ -27,7 +29,7 @@ import { createLoginLimiter } from './platform/login-limiter.js';
 export function createApp({
   logger, llm, db, jwtSecret, rag, tenantId = 'dev', defaultCourseId,
   enableIngestApi = true, chatRequiresAuth = false,
-  jwtTtlSeconds = 8 * 3600, loginLimiter = createLoginLimiter(),
+  jwtTtlSeconds = 8 * 3600, loginLimiter = createLoginLimiter(), aiLimiter = undefined,
 }) {
   const app = express();
   app.disable('x-powered-by');
@@ -71,9 +73,13 @@ export function createApp({
     app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
     app.use(createCursosRouter({ db }));
+    app.use(createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter }));
     app.use(createNotasRouter({ db }));
-    // Conversaciones guardadas del tutor (ADR 0008): necesitan el RAG en PostgreSQL.
-    if (rag?.backend === 'postgres') app.use(createConversacionesRouter({ db, llm, rag }));
+    // Conversaciones guardadas del tutor (ADR 0008) y apuntes del curso (v1.3): necesitan el RAG en PostgreSQL.
+    if (rag?.backend === 'postgres') {
+      app.use(createConversacionesRouter({ db, llm, rag }));
+      app.use(createApuntesRouter({ db, rag }));
+    }
   }
 
   app.use(notFound);

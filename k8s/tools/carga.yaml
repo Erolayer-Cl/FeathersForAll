@@ -1,8 +1,11 @@
 # Carga sintética para probar el HPA (NO es parte de la aplicación; no está en kustomization.yaml).
-#   kubectl apply -n feathersforall -f k8s/tools/carga.yaml
+#   kubectl apply -n default -f k8s/tools/carga.yaml
 #   kubectl get hpa ffa-api -n feathersforall --watch
-#   kubectl delete -n feathersforall -f k8s/tools/carga.yaml
+#   kubectl delete -n default -f k8s/tools/carga.yaml
 # Golpea /health, que consulta la BD y Ollama: genera CPU real en la API sin pasar por el LLM.
+# Desde S10 corre FUERA del namespace de la app y entra por el Ingress, como un cliente real: en
+# feathersforall solo se admiten imágenes firmadas por el CI (k8s/policies/) y la NetworkPolicy
+# solo deja llegar a la API desde ingress-nginx.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,7 +28,7 @@ spec:
       containers:
         - name: carga
           image: busybox:1.36
-          command: ["/bin/sh", "-c", "while true; do wget -q -O /dev/null http://ffa-api/health; done"]
+          command: ["/bin/sh", "-c", "while true; do wget -q -O /dev/null http://ingress-nginx-controller.ingress-nginx/health; done"]
           resources:
             requests: { cpu: "50m", memory: "16Mi" }
             limits: { cpu: "200m", memory: "32Mi" }

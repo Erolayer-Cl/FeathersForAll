@@ -1,0 +1,21 @@
+# Prueba de la policy de firma (NO es parte de la aplicación; no está en kustomization.yaml).
+#   kubectl apply -n feathersforall -f k8s/tools/sin-firma.yaml
+# Debe rechazarlo Kyverno (require-signature): la imagen es pública y válida, pero no la firmó ci.yml.
+# Cumple Pod Security "restricted" a propósito, para que el rechazo sea por la firma y no por correr como root.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sin-firma
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: nginx
+      image: nginxinc/nginx-unprivileged:1.30-alpine
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: { drop: ["ALL"] }

@@ -58,7 +58,7 @@ describe('RAG sobre PostgreSQL', { skip: SKIP }, () => {
 
   describe('quién puede subir apuntes (lo decide la base)', () => {
     test('el docente del curso sube: queda el apunte, sus fragmentos y subido_por = el docente', async () => {
-      assert.deepEqual(await rag.ingest({ ...inA, docId: 'fracciones.md', text: NOTES, actor: ANA }), { doc_id: 'fracciones.md', chunks: 1 });
+      assert.deepEqual(await rag.ingest({ ...inA, docId: 'fracciones.md', text: NOTES, actor: ANA }), { doc_id: 'fracciones.md', chunks: 1, created: true });
       assert.deepEqual(await rag.listDocuments(inA), [{ doc_id: 'fracciones.md', chunks: 1 }]);
       // Superusuario (sin RLS): confirma lo que quedó realmente guardado.
       const r = await testDb.superuser.query("SELECT subido_por, colegio_id FROM apuntes_curso WHERE titulo = 'fracciones.md'");
@@ -67,7 +67,8 @@ describe('RAG sobre PostgreSQL', { skip: SKIP }, () => {
     });
 
     test('re-subir el mismo título reemplaza los fragmentos (no duplica)', async () => {
-      await rag.ingest({ ...inA, docId: 'fracciones.md', text: `${NOTES}\n\nOtro párrafo.`, actor: ANA });
+      const again = await rag.ingest({ ...inA, docId: 'fracciones.md', text: `${NOTES}\n\nOtro párrafo.`, actor: ANA });
+      assert.equal(again.created, false);
       assert.equal((await rag.listDocuments(inA)).length, 1);
     });
 

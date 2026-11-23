@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FeathersForAll API
-  version: 1.2.0
+  version: 1.5.0
   summary: API pública del monolito modular de FeathersForAll.
   description: |
     Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
@@ -19,6 +19,19 @@ info:
     **Conversaciones del tutor (v1.2, ADR 0008):** el estudiante guarda sus conversaciones con el
     tutor IA por curso y las retoma en cualquier dispositivo. Solo las ve el propio estudiante (ni el
     docente ni el admin) y se borran al terminar el año escolar.
+
+    **Apuntes del tutor (v1.3):** el docente del curso y el admin del colegio suben, listan y quitan
+    los apuntes (PDF, TXT o Markdown) que usa el tutor IA de ese curso. El estudiante recibe `403`.
+
+    **Ciclo mínimo (v1.4):** el docente crea cursos y matricula (H1), crea y publica evaluaciones (H2) y ve sus
+    resultados y el libro de notas (H3); el estudiante las rinde y recibe puntaje, nota y retroalimentación al
+    instante (H4). Las alternativas se identifican por su **índice** (desde 0): `correct_option` al crear y
+    `selected_option` al rendir. El estudiante nunca recibe la alternativa correcta antes de entregar.
+    **Evaluaciones con IA (v1.5):** el docente puede escribir la evaluación a mano, pedirle un borrador a la IA
+    (`generateAssessment`, a partir de un tema y de los apuntes del curso) o ambas: la IA solo **propone**, no guarda
+    nada; el docente revisa, edita y guarda con `createAssessment`, y puede seguir editando el borrador
+    (`updateAssessment`) hasta publicarlo.
+    El tutor asíncrono (`tutor-questions`) queda **deprecado**: lo reemplazan las conversaciones guardadas.
 
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
     (claim `tenant_id`) y el backend lo fija por transacción en PostgreSQL (RLS, ADR 0002 D1).
@@ -177,7 +190,10 @@ paths:
     post:
       tags: [Cursos]
       summary: Crear curso
-      description: Crea un curso en el tenant del docente autenticado (H1). Rol requerido `docente` o `admin_colegio`.
+      description: |
+        Crea un curso en el tenant del usuario autenticado (H1). Rol requerido `docente` (a su nombre) o `admin_colegio`
+        (indicando `teacher_id`). Un docente que pide un curso a nombre de otro recibe `403`; un `teacher_id` que no es
+        docente de tu colegio, `422`.
       operationId: createCourse
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -272,7 +288,10 @@ paths:
     post:
       tags: [Cursos]
       summary: Matricular estudiante
-      description: Matricula a un estudiante del mismo tenant por su correo institucional (H1). Si el estudiante pertenece a otro colegio, responde 404.
+      description: |
+        Matricula a un estudiante del mismo tenant por su correo institucional (H1). Si el correo no es de un
+        estudiante de tu colegio (incluido el que pertenece a otro colegio), responde 404; si ya está matriculado, 409.
+        Solo el docente del curso y el admin; otro docente y el estudiante reciben 403.
       operationId: enrollStudent
       parameters:
         - $ref: '#/components/parameters/CourseId'
@@ -293,6 +312,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Enrollment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -303,11 +324,39 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Cursos]
+      summary: Estudiantes matriculados
+      description: Estudiantes con matrícula activa del curso, por nombre. Solo el docente del curso y el admin (el estudiante recibe 403; quien no participa, 404).
+      operationId: listEnrollments
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Matriculados del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /courses/{courseId}/assessments:
     post:
       tags: [Evaluaciones]
       summary: Crear evaluación
-      description: Crea una evaluación de alternativas en estado `draft` con retroalimentación por pregunta (H2).
+      description: |
+        Crea una evaluación de alternativas en estado `draft` con retroalimentación por pregunta (H2). La alternativa
+        correcta (`correct_option`, índice desde 0) puede faltar mientras es borrador, pero es obligatoria para publicar.
+        Solo el docente del curso y el admin; el estudiante y otro docente reciben 403.
       operationId: createAssessment
       parameters:
         - $ref: '#/components/parameters/CourseId'
@@ -328,6 +377,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Assessment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -336,11 +387,176 @@ paths:
           $ref: '#/components/responses/NotFound'
         '422':
           $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Evaluaciones]
+      summary: Evaluaciones de un curso
+      description: |
+        Docente del curso y admin: todas, con borradores y cuántos estudiantes entregaron. Estudiante matriculado: solo
+        las publicadas y cerradas (nunca borradores), con su nota si ya la rindió. Otro docente recibe 403; un estudiante
+        sin matrícula, 404.
+      operationId: listAssessments
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Evaluaciones del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentSummaryList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/assessments/generate:
+    post:
+      tags: [Evaluaciones]
+      summary: Proponer una evaluación con IA
+      description: |
+        Genera con IA un **borrador propuesto** de evaluación a partir de un tema y, por defecto, de los apuntes del
+        curso (solo los de ese curso y colegio). No guarda nada: el docente lo revisa, lo edita y lo guarda con
+        `createAssessment`. La IA puede equivocarse: la alternativa correcta y la retroalimentación deben revisarse.
+
+        Con `use_notes = true` (por defecto) y sin apuntes sobre el tema responde `422`; con `false` genera solo del tema.
+        Si el modelo no devuelve preguntas utilizables responde `502`, y si el servicio no está disponible, `503`.
+        Cada usuario tiene un tope de generaciones por ventana de tiempo (`429` con `Retry-After`).
+        Solo el docente del curso y el admin.
+      operationId: generateAssessment
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAssessmentInput'
+      responses:
+        '200':
+          description: Borrador propuesto (sin guardar).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneratedAssessment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /assessments/{assessmentId}:
+    get:
+      tags: [Evaluaciones]
+      summary: Ver una evaluación
+      description: |
+        Docente del curso y admin: la evaluación completa, con la alternativa correcta (`correct_option`) y la
+        retroalimentación de cada pregunta. Estudiante matriculado: solo si está publicada o cerrada y SIN `correct_option`
+        ni `feedback` (la retroalimentación llega al entregar). Un borrador no existe para el estudiante (404).
+      operationId: getAssessment
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Evaluación.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Evaluaciones]
+      summary: Editar un borrador
+      description: |
+        Reemplaza el título, el cierre y las preguntas de una evaluación **en borrador** (incluido uno generado con IA).
+        Una evaluación publicada o cerrada ya tiene entregas y notas: no se edita (`409`). Es `PUT` porque repetirlo
+        deja el mismo resultado. Solo el docente del curso y el admin.
+      operationId: updateAssessment
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentInput'
+      responses:
+        '200':
+          description: Borrador actualizado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assessment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Evaluaciones]
+      summary: Borrar un borrador
+      description: Borra una evaluación en borrador con sus preguntas. Una publicada o cerrada no se borra (`409`). Solo el docente del curso y el admin.
+      operationId: deleteAssessment
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '204':
+          description: Borrador borrado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     patch:
       tags: [Evaluaciones]
       summary: Publicar o cerrar evaluación
-      description: Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta (422).
+      description: |
+        Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta: `422`
+        con `errors` indicando cuáles. Solo se publica un borrador y solo se cierra una publicada (si no, `409`).
       operationId: updateAssessmentStatus
       parameters:
         - $ref: '#/components/parameters/AssessmentId'
@@ -360,12 +576,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Assessment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
   /assessments/{assessmentId}/submissions:
@@ -373,9 +593,11 @@ paths:
       tags: [Evaluaciones]
       summary: Rendir evaluación
       description: |
-        El estudiante envía sus respuestas y recibe puntaje y retroalimentación al instante (H4).
-        Requiere estar matriculado (si no, 404). Un segundo envío responde 409 con el resultado anterior
-        en `detail`. Reintentar con la misma `Idempotency-Key` devuelve la misma respuesta sin duplicar.
+        El estudiante envía sus respuestas y recibe puntaje, nota (escala 1,0–7,0) y retroalimentación al instante (H4).
+        `selected_option` es el índice (desde 0) de la alternativa elegida; una pregunta sin responder cuenta como
+        incorrecta. Requiere estar matriculado y que la evaluación esté publicada (si no, 404). Un segundo envío
+        responde 409 con el resultado anterior en `detail`, y una evaluación cerrada o vencida, 409. Docente y admin
+        reciben 403. Reintentar con la misma `Idempotency-Key` devuelve la misma respuesta sin duplicar.
       operationId: submitAssessment
       parameters:
         - $ref: '#/components/parameters/AssessmentId'
@@ -396,8 +618,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmissionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
@@ -435,6 +661,126 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/gradebook:
+    get:
+      tags: [Notas]
+      summary: Libro de notas del curso
+      description: Una fila por estudiante activo y una columna por evaluación, con el promedio de cada uno y el del curso. Solo el docente del curso y el admin (otro docente y el estudiante reciben 403).
+      operationId: getGradebook
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Libro de notas.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gradebook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/grades/summary:
+    get:
+      tags: [Notas]
+      summary: Resumen de notas y estudiantes en riesgo
+      description: Estadísticas por evaluación (entregas, pendientes, promedio, mínimo, máximo, aprobados) y los estudiantes cuyo promedio está bajo el umbral (4,0 por defecto). Solo el docente del curso y el admin.
+      operationId: getGradesSummary
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - name: threshold
+          in: query
+          required: false
+          description: Nota bajo la cual un estudiante se considera en riesgo (1,0–7,0).
+          schema: { type: number, minimum: 1, maximum: 7, default: 4 }
+      responses:
+        '200':
+          description: Resumen del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradesSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/students/{studentId}/grades:
+    get:
+      tags: [Notas]
+      summary: Notas de un estudiante en un curso
+      description: Las notas de un estudiante en el curso. Las ve el docente del curso, el admin y el propio estudiante (solo las suyas, y mientras esté matriculado); a otro estudiante le responde 403.
+      operationId: getStudentGrades
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - name: studentId
+          in: path
+          required: true
+          description: Identificador del estudiante.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Notas del estudiante en el curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentCourseGrades'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /assessments/{assessmentId}/grading:
+    patch:
+      tags: [Notas]
+      summary: Cambiar exigencia o ponderación
+      description: Cambia el porcentaje de logro que equivale al 4,0 (`pass_threshold`) y/o el peso de la evaluación en el promedio (`weight`). Las notas se recalculan solas. Solo el docente del curso y el admin.
+      operationId: updateAssessmentGrading
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GradingInput'
+      responses:
+        '200':
+          description: Calificación actualizada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradingResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /courses/{courseId}/tutor-questions:
     post:
       tags: [Tutor IA]
@@ -442,6 +788,10 @@ paths:
       description: |
         Encola una pregunta al tutor IA del curso (H5). Se procesa de forma asíncrona (SQS + worker, ADR 0003).
         Responde 202 con la URL para consultar el estado. Solo se usan como fuente los apuntes del curso y tenant del estudiante.
+
+        **Deprecado (v1.4):** el backend nunca la implementó. La alternativa son las conversaciones guardadas con respuesta
+        en streaming (`sendTutorMessage`). Se retirará cuando termine el plazo de deprecación de la política de versionado.
+      deprecated: true
       operationId: askTutor
       parameters:
         - $ref: '#/components/parameters/CourseId'
@@ -477,7 +827,11 @@ paths:
     get:
       tags: [Tutor IA]
       summary: Consultar respuesta del tutor IA
-      description: Devuelve el estado y, cuando está lista, la respuesta con sus fuentes. Si no hay contenido de respaldo, `grounded = false` y el tutor indica que no tiene información suficiente.
+      description: |
+        Devuelve el estado y, cuando está lista, la respuesta con sus fuentes. Si no hay contenido de respaldo, `grounded = false` y el tutor indica que no tiene información suficiente.
+
+        **Deprecado (v1.4):** va con `askTutor`; ver `sendTutorMessage` y `getTutorConversation`.
+      deprecated: true
       operationId: getTutorQuestion
       parameters:
         - name: questionId
@@ -580,6 +934,123 @@ paths:
           $ref: '#/components/responses/NotFound'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /courses/{courseId}/documents:
+    get:
+      tags: [Tutor IA]
+      summary: Apuntes del tutor en un curso
+      description: |
+        Documentos indexados para el tutor IA del curso, del más reciente al más antiguo, con cuántos fragmentos
+        tiene cada uno. `official = true` marca las Bases Curriculares del Mineduc (no las subió el docente).
+        Solo el docente del curso y el admin del colegio; el estudiante del curso recibe `403`.
+      operationId: listCourseDocuments
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Apuntes del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocumentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/documents/{documentName}:
+    put:
+      tags: [Tutor IA]
+      summary: Subir o reemplazar un apunte del tutor
+      description: |
+        Sube un archivo de apuntes como cuerpo binario (hasta 40 MB). El formato lo dice la extensión del nombre:
+        `.pdf`, `.txt` o `.md`. El servidor extrae el texto, lo parte en fragmentos y calcula sus embeddings antes
+        de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
+        eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
+
+        Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
+        que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
+        responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+      operationId: putCourseDocument
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/DocumentName'
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema: { type: string, format: binary }
+          text/plain:
+            schema: { type: string, format: binary }
+          text/markdown:
+            schema: { type: string, format: binary }
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Apunte reemplazado (ya existía uno con ese nombre).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocument'
+        '201':
+          description: Apunte creado e indexado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseDocument'
+              example: { name: "fracciones.pdf", chunks: 12, official: false, pages: 4 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags: [Tutor IA]
+      summary: Quitar un apunte del tutor
+      description: |
+        Borra el apunte y sus fragmentos: el tutor deja de usarlo de inmediato. Solo el docente del curso y el admin
+        del colegio. Si el apunte no existe en el curso responde `404`.
+      operationId: deleteCourseDocument
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/DocumentName'
+      responses:
+        '204':
+          description: Apunte borrado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /tutor-conversations/{conversationId}:
     get:
       tags: [Tutor IA]
@@ -653,6 +1124,12 @@ components:
       required: true
       description: Identificador de la conversación con el tutor (UUID que genera el cliente).
       schema: { type: string, format: uuid }
+    DocumentName:
+      name: documentName
+      in: path
+      required: true
+      description: Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent.
+      schema: { type: string, minLength: 1, maxLength: 120 }
     AssessmentId:
       name: assessmentId
       in: path
@@ -710,6 +1187,10 @@ components:
         period: { type: string, pattern: '^\d{4}-S[12]$', example: "2026-S2" }
         subject: { type: string, maxLength: 80, example: "Matemática" }
         grade_level: { type: string, maxLength: 10, example: "7B" }
+        teacher_id:
+          type: string
+          format: uuid
+          description: Docente que dicta el curso. Solo lo indica el administrador (obligatorio para él); un docente crea cursos a su nombre.
     Course:
       allOf:
         - $ref: '#/components/schemas/CourseInput'
@@ -796,6 +1277,97 @@ components:
         courses:
           type: array
           items: { $ref: '#/components/schemas/MyCourseGrades' }
+    StudentCourseGrades:
+      type: object
+      required: [course_id, course, student_id, grades]
+      properties:
+        course_id: { type: string, format: uuid }
+        course: { type: string }
+        student_id: { type: string, format: uuid }
+        average: { type: [number, 'null'], description: "Promedio ponderado; null si aún no hay notas." }
+        grades:
+          type: array
+          items: { $ref: '#/components/schemas/GradeEntry' }
+    Gradebook:
+      type: object
+      required: [course_id, course, assessments, students]
+      properties:
+        course_id: { type: string, format: uuid }
+        course: { type: string }
+        assessments:
+          type: array
+          items:
+            type: object
+            required: [id, title, status]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              status: { type: string, enum: [borrador, publicada, cerrada] }
+              pass_threshold: { type: number, description: "% de logro que equivale al 4,0." }
+              weight: { type: number }
+              published_at: { type: [string, 'null'], format: date-time }
+        students:
+          type: array
+          items:
+            type: object
+            required: [student_id, name, grades]
+            properties:
+              student_id: { type: string, format: uuid }
+              name: { type: string }
+              average: { type: [number, 'null'] }
+              grades:
+                type: object
+                description: "Nota por id de evaluación (null si no la rindió)."
+                additionalProperties: { type: [number, 'null'] }
+        course_average: { type: [number, 'null'], description: "Promedio simple de los promedios de los estudiantes." }
+    GradesSummary:
+      type: object
+      required: [course_id, course, enrolled_students, assessments, at_risk_threshold, at_risk]
+      properties:
+        course_id: { type: string, format: uuid }
+        course: { type: string }
+        enrolled_students: { type: integer, minimum: 0 }
+        assessments:
+          type: array
+          items:
+            type: object
+            required: [assessment_id, title, status, submissions, pending]
+            properties:
+              assessment_id: { type: string, format: uuid }
+              title: { type: string }
+              status: { type: string, enum: [borrador, publicada, cerrada] }
+              submissions: { type: integer, minimum: 0 }
+              pending: { type: integer, minimum: 0, description: "Matriculados que aún no entregan." }
+              average: { type: [number, 'null'] }
+              min: { type: [number, 'null'] }
+              max: { type: [number, 'null'] }
+              passed: { type: [integer, 'null'] }
+              failed: { type: [integer, 'null'] }
+        at_risk_threshold: { type: number }
+        at_risk:
+          type: array
+          items:
+            type: object
+            required: [student_id, name, average]
+            properties:
+              student_id: { type: string, format: uuid }
+              name: { type: string }
+              average: { type: number }
+              assessments_taken: { type: integer, minimum: 0 }
+    GradingInput:
+      type: object
+      minProperties: 1
+      properties:
+        pass_threshold: { type: number, minimum: 1, maximum: 99, description: "% de logro que equivale al 4,0 (por defecto 60)." }
+        weight: { type: number, exclusiveMinimum: 0, maximum: 999, description: "Peso de la evaluación en el promedio." }
+    GradingResult:
+      type: object
+      required: [assessment_id, title, pass_threshold, weight]
+      properties:
+        assessment_id: { type: string, format: uuid }
+        title: { type: string }
+        pass_threshold: { type: number }
+        weight: { type: number }
     GradeDetail:
       allOf:
         - $ref: '#/components/schemas/GradeEntry'
@@ -814,6 +1386,42 @@ components:
                   selected_option: { type: [string, 'null'], description: "Texto de la alternativa elegida." }
                   correct: { type: boolean }
                   feedback: { type: [string, 'null'] }
+    EnrollmentList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, student_id, name, email, enrolled_at]
+            properties:
+              id: { type: string, format: uuid, description: "Id de la matrícula." }
+              student_id: { type: string, format: uuid }
+              name: { type: string, example: "Camila Díaz" }
+              email: { type: string, format: email }
+              enrolled_at: { type: string, format: date-time }
+    AssessmentSummaryList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            required: [id, title, status, questions_count]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              status: { type: string, enum: [draft, published, closed] }
+              questions_count: { type: integer, minimum: 0 }
+              published_at: { type: [string, 'null'], format: date-time }
+              closes_at: { type: [string, 'null'], format: date-time }
+              submissions_count: { type: integer, minimum: 0, description: "Estudiantes que entregaron. Solo para docente y admin." }
+              submitted: { type: boolean, description: "El estudiante ya la rindió. Solo para el estudiante." }
+              grade: { type: [number, 'null'], minimum: 1, maximum: 7, description: "Su nota. Solo para el estudiante." }
+              score: { type: [number, 'null'], description: "Su porcentaje de logro. Solo para el estudiante." }
+              submitted_at: { type: [string, 'null'], format: date-time, description: "Cuándo la entregó. Solo para el estudiante." }
     EnrollmentInput:
       type: object
       required: [student_email]
@@ -851,6 +1459,7 @@ components:
       type: object
       required: [title, questions]
       properties:
+        closes_at: { type: [string, 'null'], format: date-time, description: "Cierre automático (futuro). Sin fecha, la evaluación se cierra a mano." }
         title: { type: string, minLength: 3, maxLength: 150, example: "Prueba de fracciones" }
         max_attempts: { type: integer, minimum: 1, maximum: 1, default: 1, description: "MVP: un intento." }
         questions:
@@ -876,6 +1485,26 @@ components:
                 properties:
                   id: { type: string, format: uuid }
         published_at: { type: [string, 'null'], format: date-time }
+        closes_at: { type: [string, 'null'], format: date-time }
+    GenerateAssessmentInput:
+      type: object
+      required: [topic]
+      properties:
+        topic: { type: string, minLength: 3, maxLength: 200, example: "Fracciones: suma con igual denominador" }
+        questions_count: { type: integer, minimum: 1, maximum: 10, default: 5 }
+        options_count: { type: integer, minimum: 2, maximum: 5, default: 4, description: "Alternativas por pregunta." }
+        use_notes: { type: boolean, default: true, description: "Basar las preguntas en los apuntes del curso." }
+    GeneratedAssessment:
+      type: object
+      required: [title, questions, source]
+      properties:
+        title: { type: string }
+        questions:
+          type: array
+          items: { $ref: '#/components/schemas/QuestionInput' }
+        source: { type: string, enum: [apuntes, tema], description: "De dónde salieron las preguntas." }
+        sources: { type: array, items: { type: string }, description: "Apuntes usados (nombres de documento)." }
+        requested_questions: { type: integer, description: "Cuántas se pidieron; pueden llegar menos si el modelo falló en alguna." }
     AssessmentStatusInput:
       type: object
       required: [status]
@@ -898,6 +1527,8 @@ components:
       type: object
       required: [id, assessment_id, score, max_score, answers, submitted_at]
       properties:
+        percentage: { type: [number, 'null'], minimum: 0, maximum: 100, description: "Porcentaje de logro (0–100).", example: 50 }
+        grade: { type: [number, 'null'], minimum: 1, maximum: 7, description: "Nota en escala chilena 1,0–7,0, según la exigencia de la evaluación.", example: 3.5 }
         id: { type: string, format: uuid }
         assessment_id: { type: string, format: uuid }
         score: { type: integer, minimum: 0, example: 8 }
@@ -1020,6 +1651,21 @@ components:
             messages:
               type: array
               items: { $ref: '#/components/schemas/TutorMessage' }
+    CourseDocument:
+      type: object
+      required: [name, chunks, official]
+      properties:
+        name: { type: string, example: "fracciones.pdf", description: "Nombre del apunte; identifica al documento dentro del curso." }
+        chunks: { type: integer, minimum: 0, description: "Fragmentos indexados que el tutor puede citar." }
+        official: { type: boolean, description: "Bases Curriculares del Mineduc (true) o apunte del docente (false)." }
+        pages: { type: integer, minimum: 1, description: "Solo al subir un PDF: páginas leídas." }
+    CourseDocumentList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CourseDocument' }
   responses:
     BadRequest:
       description: Solicitud mal formada (por ejemplo, falta Idempotency-Key).
@@ -1068,6 +1714,21 @@ components:
           $ref: '#/components/headers/Retry-After'
         X-RateLimit-Remaining:
           $ref: '#/components/headers/X-RateLimit-Remaining'
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: El cuerpo supera el tamaño permitido (40 MB para un apunte).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedMediaType:
+      description: Formato de archivo no soportado.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    BadGateway:
+      description: Un servicio del que depende la operación respondió algo inutilizable (por ejemplo, el modelo de IA).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

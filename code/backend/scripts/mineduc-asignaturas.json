@@ -1,0 +1,20 @@
+{
+  "01_Lengua_y_Literatura.pdf":                         { "subject": "Lengua y Literatura" },
+  "02_Matematica.pdf":                                  { "subject": "Matemática" },
+  "03_Ciencias_Naturales.pdf":                          { "subject": "Ciencias Naturales" },
+  "04_Historia_Geografia_y_Ciencias_Sociales.pdf":      { "subject": "Historia, Geografía y Ciencias Sociales" },
+  "05_Ingles.pdf":                                      { "subject": "Inglés" },
+  "06_Educacion_Fisica_y_Salud.pdf":                    { "subject": "Educación Física y Salud" },
+  "07_Artes_Visuales.pdf":                              { "subject": "Artes Visuales" },
+  "08_Musica.pdf":                                      { "subject": "Música" },
+  "09_Tecnologia.pdf":                                  { "subject": "Tecnología" },
+  "10_Orientacion.pdf":                                 { "subject": "Orientación" },
+  "11_Filosofia.pdf":                                   { "subject": "Filosofía", "level": "3° y 4° medio" },
+  "12_Educacion_Ciudadana.pdf":                         { "subject": "Educación Ciudadana", "level": "3° y 4° medio" },
+  "13_Teatro.pdf":                                      { "subject": "Teatro" },
+  "14_Danza.pdf":                                       { "subject": "Danza" },
+  "15_Ciclo_Exploratorio_Artistico.pdf":                { "subject": "Ciclo Exploratorio Artístico" },
+  "16_Lengua_y_Cultura_de_los_Pueblos_Originarios.pdf": { "subject": "Lengua y Cultura de los Pueblos Originarios", "level": "1° a 6° básico" },
+  "17_Formacion_Diferenciada_Tecnico-Profesional.pdf":  { "subject": "Formación Diferenciada Técnico-Profesional", "level": "3° y 4° medio" },
+  "18_Introducciones_generales_y_decretos.pdf":         { "subject": "Introducciones generales y decretos" }
+}

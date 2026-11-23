@@ -1,0 +1,8 @@
+# Hooks locales (S09, opcional pero recomendado): detienen un secreto ANTES de que llegue al historial.
+# Instalar una vez:  pipx install pre-commit && pre-commit install
+# El gate de CI (security.yml → secrets) corre igual, con todo el historial.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks

@@ -104,3 +104,40 @@ describe('streamTutorMessage', () => {
     expect(meta).toEqual({ turn: 'grounded', sources: [{ doc_id: 'fracciones.md', score: 0.8 }] });
   });
 });
+
+describe('streamText (robustez)', () => {
+  test('sin respuesta del servidor entrega ApiError con status 0', async () => {
+    const fetchImpl = async () => {
+      throw new TypeError('Failed to fetch');
+    };
+    const error = await collect(streamChat({ mode: 'tutor', messages: [], fetchImpl })).catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(0);
+  });
+
+  test('una cancelación (AbortError) se propaga tal cual', async () => {
+    const fetchImpl = async () => {
+      throw new DOMException('cancelada', 'AbortError');
+    };
+    const error = await collect(streamChat({ mode: 'tutor', messages: [], fetchImpl })).catch((e) => e);
+    expect(error.name).toBe('AbortError');
+  });
+
+  test('si quien lee se detiene antes, se cancela la descarga', async () => {
+    let cancelada = false;
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('primer fragmento'));
+      },
+      cancel() {
+        cancelada = true;
+      },
+    });
+    const fetchImpl = async () => new Response(body, { status: 200 });
+    for await (const chunk of streamChat({ mode: 'tutor', messages: [], fetchImpl })) {
+      expect(chunk).toBe('primer fragmento');
+      break;
+    }
+    expect(cancelada).toBe(true);
+  });
+});

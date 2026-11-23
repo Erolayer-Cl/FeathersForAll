@@ -1,11 +1,21 @@
 import express, { Router } from 'express';
 import { HttpProblem } from '../../../platform/problem.js';
-import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError } from './errors.js';
+import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError, UnreadableDocumentError } from './errors.js';
 
 export const COURSE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_NAME = 120;
 const MAX_TEXT = 500_000;
+
+/** Errores del RAG -> RFC 7807. Lo que no es del RAG se devuelve igual (lo traduce problemHandler). */
+export function toRagProblem(err) {
+  if (err instanceof CourseNotFoundError) return new HttpProblem(404, 'No encontrado', 'El curso no existe en este colegio', 'not-found');
+  if (err instanceof RagForbiddenError) return new HttpProblem(403, 'Prohibido', 'No puedes gestionar los apuntes de este curso', 'forbidden');
+  if (err instanceof EmbeddingDimensionError) return new HttpProblem(503, 'Configuración inválida', err.message);
+  if (err instanceof UnreadableDocumentError) return new HttpProblem(422, 'Archivo ilegible', err.message);
+  if (err instanceof RangeError) return new HttpProblem(422, 'Documento inválido', err.message);
+  return err;
+}
 
 /**
  * Carga de apuntes (ruta de desarrollo, fuera del contrato OpenAPI).
@@ -18,6 +28,7 @@ const MAX_TEXT = 500_000;
  * Con el almacén en archivo (sin BD) no hay usuarios: queda abierta y usa `tenantId` de la config.
  *
  * Debe montarse ANTES del express.json global: trae su propio límite (apuntes > 100 kb).
+ * El portal usa las rutas del contrato (apuntes.routes.js: PUT /v1/courses/{id}/documents/{nombre}, que acepta PDF).
  */
 export function createRagRouter({ rag, tenantId }) {
   const router = Router();
@@ -37,13 +48,6 @@ export function createRagRouter({ rag, tenantId }) {
     }
   };
   const actorOf = (req) => (req.user ? { id: req.user.id, rol: req.user.rol } : undefined);
-
-  function translate(err) {
-    if (err instanceof CourseNotFoundError) return new HttpProblem(404, 'No encontrado', 'El curso no existe en este colegio', 'not-found');
-    if (err instanceof RagForbiddenError) return new HttpProblem(403, 'Prohibido', 'No puedes gestionar los apuntes de este curso', 'forbidden');
-    if (err instanceof EmbeddingDimensionError) return new HttpProblem(503, 'Configuración inválida', err.message);
-    return err;
-  }
 
   router.get('/:courseId/documents', async (req, res) => {
     const ref = ctx(req);
@@ -69,7 +73,7 @@ export function createRagRouter({ rag, tenantId }) {
     try {
       res.status(201).json(await rag.ingest({ ...ref, docId: name.trim(), text, actor: actorOf(req) }));
     } catch (err) {
-      throw translate(err);
+      throw toRagProblem(err);
     }
   });
 
@@ -80,7 +84,7 @@ export function createRagRouter({ rag, tenantId }) {
     try {
       removed = await rag.deleteDocument({ ...ref, docId: req.params.docId, actor: actorOf(req) });
     } catch (err) {
-      throw translate(err);
+      throw toRagProblem(err);
     }
     // Bajo RLS, un DELETE no permitido afecta 0 filas: para el cliente es igual que "no existe".
     if (removed === 0) throw new HttpProblem(404, 'No encontrado', 'El documento no existe en este curso', 'not-found');

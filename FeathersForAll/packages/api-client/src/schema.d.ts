@@ -108,7 +108,9 @@ export interface paths {
         put?: never;
         /**
          * Crear curso
-         * @description Crea un curso en el tenant del docente autenticado (H1). Rol requerido `docente` o `admin_colegio`.
+         * @description Crea un curso en el tenant del usuario autenticado (H1). Rol requerido `docente` (a su nombre) o `admin_colegio`
+         *     (indicando `teacher_id`). Un docente que pide un curso a nombre de otro recibe `403`; un `teacher_id` que no es
+         *     docente de tu colegio, `422`.
          */
         post: operations["createCourse"];
         delete?: never;
@@ -144,11 +146,17 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Estudiantes matriculados
+         * @description Estudiantes con matrícula activa del curso, por nombre. Solo el docente del curso y el admin (el estudiante recibe 403; quien no participa, 404).
+         */
+        get: operations["listEnrollments"];
         put?: never;
         /**
          * Matricular estudiante
-         * @description Matricula a un estudiante del mismo tenant por su correo institucional (H1). Si el estudiante pertenece a otro colegio, responde 404.
+         * @description Matricula a un estudiante del mismo tenant por su correo institucional (H1). Si el correo no es de un
+         *     estudiante de tu colegio (incluido el que pertenece a otro colegio), responde 404; si ya está matriculado, 409.
+         *     Solo el docente del curso y el admin; otro docente y el estudiante reciben 403.
          */
         post: operations["enrollStudent"];
         delete?: never;
@@ -164,13 +172,48 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Evaluaciones de un curso
+         * @description Docente del curso y admin: todas, con borradores y cuántos estudiantes entregaron. Estudiante matriculado: solo
+         *     las publicadas y cerradas (nunca borradores), con su nota si ya la rindió. Otro docente recibe 403; un estudiante
+         *     sin matrícula, 404.
+         */
+        get: operations["listAssessments"];
         put?: never;
         /**
          * Crear evaluación
-         * @description Crea una evaluación de alternativas en estado `draft` con retroalimentación por pregunta (H2).
+         * @description Crea una evaluación de alternativas en estado `draft` con retroalimentación por pregunta (H2). La alternativa
+         *     correcta (`correct_option`, índice desde 0) puede faltar mientras es borrador, pero es obligatoria para publicar.
+         *     Solo el docente del curso y el admin; el estudiante y otro docente reciben 403.
          */
         post: operations["createAssessment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/assessments/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proponer una evaluación con IA
+         * @description Genera con IA un **borrador propuesto** de evaluación a partir de un tema y, por defecto, de los apuntes del
+         *     curso (solo los de ese curso y colegio). No guarda nada: el docente lo revisa, lo edita y lo guarda con
+         *     `createAssessment`. La IA puede equivocarse: la alternativa correcta y la retroalimentación deben revisarse.
+         *
+         *     Con `use_notes = true` (por defecto) y sin apuntes sobre el tema responde `422`; con `false` genera solo del tema.
+         *     Si el modelo no devuelve preguntas utilizables responde `502`, y si el servicio no está disponible, `503`.
+         *     Cada usuario tiene un tope de generaciones por ventana de tiempo (`429` con `Retry-After`).
+         *     Solo el docente del curso y el admin.
+         */
+        post: operations["generateAssessment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -184,15 +227,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
+        /**
+         * Ver una evaluación
+         * @description Docente del curso y admin: la evaluación completa, con la alternativa correcta (`correct_option`) y la
+         *     retroalimentación de cada pregunta. Estudiante matriculado: solo si está publicada o cerrada y SIN `correct_option`
+         *     ni `feedback` (la retroalimentación llega al entregar). Un borrador no existe para el estudiante (404).
+         */
+        get: operations["getAssessment"];
+        /**
+         * Editar un borrador
+         * @description Reemplaza el título, el cierre y las preguntas de una evaluación **en borrador** (incluido uno generado con IA).
+         *     Una evaluación publicada o cerrada ya tiene entregas y notas: no se edita (`409`). Es `PUT` porque repetirlo
+         *     deja el mismo resultado. Solo el docente del curso y el admin.
+         */
+        put: operations["updateAssessment"];
         post?: never;
-        delete?: never;
+        /**
+         * Borrar un borrador
+         * @description Borra una evaluación en borrador con sus preguntas. Una publicada o cerrada no se borra (`409`). Solo el docente del curso y el admin.
+         */
+        delete: operations["deleteAssessment"];
         options?: never;
         head?: never;
         /**
          * Publicar o cerrar evaluación
-         * @description Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta (422).
+         * @description Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta: `422`
+         *     con `errors` indicando cuáles. Solo se publica un borrador y solo se cierra una publicada (si no, `409`).
          */
         patch: operations["updateAssessmentStatus"];
         trace?: never;
@@ -208,9 +268,11 @@ export interface paths {
         put?: never;
         /**
          * Rendir evaluación
-         * @description El estudiante envía sus respuestas y recibe puntaje y retroalimentación al instante (H4).
-         *     Requiere estar matriculado (si no, 404). Un segundo envío responde 409 con el resultado anterior
-         *     en `detail`. Reintentar con la misma `Idempotency-Key` devuelve la misma respuesta sin duplicar.
+         * @description El estudiante envía sus respuestas y recibe puntaje, nota (escala 1,0–7,0) y retroalimentación al instante (H4).
+         *     `selected_option` es el índice (desde 0) de la alternativa elegida; una pregunta sin responder cuenta como
+         *     incorrecta. Requiere estar matriculado y que la evaluación esté publicada (si no, 404). Un segundo envío
+         *     responde 409 con el resultado anterior en `detail`, y una evaluación cerrada o vencida, 409. Docente y admin
+         *     reciben 403. Reintentar con la misma `Idempotency-Key` devuelve la misma respuesta sin duplicar.
          */
         post: operations["submitAssessment"];
         delete?: never;
@@ -239,6 +301,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{courseId}/gradebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Libro de notas del curso
+         * @description Una fila por estudiante activo y una columna por evaluación, con el promedio de cada uno y el del curso. Solo el docente del curso y el admin (otro docente y el estudiante reciben 403).
+         */
+        get: operations["getGradebook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/grades/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen de notas y estudiantes en riesgo
+         * @description Estadísticas por evaluación (entregas, pendientes, promedio, mínimo, máximo, aprobados) y los estudiantes cuyo promedio está bajo el umbral (4,0 por defecto). Solo el docente del curso y el admin.
+         */
+        get: operations["getGradesSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/students/{studentId}/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notas de un estudiante en un curso
+         * @description Las notas de un estudiante en el curso. Las ve el docente del curso, el admin y el propio estudiante (solo las suyas, y mientras esté matriculado); a otro estudiante le responde 403.
+         */
+        get: operations["getStudentGrades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assessments/{assessmentId}/grading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar exigencia o ponderación
+         * @description Cambia el porcentaje de logro que equivale al 4,0 (`pass_threshold`) y/o el peso de la evaluación en el promedio (`weight`). Las notas se recalculan solas. Solo el docente del curso y el admin.
+         */
+        patch: operations["updateAssessmentGrading"];
+        trace?: never;
+    };
     "/courses/{courseId}/tutor-questions": {
         parameters: {
             query?: never;
@@ -250,8 +392,12 @@ export interface paths {
         put?: never;
         /**
          * Preguntar al tutor IA
+         * @deprecated
          * @description Encola una pregunta al tutor IA del curso (H5). Se procesa de forma asíncrona (SQS + worker, ADR 0003).
          *     Responde 202 con la URL para consultar el estado. Solo se usan como fuente los apuntes del curso y tenant del estudiante.
+         *
+         *     **Deprecado (v1.4):** el backend nunca la implementó. La alternativa son las conversaciones guardadas con respuesta
+         *     en streaming (`sendTutorMessage`). Se retirará cuando termine el plazo de deprecación de la política de versionado.
          */
         post: operations["askTutor"];
         delete?: never;
@@ -269,7 +415,10 @@ export interface paths {
         };
         /**
          * Consultar respuesta del tutor IA
+         * @deprecated
          * @description Devuelve el estado y, cuando está lista, la respuesta con sus fuentes. Si no hay contenido de respaldo, `grounded = false` y el tutor indica que no tiene información suficiente.
+         *
+         *     **Deprecado (v1.4):** va con `askTutor`; ver `sendTutorMessage` y `getTutorConversation`.
          */
         get: operations["getTutorQuestion"];
         put?: never;
@@ -325,6 +474,60 @@ export interface paths {
          */
         post: operations["sendTutorMessage"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Apuntes del tutor en un curso
+         * @description Documentos indexados para el tutor IA del curso, del más reciente al más antiguo, con cuántos fragmentos
+         *     tiene cada uno. `official = true` marca las Bases Curriculares del Mineduc (no las subió el docente).
+         *     Solo el docente del curso y el admin del colegio; el estudiante del curso recibe `403`.
+         */
+        get: operations["listCourseDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/documents/{documentName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Subir o reemplazar un apunte del tutor
+         * @description Sube un archivo de apuntes como cuerpo binario (hasta 40 MB). El formato lo dice la extensión del nombre:
+         *     `.pdf`, `.txt` o `.md`. El servidor extrae el texto, lo parte en fragmentos y calcula sus embeddings antes
+         *     de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
+         *     eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
+         *
+         *     Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
+         *     que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
+         *     responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+         */
+        put: operations["putCourseDocument"];
+        post?: never;
+        /**
+         * Quitar un apunte del tutor
+         * @description Borra el apunte y sus fragmentos: el tutor deja de usarlo de inmediato. Solo el docente del curso y el admin
+         *     del colegio. Si el apunte no existe en el curso responde `404`.
+         */
+        delete: operations["deleteCourseDocument"];
         options?: never;
         head?: never;
         patch?: never;
@@ -392,6 +595,11 @@ export interface components {
             subject?: string;
             /** @example 7B */
             grade_level?: string;
+            /**
+             * Format: uuid
+             * @description Docente que dicta el curso. Solo lo indica el administrador (obligatorio para él); un docente crea cursos a su nombre.
+             */
+            teacher_id?: string;
         };
         Course: components["schemas"]["CourseInput"] & {
             /** Format: uuid */
@@ -494,6 +702,87 @@ export interface components {
             student_id: string;
             courses: components["schemas"]["MyCourseGrades"][];
         };
+        StudentCourseGrades: {
+            /** Format: uuid */
+            course_id: string;
+            course: string;
+            /** Format: uuid */
+            student_id: string;
+            /** @description Promedio ponderado; null si aún no hay notas. */
+            average?: number | null;
+            grades: components["schemas"]["GradeEntry"][];
+        };
+        Gradebook: {
+            /** Format: uuid */
+            course_id: string;
+            course: string;
+            assessments: {
+                /** Format: uuid */
+                id: string;
+                title: string;
+                /** @enum {string} */
+                status: "borrador" | "publicada" | "cerrada";
+                /** @description % de logro que equivale al 4,0. */
+                pass_threshold?: number;
+                weight?: number;
+                /** Format: date-time */
+                published_at?: string | null;
+            }[];
+            students: {
+                /** Format: uuid */
+                student_id: string;
+                name: string;
+                average?: number | null;
+                /** @description Nota por id de evaluación (null si no la rindió). */
+                grades: {
+                    [key: string]: number | null;
+                };
+            }[];
+            /** @description Promedio simple de los promedios de los estudiantes. */
+            course_average?: number | null;
+        };
+        GradesSummary: {
+            /** Format: uuid */
+            course_id: string;
+            course: string;
+            enrolled_students: number;
+            assessments: {
+                /** Format: uuid */
+                assessment_id: string;
+                title: string;
+                /** @enum {string} */
+                status: "borrador" | "publicada" | "cerrada";
+                submissions: number;
+                /** @description Matriculados que aún no entregan. */
+                pending: number;
+                average?: number | null;
+                min?: number | null;
+                max?: number | null;
+                passed?: number | null;
+                failed?: number | null;
+            }[];
+            at_risk_threshold: number;
+            at_risk: {
+                /** Format: uuid */
+                student_id: string;
+                name: string;
+                average: number;
+                assessments_taken?: number;
+            }[];
+        };
+        GradingInput: {
+            /** @description % de logro que equivale al 4,0 (por defecto 60). */
+            pass_threshold?: number;
+            /** @description Peso de la evaluación en el promedio. */
+            weight?: number;
+        };
+        GradingResult: {
+            /** Format: uuid */
+            assessment_id: string;
+            title: string;
+            pass_threshold: number;
+            weight: number;
+        };
         GradeDetail: components["schemas"]["GradeEntry"] & {
             /** @description Exigencia: % de logro para el 4,0. */
             pass_threshold?: number;
@@ -504,6 +793,50 @@ export interface components {
                 selected_option?: string | null;
                 correct: boolean;
                 feedback?: string | null;
+            }[];
+        };
+        EnrollmentList: {
+            data: {
+                /**
+                 * Format: uuid
+                 * @description Id de la matrícula.
+                 */
+                id: string;
+                /** Format: uuid */
+                student_id: string;
+                /** @example Camila Díaz */
+                name: string;
+                /** Format: email */
+                email: string;
+                /** Format: date-time */
+                enrolled_at: string;
+            }[];
+        };
+        AssessmentSummaryList: {
+            data: {
+                /** Format: uuid */
+                id: string;
+                title: string;
+                /** @enum {string} */
+                status: "draft" | "published" | "closed";
+                questions_count: number;
+                /** Format: date-time */
+                published_at?: string | null;
+                /** Format: date-time */
+                closes_at?: string | null;
+                /** @description Estudiantes que entregaron. Solo para docente y admin. */
+                submissions_count?: number;
+                /** @description El estudiante ya la rindió. Solo para el estudiante. */
+                submitted?: boolean;
+                /** @description Su nota. Solo para el estudiante. */
+                grade?: number | null;
+                /** @description Su porcentaje de logro. Solo para el estudiante. */
+                score?: number | null;
+                /**
+                 * Format: date-time
+                 * @description Cuándo la entregó. Solo para el estudiante.
+                 */
+                submitted_at?: string | null;
             }[];
         };
         EnrollmentInput: {
@@ -547,6 +880,11 @@ export interface components {
             feedback?: string;
         };
         AssessmentInput: {
+            /**
+             * Format: date-time
+             * @description Cierre automático (futuro). Sin fecha, la evaluación se cierra a mano.
+             */
+            closes_at?: string | null;
             /** @example Prueba de fracciones */
             title: string;
             /**
@@ -571,6 +909,37 @@ export interface components {
             })[];
             /** Format: date-time */
             published_at?: string | null;
+            /** Format: date-time */
+            closes_at?: string | null;
+        };
+        GenerateAssessmentInput: {
+            /** @example Fracciones: suma con igual denominador */
+            topic: string;
+            /** @default 5 */
+            questions_count: number;
+            /**
+             * @description Alternativas por pregunta.
+             * @default 4
+             */
+            options_count: number;
+            /**
+             * @description Basar las preguntas en los apuntes del curso.
+             * @default true
+             */
+            use_notes: boolean;
+        };
+        GeneratedAssessment: {
+            title: string;
+            questions: components["schemas"]["QuestionInput"][];
+            /**
+             * @description De dónde salieron las preguntas.
+             * @enum {string}
+             */
+            source: "apuntes" | "tema";
+            /** @description Apuntes usados (nombres de documento). */
+            sources?: string[];
+            /** @description Cuántas se pidieron; pueden llegar menos si el modelo falló en alguna. */
+            requested_questions?: number;
         };
         AssessmentStatusInput: {
             /** @enum {string} */
@@ -584,6 +953,16 @@ export interface components {
             }[];
         };
         SubmissionResult: {
+            /**
+             * @description Porcentaje de logro (0–100).
+             * @example 50
+             */
+            percentage?: number | null;
+            /**
+             * @description Nota en escala chilena 1,0–7,0, según la exigencia de la evaluación.
+             * @example 3.5
+             */
+            grade?: number | null;
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -707,6 +1086,22 @@ export interface components {
         TutorConversationDetail: components["schemas"]["TutorConversation"] & {
             messages: components["schemas"]["TutorMessage"][];
         };
+        CourseDocument: {
+            /**
+             * @description Nombre del apunte; identifica al documento dentro del curso.
+             * @example fracciones.pdf
+             */
+            name: string;
+            /** @description Fragmentos indexados que el tutor puede citar. */
+            chunks: number;
+            /** @description Bases Curriculares del Mineduc (true) o apunte del docente (false). */
+            official: boolean;
+            /** @description Solo al subir un PDF: páginas leídas. */
+            pages?: number;
+        };
+        CourseDocumentList: {
+            data: components["schemas"]["CourseDocument"][];
+        };
     };
     responses: {
         /** @description Solicitud mal formada (por ejemplo, falta Idempotency-Key). */
@@ -790,6 +1185,33 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description El cuerpo supera el tamaño permitido (40 MB para un apunte). */
+        PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Formato de archivo no soportado. */
+        UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Un servicio del que depende la operación respondió algo inutilizable (por ejemplo, el modelo de IA). */
+        BadGateway: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Un servicio del que depende la operación (por ejemplo, el proveedor LLM) no está disponible. */
         ServiceUnavailable: {
             headers: {
@@ -807,6 +1229,8 @@ export interface components {
         CourseId: string;
         /** @description Identificador de la conversación con el tutor (UUID que genera el cliente). */
         ConversationId: string;
+        /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+        DocumentName: string;
         /** @description Identificador de la evaluación. */
         AssessmentId: string;
         /** @description Cursor opaco devuelto en `next_cursor`. */
@@ -1024,6 +1448,34 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listEnrollments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Matriculados del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     enrollStudent: {
         parameters: {
             query?: never;
@@ -1053,11 +1505,40 @@ export interface operations {
                     "application/json": components["schemas"]["Enrollment"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    listAssessments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evaluaciones del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentSummaryList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     createAssessment: {
@@ -1089,10 +1570,135 @@ export interface operations {
                     "application/json": components["schemas"]["Assessment"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationError"];
+        };
+    };
+    generateAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateAssessmentInput"];
+            };
+        };
+        responses: {
+            /** @description Borrador propuesto (sin guardar). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedAssessment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+            502: components["responses"]["BadGateway"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    getAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evaluación. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assessment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentInput"];
+            };
+        };
+        responses: {
+            /** @description Borrador actualizado. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assessment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteAssessment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Borrador borrado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updateAssessmentStatus: {
@@ -1121,9 +1727,11 @@ export interface operations {
                     "application/json": components["schemas"]["Assessment"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationError"];
         };
     };
@@ -1156,7 +1764,9 @@ export interface operations {
                     "application/json": components["schemas"]["SubmissionResult"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["ValidationError"];
@@ -1188,6 +1798,127 @@ export interface operations {
                     "application/json": components["schemas"]["AssessmentResults"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getGradebook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Libro de notas. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Gradebook"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getGradesSummary: {
+        parameters: {
+            query?: {
+                /** @description Nota bajo la cual un estudiante se considera en riesgo (1,0–7,0). */
+                threshold?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resumen del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradesSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getStudentGrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Identificador del estudiante. */
+                studentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notas del estudiante en el curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentCourseGrades"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateAssessmentGrading: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GradingInput"];
+            };
+        };
+        responses: {
+            /** @description Calificación actualizada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradingResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -1326,6 +2057,121 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listCourseDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apuntes del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDocumentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putCourseDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+                documentName: components["parameters"]["DocumentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/pdf": string;
+                "text/plain": string;
+                "text/markdown": string;
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Apunte reemplazado (ya existía uno con ese nombre). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDocument"];
+                };
+            };
+            /** @description Apunte creado e indexado. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "name": "fracciones.pdf",
+                     *       "chunks": 12,
+                     *       "official": false,
+                     *       "pages": 4
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CourseDocument"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["ValidationError"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    deleteCourseDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+                documentName: components["parameters"]["DocumentName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Apunte borrado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getTutorConversation: {

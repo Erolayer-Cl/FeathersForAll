@@ -69,7 +69,12 @@ export async function streamTurn({ req, res, llm, rag, tenantId, courseId, mode,
   });
 
   let llmStats = null;
-  const stream = llm.chat(prompt, { signal: abort.signal, onStats: (s) => { llmStats = s; } });
+  // Con apuntes delante, una temperatura baja mantiene al modelo pegado al texto (ver GROUNDED_TEMPERATURE).
+  const stream = llm.chat(prompt, {
+    signal: abort.signal,
+    onStats: (s) => { llmStats = s; },
+    ...(turn.temperature !== undefined && { temperature: turn.temperature }),
+  });
 
   // Se espera el primer fragmento antes de enviar cabeceras: si el LLM está
   // caído, todavía se puede responder un 503 RFC 7807 en vez de un 200 vacío.

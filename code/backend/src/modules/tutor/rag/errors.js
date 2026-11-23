@@ -22,3 +22,11 @@ export class EmbeddingDimensionError extends Error {
     this.name = 'EmbeddingDimensionError';
   }
 }
+
+/** El archivo no se pudo leer o no tiene texto aprovechable (PDF escaneado, dañado, vacío). */
+export class UnreadableDocumentError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'UnreadableDocumentError';
+  }
+}

@@ -140,7 +140,7 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
 | PostgreSQL | con `DATABASE_URL` | `apuntes_curso` y `apuntes_embeddings` |
 
 ```bash
-npm run ingest -- samples/fracciones.md            # al curso DEFAULT_COURSE_ID (con BD: actúa como su docente)
+npm run ingest -- samples/fracciones.md samples/operaciones-basicas.md   # al curso DEFAULT_COURSE_ID (con BD: actúa como su docente)
 # Colegio B (otro tenant): su propio curso y apuntes distintos
 DEFAULT_TENANT_ID=22222222-2222-2222-2222-222222222222 npm run ingest -- c0000000-0000-0000-0000-0000000000b1 samples/geometria.md
 npm run rag:search -- "¿qué indica el numerador?"   # puntajes: USA / DESCARTA
@@ -154,7 +154,14 @@ curl -i localhost:3000/v1/dev/chat -H 'content-type: application/json' \
   -d '{"messages":[{"role":"user","content":"hola pluma"}]}'
 ```
 
-Para subir apuntes por API con PostgreSQL: `POST /v1/dev/courses/{courseId}/documents` con `Authorization: Bearer $(npm run -s dev:token -- docente)` y `{ "name": "fracciones.md", "text": "..." }`.
+Para subir apuntes por API con PostgreSQL (contrato v1.3, lo mismo que hace el portal en Docente · Curso), con el archivo como cuerpo binario:
+
+```bash
+curl -X PUT "localhost:3000/v1/courses/c0000000-0000-0000-0000-000000000001/documents/fracciones.pdf" \
+  -H "Authorization: Bearer $(npm run -s dev:token -- docente)" -H 'content-type: application/pdf' --data-binary @fracciones.pdf
+```
+
+Acepta `.pdf`, `.txt` y `.md` (hasta 40 MB); `GET` lista los apuntes del curso y `DELETE .../documents/{nombre}` los quita. Solo el docente del curso y el admin. La ruta de desarrollo `POST /v1/dev/courses/{courseId}/documents` (JSON con `name` y `text`) sigue disponible donde `ENABLE_DEV_ROUTES` está activo.
 
 **Ajustar la calidad:** con `npm run rag:search` prueba preguntas que sí están en los apuntes y otras que no, y pon `RAG_MIN_SCORE` entre ambos grupos (con bge-m3 suele quedar entre 0.4 y 0.6). Si faltan frases de charla, agrégalas en `SMALL_TALK` de `rag-prompt.js` (con su prueba en `test/rag.test.js`).
 
@@ -193,7 +200,7 @@ Los errores usan RFC 7807 (`application/problem+json`, con `trace_id`). Si Ollam
 ```text
 db/
   01_schema.sql, 02_s06_ajustes.sql, 03_notas.sql, 04_privacidad_login.sql,
-  05_conversaciones_tutor.sql                                                  # esquema (aplicar en orden)
+  05_conversaciones_tutor.sql, 06_alternativas_orden.sql, 07_rag_indices.sql  # esquema (aplicar en orden)
   permisos_app.sql          # GRANT del rol de la API (sin lectura de password_hash)
   docker-init.sh            # lo usa compose.yaml en el primer arranque
   crear_bdd.sql             # crea todo en un paso: esquema + usuario de la API (+ demo)

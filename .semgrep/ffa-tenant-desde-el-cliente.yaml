@@ -1,0 +1,24 @@
+rules:
+  - id: ffa-tenant-desde-el-cliente
+    message: >-
+      El colegio, el usuario o el rol se están tomando de lo que manda el cliente. Deben salir solo
+      del JWT verificado (req.user, que llena requireAuth) y viajar a la base con db.withUser:
+      si no, un estudiante podría hacerse pasar por docente o por otro colegio.
+    severity: ERROR
+    languages: [javascript]
+    metadata:
+      category: security
+      cwe: "CWE-639: Authorization Bypass Through User-Controlled Key"
+      owasp: "A01:2021 - Broken Access Control"
+      stride: Elevation of privilege
+    patterns:
+      - pattern-either:
+          - pattern: $REQ.$SRC.$F
+          - pattern: const {..., $F, ...} = $REQ.$SRC;
+          - pattern: let {..., $F, ...} = $REQ.$SRC;
+      - metavariable-regex:
+          metavariable: $SRC
+          regex: ^(body|query|headers)$
+      - metavariable-regex:
+          metavariable: $F
+          regex: ^(tenant_id|tenantId|colegio_id|colegioId|usuario_id|usuarioId|user_id|userId|rol|role)$

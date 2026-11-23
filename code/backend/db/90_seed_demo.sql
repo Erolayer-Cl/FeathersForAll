@@ -64,8 +64,8 @@ INSERT INTO preguntas (evaluacion_id, enunciado, orden, retroalimentacion)
 SELECT e.id, format('%s — pregunta %s', e.titulo, n), n, format('Repasa el apunte de %s.', lower(e.titulo))
 FROM evaluaciones e, generate_series(1, 4) n;
 
-INSERT INTO alternativas (pregunta_id, texto, es_correcta)
-SELECT p.id, format('Alternativa %s', chr(64 + k)), k = 1
+INSERT INTO alternativas (pregunta_id, texto, es_correcta, orden)
+SELECT p.id, format('Alternativa %s', chr(64 + k)), k = 1, k - 1
 FROM preguntas p, generate_series(1, 3) k;
 
 -- Intentos: (evaluación, estudiante, cuántas preguntas acierta, enviado?)

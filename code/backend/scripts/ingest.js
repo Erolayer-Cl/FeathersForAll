@@ -1,4 +1,4 @@
-// Indexa apuntes (.md / .txt) en el RAG de un curso.
+// Indexa apuntes (.md / .txt / .pdf) en el RAG de un curso.
 //   npm run ingest -- <archivo> [archivo...]             → curso por defecto (DEFAULT_COURSE_ID)
 //   npm run ingest -- <cursoId> <archivo> [archivo...]   → otro curso
 // Re-ingestar un archivo con el mismo nombre reemplaza sus fragmentos.
@@ -11,6 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { createDb } from '../src/platform/db.js';
 import { createRag, ragConfigFromEnv } from '../src/modules/tutor/rag/create-rag.js';
+import { extractPdfPages } from '../src/modules/tutor/rag/pdf-text.js';
 
 const args = process.argv.slice(2);
 const config = ragConfigFromEnv();
@@ -19,7 +20,7 @@ const courseId = firstIsFile ? config.defaultCourseId : args[0];
 const files = firstIsFile ? args : args.slice(1);
 
 if (!courseId || files.length === 0) {
-  console.error('Uso: npm run ingest -- [cursoId] <archivo.md|txt> [archivo...]');
+  console.error('Uso: npm run ingest -- [cursoId] <archivo.md|txt|pdf> [archivo...]');
   process.exit(1);
 }
 
@@ -33,8 +34,9 @@ try {
     actor = { id: owner, rol: 'docente' };
   }
   for (const file of files) {
-    const text = await readFile(file, 'utf8');
-    const { doc_id, chunks } = await rag.ingest({ tenantId: config.tenantId, courseId, docId: basename(file), text, actor });
+    const docId = basename(file);
+    const input = /\.pdf$/i.test(file) ? { pages: await extractPdfPages(await readFile(file)) } : { text: await readFile(file, 'utf8') };
+    const { doc_id, chunks } = await rag.ingest({ tenantId: config.tenantId, courseId, docId, title: docId.replace(/\.[^.]+$/, ''), ...input, actor });
     console.log(`✔ ${doc_id}: ${chunks} fragmentos → curso "${courseId}" (${config.embeddingModel}, almacén: ${rag.backend})`);
   }
 } catch (err) {

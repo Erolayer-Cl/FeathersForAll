@@ -1,4 +1,4 @@
-# Matriz de permisos — API v1.2.0 (etapa 1, rol estudiante)
+# Matriz de permisos — API v1.4.0
 
 Quién puede hacer qué en la API, y qué hace la base de datos si la API se equivocara. Cada fila está probada:
 - en el backend (`code/backend/test/*.pg.test.js`);
@@ -51,6 +51,25 @@ Se documentan aquí por el permiso del estudiante, que **solo lee**.
 | `GET /v1/courses/{id}/students/{studentId}/grades` | 200 solo para sí mismo; **403** con las de otro | 200 | 403 | 200 | 404 |
 | `GET /v1/assessments/{id}/results` | **403** | 200 | 403 | 200 | 404 |
 | `PATCH /v1/assessments/{id}/grading` | **403** (solo ver) | 200 | 403 | 200 | 404 |
+
+## Ciclo mínimo: cursos, matrículas y evaluaciones (v1.4)
+
+Las rutas solo del personal (matricular, crear, publicar) dan **403** a cualquier estudiante del colegio; las que un estudiante usa (ver y rendir) dan **404** si no está matriculado.
+
+Probado en `test/ciclo.pg.test.js` (PostgreSQL real), `test/evaluaciones.routes.test.js` (unitarias) y en la carpeta 10 de Postman. Todos los `POST` exigen `Idempotency-Key`.
+
+| Endpoint | Estudiante matriculado | Otro estudiante | Docente del curso | Otro docente | Admin | Otro colegio |
+|---|---|---|---|---|---|---|
+| `POST /v1/courses` | **403** | **403** | 201, a su nombre (a nombre de otro: **403**) | 201, a su nombre | 201, indicando `teacher_id` | solo en su colegio |
+| `POST /v1/courses/{id}/enrollments` | **403** | **403** | 201 (409 si ya está; 404 si el correo no es de un estudiante del colegio) | **403** | 201 | **404** |
+| `GET /v1/courses/{id}/enrollments` | **403** | **403** | 200 | **403** | 200 | **404** |
+| `POST /v1/courses/{id}/assessments` | **403** | **403** | 201 (borrador) | **403** | 201 | **404** |
+| `GET /v1/courses/{id}/assessments` | 200: solo publicadas y cerradas, con su nota | 404 | 200: todas, con borradores | **403** | 200 | **404** |
+| `GET /v1/assessments/{id}` | 200 si está publicada o cerrada, **sin** la alternativa correcta ni la retroalimentación; un borrador da 404 | 404 | 200, con la alternativa correcta | **403** | 200 | **404** |
+| `PATCH /v1/assessments/{id}` | **403** | **403** | 200 (422 si falta una alternativa correcta; 409 si el estado no lo permite) | **403** | 200 | **404** |
+| `POST /v1/assessments/{id}/submissions` | 201 con puntaje, nota y retroalimentación (409 si ya la rindió o está cerrada) | 404 | **403** | **403** | **403** | **404** |
+
+Segunda línea en la base: solo el docente del curso o el admin escriben cursos propios, matrículas y evaluaciones (`02` §9); el estudiante abre y envía solo sus intentos, y la corrección queda congelada al responder.
 
 ## Tutor IA (RAG multi-tenant)
 

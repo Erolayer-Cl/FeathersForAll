@@ -1,0 +1,26 @@
+# Reglas del ZAP baseline (S10, ADR 0011). Formato: id <TAB> acción <TAB> motivo.
+#
+# FAIL   = bloquea el pipeline. Son los hallazgos pasivos de riesgo Medium o High.
+# WARN   = queda en el reporte (artefacto zap-report) y no bloquea. Es el valor por defecto de toda
+#          regla que no esté en este archivo: el job corre con -I.
+# IGNORE = excepción. Cada una lleva motivo y entra por PR (ADR 0011).
+#
+# --- Bloqueantes ---
+10038	FAIL	(Content Security Policy no definida · threat model S-4)
+10055	FAIL	(CSP con comodines o unsafe-inline)
+10020	FAIL	(Falta protección anti-clickjacking)
+10098	FAIL	(CORS mal configurado: el diseño es de un solo origen)
+10003	FAIL	(Librería JS con vulnerabilidad conocida)
+10062	FAIL	(Datos personales en una respuesta)
+90022	FAIL	(Error de aplicación expuesto: la API responde RFC 7807 sin stack trace)
+10040	FAIL	(Contenido mixto HTTP en página segura)
+10108	FAIL	(Reverse tabnabbing)
+10028	FAIL	(Redirección abierta)
+# --- Conocidos, no bloquean (pendientes en AGENTS.md) ---
+90003	WARN	(SRI ausente: Google Fonts sirve un CSS dinámico y no admite integrity; se resuelve sirviendo las fuentes desde el propio sitio)
+10021	WARN	(X-Content-Type-Options: el frontend ya lo envía; falta en las respuestas JSON de la API)
+10015	WARN	(Cache-Control de las respuestas de la API: pendiente no-store en /v1)
+10049	WARN	(Contenido cacheable: los assets con hash se cachean a propósito)
+10096	WARN	(Timestamps dentro del bundle de React: falso positivo habitual)
+10027	WARN	(Comentarios sospechosos en el bundle minificado: informativo)
+10109	WARN	(Aplicación web moderna: informativo, es una SPA)

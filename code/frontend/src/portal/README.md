@@ -36,8 +36,8 @@ src/portal/
   router/                        usePortalRoute, PortalLink, useMediaQuery, access.js (guardia de rutas)
   layout/                        PortalFrame (preferencias + guardia de rutas) y PortalShell (menú + barra superior)
   components/                    ui/ (Button, Card, Chip, EmptyState, Kpi, LoadState, PageHead, Switch), PortalLogo, icons.jsx
-  session/                       sesión: login, token, rol del portal (SessionProvider, useSession)
-  hooks/useApiData.js            pide datos a la API con el token (carga, error, 401 → login)
+  session/                       sesión: login, token, rol del portal (SessionProvider, useSession); sigue a las otras pestañas
+  hooks/useApiData.js            pide datos a la API con el token (carga, error, 401 → login); `{ cache }` = muestra lo ya cargado mientras revalida (api/cache.js, solo en memoria, se vacía al iniciar o cerrar sesión)
   utils/notas.js                 formato es-CL de notas y tabla N1…Nk
   pages/
     index.jsx                    registro: id de ruta → pantalla
