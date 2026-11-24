@@ -24,12 +24,11 @@ export function AdministradorInicioPage() {
       </div>
       <div className={styles.columns}>
         <section className={styles.card}><div className={styles.cardTitle}><div><h2>Cursos del establecimiento</h2><p>Consulta las asignaturas registradas y su estado de material.</p></div><PortalLink to="adm-cursos" className={styles.action}>Ver cursos →</PortalLink></div>
-          <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Curso</th><th>Asignatura</th><th>Estudiantes</th><th>Material</th></tr></thead><tbody>{courses.slice(0, 7).map((c) => <tr key={c.id}><td><strong>{c.name}</strong></td><td>{c.subject || '—'}</td><td>{c.students_count ?? '—'}</td><td>{typeof c.tutor_documents === 'number' ? `${c.tutor_documents} documentos` : c.tutor_available ? 'Disponible' : '—'}</td></tr>)}</tbody></table></div>
+          <div className={styles.tableWrap}><table className={styles.table}><thead><tr><th>Curso</th><th>Asignatura</th><th>Estudiantes</th><th>Material</th></tr></thead><tbody>{courses.slice(0, 7).map((c) => <tr key={c.id}><td><strong>{c.name}</strong></td><td>{c.subject || '—'}</td><td>{c.students_count ?? '—'}</td><td>{typeof c.tutor_documents === 'number' ? `${c.tutor_documents} ${c.tutor_documents === 1 ? 'documento' : 'documentos'}` : c.tutor_available ? 'Disponible' : '—'}</td></tr>)}</tbody></table></div>
           {!courses.length && <p className={styles.empty}>Todavía no hay cursos registrados.</p>}
         </section>
         <section className={styles.card}><div className={styles.cardTitle}><div><h2>Gestión de la plataforma</h2><p>Secciones administrativas</p></div></div>
           <div className={styles.shortcuts}><PortalLink to="adm-cursos">Cursos <span>→</span></PortalLink><PortalLink to="adm-usuarios">Usuarios <span>→</span></PortalLink><PortalLink to="adm-evaluaciones">Evaluaciones <span>→</span></PortalLink><PortalLink to="adm-reportes">Reportes <span>→</span></PortalLink></div>
-          <p className={styles.helper}>Las secciones que aún no cuentan con implementación mostrarán la pantalla pendiente del proyecto.</p>
         </section>
       </div>
     </LoadState>

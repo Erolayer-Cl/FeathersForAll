@@ -13,10 +13,10 @@
 .iconBtn{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:#c7d7e0;width:38px;height:38px;border-radius:8px}.iconBtn:hover{background:#ffffff20}.light{color:white}
 .topbar{position:sticky;top:0;z-index:20;height:72px;display:flex;align-items:center;gap:12px;padding:0 30px;background:#0b1727;color:white;border-bottom:1px solid #1e3544}
 .brand{display:flex;flex-direction:column;min-width:0;line-height:1.25}.brandName{font-size:17px;font-weight:700;color:#fff;white-space:nowrap}.modeLabel{color:#b8c9db;font-size:10px}.topLogo{--fp-logo-size:38px!important}.spacer{flex:1}
-.roleSwitch{display:flex;gap:3px;padding:3px;background:color-mix(in srgb,var(--fp-accent) 12%,#10202c);border-radius:8px}.role{padding:7px 10px;color:#bbd2dc!important;border-radius:6px;font-size:11px}.roleOn{background:var(--fp-menu-active);color:white!important}.tools{display:flex;align-items:center;gap:3px}
+.tools{display:flex;align-items:center;gap:3px}
 .content{min-width:0;padding:26px 32px 68px;zoom:var(--fp-zoom,1)}.content:focus{outline:0}.wrap{display:flex;flex-direction:column;gap:18px;width:100%;max-width:none;margin:auto}
 @media(min-width:861px){:global(.fp-root[data-fp-menu="rail"]) .app{--sbw:76px}:global(.fp-root[data-fp-menu="rail"]) .navItem{justify-content:center}:global(.fp-root[data-fp-menu="rail"]) .navItem span,:global(.fp-root[data-fp-menu="rail"]) .sbUserText{display:none}:global(.fp-root[data-fp-menu="rail"]) .sbUser{justify-content:center}}
-@media(max-width:860px){.stage,.app[data-collapsed="true"] .stage{margin-left:0}.sidebar{width:min(292px,85vw);padding-top:14px}.app[data-collapsed="false"] .sidebar{transform:none;visibility:visible}.sbHead{display:flex;align-items:center;gap:10px}.topbar{padding:0 12px}.content{padding:22px 16px 60px}.roleSwitch{display:none}}
+@media(max-width:860px){.stage,.app[data-collapsed="true"] .stage{margin-left:0}.sidebar{width:min(292px,85vw);padding-top:14px}.app[data-collapsed="false"] .sidebar{transform:none;visibility:visible}.sbHead{display:flex;align-items:center;gap:10px}.topbar{padding:0 12px}.content{padding:22px 16px 60px}}
 @media(max-width:520px){.brandName{font-size:14px}.topLogo{--fp-logo-size:33px!important}.topbar{gap:6px}.tools{gap:0}}
 
 /* Perfil arriba, navegación al medio y configuración abajo. */

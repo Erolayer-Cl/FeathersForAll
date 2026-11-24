@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SHOW_DEV_TOOLS } from '../../config/devFlags.js';
-import { ROLES, ROLE_IDS } from '../../config/roles.js';
+import { ROLES } from '../../config/roles.js';
 import { Icon } from '../../components/icons.jsx';
 import { PortalLogo } from '../../components/PortalLogo/PortalLogo.jsx';
 import { usePreferences } from '../../preferences/usePreferences.js';
@@ -108,20 +107,6 @@ export function PortalShell({ role, activeNav, children }) {
             <span className={styles.modeLabel}>{cfg.modeLabel}</span>
           </div>
           <div className={styles.spacer} />
-          {SHOW_DEV_TOOLS && (
-            <div className={styles.roleSwitch} role="group" aria-label="Cambiar de rol (solo pruebas)" title="Solo para pruebas">
-              {ROLE_IDS.map((id) => (
-                <PortalLink
-                  key={id}
-                  to={ROLES[id].home}
-                  className={`${styles.role} ${id === role ? styles.roleOn : ''}`}
-                  aria-current={id === role ? 'true' : undefined}
-                >
-                  {id === 'adm' ? 'Admin' : ROLES[id].label}
-                </PortalLink>
-              ))}
-            </div>
-          )}
           <div className={styles.tools}>
             <button
               type="button"

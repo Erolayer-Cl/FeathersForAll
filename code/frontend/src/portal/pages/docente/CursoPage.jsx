@@ -103,7 +103,9 @@ export function DocenteCursoPage({ param: courseId }) {
         <PageHead
           title={curso.data?.subject ?? curso.data?.name ?? 'Curso'}
           subtitle={`${curso.data?.name ?? ''} · Estudiantes, evaluaciones y apuntes del Tutor IA`}
-        />
+        >
+          <Button size="sm" href={routeHref('doc-libro', courseId)}>Libro de notas</Button>
+        </PageHead>
 
         <div className={styles.split}>
           <MatriculadosCard courseId={courseId} />

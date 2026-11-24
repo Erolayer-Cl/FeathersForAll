@@ -9,10 +9,11 @@ import { useApiData } from '../../hooks/useApiData.js';
 import { useIdempotencyKey } from '../../hooks/useIdempotencyKey.js';
 import { usePortalRoute } from '../../router/usePortalRoute.js';
 import { useSession } from '../../session/useSession.js';
+import { estadoEvaluacion } from '../../utils/evaluaciones.js';
 import styles from './Management.module.css';
 
 const subject = (c) => c.subject || c.name;
-const status = (s) => ({ draft: 'Borrador', published: 'Publicada', closed: 'Cerrada' })[s] ?? (s || 'Sin estado');
+const status = (s) => estadoEvaluacion(s).label;
 const num = (n) => Number.isFinite(Number(n)) ? String(n) : '—';
 const readable = (value) => value ? new Date(value).toLocaleDateString('es-CL') : '—';
 
@@ -35,21 +36,6 @@ function AdminData({children}) {
   return <LoadState loading={data.loading} error={data.error} onRetry={data.reload}>{data.data && children(data.data, data.reload)}</LoadState>;
 }
 function Action({to, param, children}) { return <PortalLink className={styles.action} to={to} param={param}>{children}</PortalLink>; }
-
-/** El backend es multi-tenant: el administrador del colegio solo ve su establecimiento. */
-export function AdminColegiosPage() {
-  const {user} = useSession();
-  return <><PageHead title="Colegios" subtitle="Información del establecimiento asociado a tu sesión." />
-    <div className={styles.grid}><Section title={user?.school?.name || 'Mi colegio'} subtitle="Establecimiento actual">
-      <p>RBD: <strong>{user?.school?.rbd ?? '—'}</strong></p>
-      <p className={styles.note}>Los datos de otros colegios no están disponibles para esta cuenta. El aislamiento entre establecimientos se mantiene activo.</p>
-    </Section><Section title="Administración del colegio" subtitle="Accesos disponibles"><div className={styles.actions}><Action to="adm-usuarios">Usuarios</Action><Action to="adm-cursos">Cursos</Action><Action to="adm-evaluaciones">Evaluaciones</Action></div></Section></div>
-  </>;
-}
-export function AdminColegioPage() { return <AdminColegiosPage />; }
-export function AdminColegioNuevoPage() {
-  return <><PageHead title="Agregar colegio" subtitle="Registro de establecimientos." /><Section title="Operación no disponible"><p>La API de esta versión no expone un endpoint para crear colegios. Este formulario no se puede habilitar sin un servicio administrativo seguro.</p></Section></>;
-}
 
 export function AdminUsuariosPage() {
   const [search, setSearch] = useState('');

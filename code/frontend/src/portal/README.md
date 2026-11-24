@@ -39,13 +39,15 @@ src/portal/
   session/                       sesión: login, token, rol del portal (SessionProvider, useSession); sigue a las otras pestañas
   hooks/useApiData.js            pide datos a la API con el token (carga, error, 401 → login); `{ cache }` = muestra lo ya cargado mientras revalida (api/cache.js, solo en memoria, se vacía al iniciar o cerrar sesión)
   utils/notas.js                 formato es-CL de notas y tabla N1…Nk
+  utils/libroNotas.js            libro de notas del docente: tabla, validación de exigencia y ponderación, estudiantes de varios cursos
   pages/
     index.jsx                    registro: id de ruta → pantalla
     login/, estudiante/, shared/ pantallas hechas: Login ×3, Estudiante · Inicio, Mis cursos, Curso, Mis notas, Configuración ×3
+    docente/                     cursos, evaluaciones y (H3) Libro de notas, Notas de un estudiante, Mis estudiantes y Reportes
 ```
 
 ## Herramientas solo para pruebas (no son del producto final)
-`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el **selector de rol** de la barra superior y el botón flotante **«Pantallas»** para saltar a cualquier pantalla. Por defecto se ven con `npm run dev` y desaparecen en `npm run build`.
+`config/devFlags.js` tiene el interruptor `SHOW_DEV_TOOLS`: muestra el botón flotante **«Pantallas»** para saltar a cualquier pantalla (el selector de rol de la barra superior se quitó el 20-11-2026). Por defecto se ven con `npm run dev` y desaparecen en `npm run build`.
 En el producto, el rol se decide al iniciar sesión.
 
 ## Contenido que crece (cursos, evaluaciones, colegios…)

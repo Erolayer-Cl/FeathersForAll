@@ -2,6 +2,7 @@ import { getCourses, getAssessments } from '../../../api/portalApi.js';
 import { LoadState } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
+import { estadoEvaluacion, normalizarEstado } from '../../utils/evaluaciones.js';
 import styles from './InicioPage.module.css';
 
 async function getDashboard(token, opts) {
@@ -16,7 +17,7 @@ export function DocenteInicioPage() {
   const { data, loading, error, reload } = useApiData(getDashboard);
   const courses = data?.courses ?? [];
   const assessments = data?.assessments ?? [];
-  const pending = assessments.filter((a) => a.status === 'draft' || a.status === 'borrador');
+  const pending = assessments.filter((a) => normalizarEstado(a.status) === 'draft');
   const uniqueStudents = courses.every((c) => typeof c.students_count === 'number') ? courses.reduce((sum, c) => sum + c.students_count, 0) : null;
   return <div className={styles.page}>
     <header className={styles.heading}><span className={styles.eyebrow}>Docente · Inicio</span><h1>Inicio</h1><p>Resumen de tus cursos, estudiantes y evaluaciones.</p></header>
@@ -30,7 +31,7 @@ export function DocenteInicioPage() {
       </div>
       <div className={styles.columns}>
         <section className={styles.card}><div className={styles.sectionHeading}><div><h2>Actividad de evaluaciones</h2><p>Evaluaciones registradas en tus cursos.</p></div><PortalLink to="doc-evaluaciones" className={styles.link}>Ver evaluaciones →</PortalLink></div>
-          {assessments.length ? assessments.slice(0, 5).map((a) => <div className={styles.listRow} key={a.id}><div><strong>{a.title ?? a.titulo ?? 'Evaluación'}</strong><small>{a.courseName}</small></div><span className={styles.pill}>{a.status ?? 'Sin estado'}</span></div>) : <p className={styles.empty}>No se registran evaluaciones disponibles.</p>}
+          {assessments.length ? assessments.slice(0, 5).map((a) => <div className={styles.listRow} key={a.id}><div><strong>{a.title ?? a.titulo ?? 'Evaluación'}</strong><small>{a.courseName}</small></div><span className={styles.pill}>{estadoEvaluacion(a.status).label}</span></div>) : <p className={styles.empty}>No se registran evaluaciones disponibles.</p>}
         </section>
         <section className={styles.card}><div className={styles.sectionHeading}><div><h2>Mis cursos</h2><p>Acceso rápido a tus asignaturas.</p></div><PortalLink to="doc-cursos" className={styles.link}>Ver todos →</PortalLink></div>
           {courses.length ? courses.slice(0, 5).map((c) => <div className={styles.listRow} key={c.id}><div><strong>{c.subject || c.name}</strong><small>{c.name}</small></div><PortalLink to="doc-curso" param={c.id} className={styles.link}>Entrar →</PortalLink></div>) : <p className={styles.empty}>No tienes cursos asignados.</p>}

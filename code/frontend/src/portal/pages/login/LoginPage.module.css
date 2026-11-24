@@ -33,11 +33,11 @@
     radial-gradient(ellipse at 80% 80%, #0d3a3a 0%, transparent 50%),
     var(--fp-bg);
 }
-/* Ilustración exportada del Figma: code/frontend/public/login-bg.png (si no existe, se ve solo el degradado). */
+/* Ilustración exportada del Figma: code/frontend/public/login-bg.webp (si no existe, se ve solo el degradado). */
 .art {
   position: absolute;
   inset: 0;
-  background: url("/login-bg.png") center / cover no-repeat;
+  background: url("/login-bg.webp") center / cover no-repeat;
   opacity: 0.55;
   pointer-events: none;
 }
