@@ -1,4 +1,5 @@
-/* Único CSS global del portal. Lo importa PortalApp.jsx (nunca main.jsx), así la app del chat no lo carga. */
+/* El login conserva su componente, funcionalidad y estilos propios. */
 @import "./styles/tokens.css";
 @import "./styles/preferences.css";
 @import "./styles/base.css";
+@import "./styles/figma-refresh.css";

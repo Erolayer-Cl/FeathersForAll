@@ -15,6 +15,7 @@ export const PORTAL_ROUTES = [
 
   { id: 'est-inicio', title: 'Inicio', group: 'Estudiante', role: 'est', nav: 'inicio' },
   { id: 'est-cursos', title: 'Mis cursos', group: 'Estudiante', role: 'est', nav: 'cursos' },
+  { id: 'est-evaluaciones', title: 'Evaluaciones', group: 'Estudiante', role: 'est', nav: 'evaluaciones' },
   { id: 'est-curso', title: 'Curso', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-contenido', title: 'Curso · Contenido', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },
   { id: 'est-evaluacion', title: 'Rendir evaluación', group: 'Estudiante', role: 'est', nav: 'cursos', detail: true },

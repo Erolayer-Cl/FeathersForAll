@@ -14,6 +14,7 @@ export const ROLES = {
     nav: [
       { key: 'inicio', label: 'Inicio', icon: 'home', route: 'est-inicio' },
       { key: 'cursos', label: 'Mis cursos', icon: 'book', route: 'est-cursos' },
+      { key: 'evaluaciones', label: 'Evaluaciones', icon: 'check', route: 'est-evaluaciones' },
       { key: 'notas', label: 'Mis notas', icon: 'notes', route: 'est-notas' },
       { key: 'tutor', label: 'Tutor IA', icon: 'chat', route: 'est-tutor' },
       { key: 'progreso', label: 'Progreso', icon: 'trend', route: 'est-progreso' },

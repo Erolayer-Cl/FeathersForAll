@@ -1,34 +1,4 @@
-/* Docente · Curso: carga de apuntes y lista de apuntes indexados. */
-.crumbs { color: var(--fp-muted); font-size: 13px; }
-.crumbs a:hover { color: var(--fp-brand-text); }
-
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: 20px; }
-@media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
-.h2 { font-size: 18px; }
-.sub { margin: 4px 0 0; color: var(--fp-muted); font-size: 13.5px; }
-.alerta { margin: 12px 0 0; color: var(--fp-danger-ink); font-size: 13.5px; }
-
-.drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; margin-top: 16px; padding: 32px 20px; border: 2px dashed var(--fp-track); border-radius: var(--fp-radius-md); background: var(--fp-field); color: var(--fp-muted); font-size: 13px; text-align: center; cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease; }
-.drop b { color: inherit; font-size: 14px; }
-.drop:hover, .dropOver, .drop:focus-within { border-color: var(--fp-accent); background: var(--fp-accent-soft); }
-/* El input real queda sobre toda la zona (invisible): sirve con teclado, clic y lectores de pantalla. */
-.fileInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.fileInput:disabled { cursor: progress; }
-
-.envios { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-.envios li { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: var(--fp-radius-md); background: var(--fp-field); font-size: 13px; }
-.envios b { overflow-wrap: anywhere; }
-.envios span { color: var(--fp-muted); font-size: 12.5px; }
-.ok span { color: var(--fp-success-ink); }
-.error span { color: var(--fp-danger-ink); }
-.subiendo span { color: var(--fp-brand-text); }
-
-.rows { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
-.row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--fp-radius-md); background: var(--fp-field); font-size: 13.5px; }
-.grow { flex: 1; min-width: 0; }
-.grow b, .grow small { display: block; }
-.grow b { overflow-wrap: anywhere; }
-.grow small { color: var(--fp-muted); font-size: 12px; }
-
-/* Mientras se procesa un archivo, la zona de carga no acepta otros. */
-.drop[data-ocupado] { cursor: progress; opacity: 0.65; }
+.crumbs{color:var(--fp-muted);font-size:12px}.crumbs a{color:var(--fp-brand-text)}.crumbs a:hover{text-decoration:underline}.split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:18px}.h2{font-family:var(--fp-font);font-size:17px;font-weight:700}.sub{margin:5px 0 0;color:var(--fp-muted);font-size:12px;line-height:1.6}.alerta{margin-top:12px;color:var(--fp-danger-ink);font-size:12px}
+.drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin-top:18px;padding:40px 22px;border:1.5px dashed color-mix(in srgb,var(--fp-accent) 50%,var(--fp-line));border-radius:13px;background:var(--fp-accent-soft);color:var(--fp-muted);font-size:12px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}.drop b{color:var(--fp-ink);font-size:13px}.drop:hover,.dropOver,.drop:focus-within{border-color:var(--fp-accent);background:var(--fp-accent-mid)}.fileInput{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.fileInput:disabled{cursor:progress}.drop[data-ocupado]{opacity:.65;cursor:progress}
+.envios,.rows{display:flex;flex-direction:column;gap:0;margin:16px 0 0;padding:0;list-style:none}.envios li,.row{display:flex;align-items:center;gap:12px;padding:13px 9px;border-bottom:1px solid var(--fp-line);background:transparent;font-size:12px}.envios li{flex-direction:column;align-items:flex-start}.envios b,.grow b{overflow-wrap:anywhere}.envios span,.grow small{color:var(--fp-muted);font-size:11px}.ok span{color:var(--fp-success-ink)}.error span{color:var(--fp-danger-ink)}.subiendo span{color:var(--fp-brand-text)}.grow{flex:1;min-width:0}.grow b,.grow small{display:block}.row:hover{background:var(--fp-accent-soft)}
+@media(max-width:900px){.split{grid-template-columns:minmax(0,1fr)}}

@@ -5,6 +5,8 @@ import {
   Check,
   ChevronDown,
   ClipboardCheck,
+  Eye,
+  EyeOff,
   FileText,
   GraduationCap,
   House,
@@ -43,6 +45,8 @@ const ICONS = {
   palette: Palette,
   send: SendHorizontal,
   trash: Trash2,
+  eye: Eye,
+  eyeOff: EyeOff,
 };
 
 /** @param {{name: keyof typeof ICONS, size?: number}} props */
