@@ -9,6 +9,8 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "8080"
+  # La API está detrás del Ingress (1 salto): así req.ip es la IP real del cliente y el freno del login por IP funciona.
+  TRUST_PROXY: "1"
   LOG_LEVEL: "info"
   # Ollama corre en el PC (fuera del clúster): los modelos pesan ~3 GB y necesitan la GPU/RAM del host.
   # host.docker.internal = el PC, visto desde los contenedores de Docker Desktop.

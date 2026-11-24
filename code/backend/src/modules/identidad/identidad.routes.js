@@ -8,18 +8,75 @@ import * as Q from '../../../db/queries.js';
 const ROLES_DE_COLEGIO = new Set(['docente', 'estudiante', 'admin_colegio']);
 const MAX_LARGO = { rbd: 20, email: 150, password: 256 };
 
-const credencialesInvalidas = () =>
-  new HttpProblem(401, 'Credenciales inválidas', 'El RBD, el correo o la contraseña no son correctos', 'invalid-credentials');
+// Freno del login en tres llaves. Topes en múltiplos del máximo del limiter (5 fallos en 15 min por defecto):
+//   ip+correo -> x1 (5):  fuerza bruta sobre una cuenta desde un equipo. No deja afuera al dueño desde otro equipo.
+//   ip        -> x10 (50): rociado de claves (la misma clave contra muchos correos) y gasto de CPU en scrypt.
+//                          El margen es amplio porque una sala de computación sale a internet con una sola IP.
+//   correo    -> x10 (50): ataque repartido entre muchas IP contra una misma cuenta.
+const FRENOS = [
+  { llave: (ip, email) => `ip+correo|${ip}|${email}`, veces: 1 },
+  { llave: (ip) => `ip|${ip}`, veces: 10 },
+  { llave: (_ip, email) => `correo|${email}`, veces: 10 },
+];
 
-/** Valida el cuerpo del login. El correo se normaliza para que el freno no se esquive con mayúsculas. */
+const credencialesInvalidas = () =>
+  new HttpProblem(401, 'Credenciales inválidas', 'El correo o la contraseña no son correctos', 'invalid-credentials');
+
+const invalido = (nombre, obligatorio) => new HttpProblem(400, 'Solicitud inválida',
+  `"${nombre}" ${obligatorio ? 'es obligatorio (texto' : 'debe ser texto'} de hasta ${MAX_LARGO[nombre]} caracteres${obligatorio ? ')' : ''}`, 'validation-error');
+
+/**
+ * Valida el cuerpo del login. El correo se normaliza para que el freno no se esquive con mayúsculas.
+ * El RBD es opcional: estudiantes y docentes entran solo con correo (su cuenta ya está enlazada a un
+ * colegio). Si viene, restringe la búsqueda a ese colegio (lo usa el acceso de administración).
+ */
 function leerCredenciales(body) {
-  const campos = { rbd: body?.rbd, email: body?.email, password: body?.password };
-  for (const [nombre, valor] of Object.entries(campos)) {
-    if (typeof valor !== 'string' || !valor.trim() || valor.length > MAX_LARGO[nombre]) {
-      throw new HttpProblem(400, 'Solicitud inválida', `"${nombre}" es obligatorio (texto de hasta ${MAX_LARGO[nombre]} caracteres)`, 'validation-error');
-    }
+  for (const nombre of ['email', 'password']) {
+    const valor = body?.[nombre];
+    if (typeof valor !== 'string' || !valor.trim() || valor.length > MAX_LARGO[nombre]) throw invalido(nombre, true);
   }
-  return { rbd: campos.rbd.trim(), email: campos.email.trim().toLowerCase(), password: campos.password };
+  let rbd = body?.rbd;
+  if (rbd !== undefined && rbd !== null) {
+    if (typeof rbd !== 'string' || rbd.length > MAX_LARGO.rbd) throw invalido('rbd', false);
+    rbd = rbd.trim() || null;
+  } else {
+    rbd = null;
+  }
+  return { rbd, email: body.email.trim().toLowerCase(), password: body.password };
+}
+
+/**
+ * Busca la cuenta y verifica la clave. Devuelve { id, colegioId, rol } o null.
+ * Con RBD: dentro de ese colegio (login en dos pasos de siempre).
+ * Sin RBD: el correo en todos los colegios; entra solo si la clave coincide con UNA cuenta.
+ * Siempre se calcula al menos un hash, exista o no la cuenta (no se revela qué correos existen).
+ */
+async function autenticar(db, { rbd, email, password }) {
+  let cuentas;
+  if (rbd) {
+    const colegioId = (await db.query(Q.COLEGIO_POR_RBD, [rbd])).rows[0]?.colegio_id ?? null;
+    const fila = colegioId
+      ? (await db.withColegio(colegioId, (c) => c.query(Q.LOGIN, [email]), { readOnly: true })).rows[0]
+      : undefined;
+    cuentas = fila ? [{ ...fila, colegio_id: colegioId }] : [];
+  } else {
+    cuentas = (await db.query(Q.CUENTAS_POR_CORREO, [email])).rows;
+  }
+
+  if (cuentas.length === 0) {
+    await verifyPassword(password, undefined);
+    return null;
+  }
+  const validas = [];
+  for (const cuenta of cuentas) {
+    if ((await verifyPassword(password, cuenta.password_hash)) && ROLES_DE_COLEGIO.has(cuenta.rol)) validas.push(cuenta);
+  }
+  // Mismo correo y misma clave en dos colegios: no se adivina cuál; se pide entrar con el RBD.
+  if (validas.length > 1) {
+    throw new HttpProblem(409, 'Cuenta en varios colegios', 'Este correo está en más de un colegio: ingresa también el RBD', 'school-required');
+  }
+  const cuenta = validas[0];
+  return cuenta ? { id: cuenta.id, colegioId: cuenta.colegio_id, rol: cuenta.rol } : null;
 }
 
 /** Perfil del usuario de la sesión (contrato: schema Me), o null si la cuenta ya no está activa. */
@@ -36,7 +93,7 @@ async function cargarPerfil(db, user) {
 }
 
 /**
- * Identidad y tenancy (bounded context, S06): login propio por RBD + correo + contraseña (ADR 0007)
+ * Identidad y tenancy (bounded context, S06): login propio por correo + contraseña, RBD opcional (ADR 0007)
  * y el perfil del usuario autenticado.
  *
  * @param {object} deps
@@ -48,35 +105,30 @@ async function cargarPerfil(db, user) {
 export function createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds, limiter }) {
   const router = Router();
 
-  // Login en dos pasos (02 §7 + 04): el RBD da el colegio y, dentro de ESE colegio, se buscan
-  // las credenciales del correo. Pública: es la única ruta con datos de colegio sin token.
+  // Login por correo + contraseña (el RBD es opcional, ver leerCredenciales). El colegio sale de la
+  // cuenta encontrada, nunca de lo que mande el cliente. Pública: es la única ruta sin token.
   router.post('/v1/auth/login', async (req, res) => {
-    const { rbd, email, password } = leerCredenciales(req.body);
-    const claveFreno = `${rbd}|${email}`;
+    const credenciales = leerCredenciales(req.body);
+    // Las llaves no usan el RBD: pedirlo con y sin RBD no duplica los intentos permitidos.
+    const llaves = FRENOS.map((f) => ({ key: f.llave(req.ip, credenciales.email), max: f.veces * limiter.maxFailures }));
 
-    const espera = limiter.retryAfterSeconds(claveFreno);
+    const espera = Math.max(...llaves.map(({ key, max }) => limiter.retryAfterSeconds(key, max)));
     if (espera > 0) {
       res.set('Retry-After', String(espera));
       throw new HttpProblem(429, 'Demasiados intentos', `Espera ${Math.ceil(espera / 60)} min antes de volver a intentar`, 'too-many-attempts');
     }
 
-    const colegioId = (await db.query(Q.COLEGIO_POR_RBD, [rbd])).rows[0]?.colegio_id ?? null;
-    const cuenta = colegioId
-      ? (await db.withColegio(colegioId, (c) => c.query(Q.LOGIN, [email]), { readOnly: true })).rows[0]
-      : undefined;
-
-    // verifyPassword calcula el hash aunque no exista la cuenta: el tiempo de respuesta no
-    // revela qué correos existen. Todos los fallos dan el mismo 401.
-    const claveCorrecta = await verifyPassword(password, cuenta?.password_hash);
-    if (!claveCorrecta || !ROLES_DE_COLEGIO.has(cuenta.rol)) {
-      limiter.recordFailure(claveFreno);
+    const user = await autenticar(db, credenciales);
+    if (!user) {
+      for (const { key } of llaves) limiter.recordFailure(key);
       throw credencialesInvalidas();
     }
-    limiter.reset(claveFreno);
+    // La clave correcta limpia lo de esta cuenta; el contador de la IP sigue (no se "lava" con una cuenta propia).
+    limiter.reset(llaves[0].key);
+    limiter.reset(llaves[2].key);
 
     // El JWT lleva lo mínimo (datos de menores): quién es, de qué colegio y con qué rol.
-    const user = { id: cuenta.id, colegioId, rol: cuenta.rol };
-    const accessToken = signJwt({ sub: user.id, tenant_id: colegioId, role: user.rol }, jwtSecret, { expiresInSec: tokenTtlSeconds });
+    const accessToken = signJwt({ sub: user.id, tenant_id: user.colegioId, role: user.rol }, jwtSecret, { expiresInSec: tokenTtlSeconds });
     res.json({
       access_token: accessToken,
       token_type: 'Bearer',

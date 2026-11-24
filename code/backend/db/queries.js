@@ -33,6 +33,12 @@ export const LOGIN = `
 SELECT id, nombre, email, rol, password_hash
 FROM credenciales_login($1)`;
 
+// Login sin RBD (08): cuentas activas con ese correo en cualquier colegio. La API verifica la
+// clave contra cada una; el colegio sale de la cuenta que coincide.
+export const CUENTAS_POR_CORREO = `
+SELECT id, colegio_id, rol, password_hash
+FROM cuentas_por_correo($1)`;
+
 // Perfil del usuario de la sesión (GET /v1/me y respuesta del login).
 export const PERFIL = `
 SELECT u.id, u.nombre, u.email, u.rol, c.id AS colegio_id, c.nombre AS colegio, c.rbd

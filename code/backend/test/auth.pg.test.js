@@ -63,6 +63,23 @@ describe('login y perfil (PostgreSQL)', { skip: SKIP }, () => {
     assert.equal(claims.name, undefined); // sin datos personales en el token
   });
 
+  test('sin RBD: entra con correo y clave; el colegio sale de la cuenta (08_login_por_correo.sql)', async () => {
+    const res = await login({ email: 'javiera@demo-b.cl', password: DEMO.password });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.user.school.id, DEMO.colegioB ?? body.user.school.id);
+    assert.equal(body.user.school.rbd, '99902');
+    assert.equal(verifyJwt(body.access_token, SECRET).tenant_id, body.user.school.id);
+    // Clave mala o correo inexistente: 401
+    assert.equal((await login({ email: 'nadie@demo-b.cl', password: DEMO.password })).status, 401);
+  });
+
+  test('sin RBD, el rol de la API no lee password_hash por fuera de la función', async () => {
+    const r = await db.query('SELECT count(*)::int AS n FROM cuentas_por_correo($1)', ['camila@demo-a.cl']);
+    assert.equal(r.rows[0].n, 1);
+    await assert.rejects(db.query('SELECT password_hash FROM usuarios LIMIT 1'));
+  });
+
   test('el correo no distingue mayúsculas', async () => {
     assert.equal((await login({ ...camila, email: '  Camila@Demo-A.CL ' })).status, 200);
   });
@@ -101,6 +118,45 @@ describe('login y perfil (PostgreSQL)', { skip: SKIP }, () => {
     }
   });
 
+  test('un token vigente deja de servir en TODA la API si la cuenta se desactiva o cambia de rol', async () => {
+    const tokenDe = async (email) => (await (await login({ email, password: DEMO.password })).json()).access_token;
+    const pedir = (token, path) => fetch(`${url}${path}`, { headers: { authorization: `Bearer ${token}` } });
+
+    // Docente desactivada: su token de 8 h ya no abre el libro de notas.
+    const luis = await tokenDe('luis.perez@demo-a.cl');
+    const libro = `/v1/courses/${DEMO.historia}/gradebook`;
+    assert.equal((await pedir(luis, libro)).status, 200);
+    try {
+      await testDb.superuser.query('UPDATE usuarios SET activo = false WHERE id = $1', [DEMO.luis]);
+      const res = await pedir(luis, libro);
+      assert.equal(res.status, 401);
+      assert.match((await res.json()).type, /unauthorized$/);
+    } finally {
+      await testDb.superuser.query('UPDATE usuarios SET activo = true WHERE id = $1', [DEMO.luis]);
+    }
+    assert.equal((await pedir(luis, libro)).status, 200);
+
+    // Admin pasada a docente: el token dice "admin_colegio" y ya no lo es.
+    const marta = await tokenDe('marta.soto@demo-a.cl');
+    try {
+      await testDb.superuser.query("UPDATE usuarios SET rol = 'docente' WHERE id = $1", [DEMO.marta]);
+      assert.equal((await pedir(marta, '/v1/courses')).status, 401);
+    } finally {
+      await testDb.superuser.query("UPDATE usuarios SET rol = 'admin_colegio' WHERE id = $1", [DEMO.marta]);
+    }
+  });
+
+  test('un colegio dado de baja corta las sesiones de sus usuarios', async () => {
+    const { access_token: token } = await (await login({ email: 'javiera@demo-b.cl', password: DEMO.password })).json();
+    const cursos = () => fetch(`${url}/v1/courses`, { headers: { authorization: `Bearer ${token}` } });
+    try {
+      await testDb.superuser.query('UPDATE colegios SET activo = false WHERE id = $1', [DEMO.colegioB]);
+      assert.equal((await cursos()).status, 401);
+    } finally {
+      await testDb.superuser.query('UPDATE colegios SET activo = true WHERE id = $1', [DEMO.colegioB]);
+    }
+  });
+
   test('cuerpo incompleto -> 400', async () => {
     for (const body of [{}, { rbd: '99901', email: 'camila@demo-a.cl' }, { ...camila, password: 123 }]) {
       assert.equal((await login(body)).status, 400);
@@ -113,8 +169,8 @@ describe('login y perfil (PostgreSQL)', { skip: SKIP }, () => {
     const res = await login({ ...tomas, password: DEMO.password });
     assert.equal(res.status, 429);
     assert.ok(Number(res.headers.get('retry-after')) > 0);
-    // Otras cuentas no se ven afectadas.
-    assert.equal((await login(camila)).status, 200);
+    // Otras cuentas no se ven afectadas (Camila ya acumuló fallos en la prueba del 401: el freno cuenta por correo).
+    assert.equal((await login({ rbd: '99901', email: 'sofia@demo-a.cl', password: DEMO.password })).status, 200);
   });
 
   test('GET /v1/me sin token -> 401', async () => {

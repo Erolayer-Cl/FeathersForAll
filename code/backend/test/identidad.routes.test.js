@@ -18,13 +18,14 @@ describe('login, perfil y JWT (unitarias, sin base)', () => {
   before(async () => { hash = await hashPassword('demo1234'); });
 
   /** API con una cuenta: el RBD 99901 existe y en él vive camila@demo-a.cl con el rol indicado. */
-  async function setUp({ rol = 'estudiante', limiter = createLoginLimiter() } = {}) {
+  async function setUp({ rol = 'estudiante', limiter = createLoginLimiter(), trustProxy } = {}) {
     const db = fakeDb(new Map([
       [Q.COLEGIO_POR_RBD, ([rbd]) => (rbd === '99901' ? [{ colegio_id: A }] : [])],
       [Q.LOGIN, ([email]) => (email === 'camila@demo-a.cl' ? [{ id: CAMILA.id, rol, password_hash: hash }] : [])],
+      [Q.CUENTAS_POR_CORREO, ([email]) => (email === 'camila@demo-a.cl' ? [{ id: CAMILA.id, colegio_id: A, rol, password_hash: hash }] : [])],
       [Q.PERFIL, () => [{ ...PERFIL, rol }]],
     ]));
-    const api = await startApi(db, { loginLimiter: limiter, jwtTtlSeconds: 8 * 3600 });
+    const api = await startApi(db, { loginLimiter: limiter, jwtTtlSeconds: 8 * 3600, ...(trustProxy !== undefined && { trustProxy }) });
     const login = (body) => api.request('/v1/auth/login', { method: 'POST', body });
     return { db, api, login };
   }
@@ -94,6 +95,111 @@ describe('login, perfil y JWT (unitarias, sin base)', () => {
     test('un cuerpo que no es JSON válido -> 400', async () => {
       const res = await fetch(`${ctx.api.url}/v1/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{rbd:' });
       assert.equal(res.status, 400);
+    });
+  });
+
+  describe('freno del login por IP (detrás del Ingress)', () => {
+    // Con trustProxy = 1 la IP del cliente sale del X-Forwarded-For que agrega el Ingress.
+    const desde = (api, ip, body) => fetch(`${api.url}/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+      body: JSON.stringify(body),
+    });
+
+    test('5 fallos desde un equipo no dejan afuera al dueño de la cuenta en otro equipo', async () => {
+      const ctx = await setUp({ trustProxy: 1 });
+      try {
+        for (let i = 0; i < 5; i++) assert.equal((await desde(ctx.api, '203.0.113.9', { ...CREDENCIALES, password: 'mala' })).status, 401);
+        assert.equal((await desde(ctx.api, '203.0.113.9', CREDENCIALES)).status, 429, 'el equipo atacante queda frenado');
+        assert.equal((await desde(ctx.api, '198.51.100.7', CREDENCIALES)).status, 200, 'la estudiante entra desde su equipo');
+      } finally {
+        ctx.api.close();
+      }
+    });
+
+    test('rociar una clave contra muchos correos desde una IP termina en 429', async () => {
+      const ctx = await setUp({ trustProxy: 1, limiter: createLoginLimiter({ maxFailures: 2 }) });
+      try {
+        // Tope por IP = 10 x maxFailures = 20 fallos, cada uno con un correo distinto.
+        for (let i = 0; i < 20; i++) assert.equal((await desde(ctx.api, '203.0.113.50', { email: `x${i}@demo-a.cl`, password: 'demo1234' })).status, 401);
+        const res = await desde(ctx.api, '203.0.113.50', { email: 'otro@demo-a.cl', password: 'demo1234' });
+        assert.equal(res.status, 429);
+        assert.ok(Number(res.headers.get('retry-after')) > 0);
+      } finally {
+        ctx.api.close();
+      }
+    });
+
+    test('un X-Forwarded-For inventado por el cliente no sirve para cambiar de IP', async () => {
+      const ctx = await setUp({ trustProxy: 1 });
+      try {
+        // El Ingress agrega la IP real al final; Express (1 salto) toma esa y no la que puso el cliente a la izquierda.
+        for (let i = 0; i < 5; i++) {
+          assert.equal((await desde(ctx.api, `10.0.0.${i}, 203.0.113.9`, { ...CREDENCIALES, password: 'mala' })).status, 401);
+        }
+        assert.equal((await desde(ctx.api, '10.9.9.9, 203.0.113.9', CREDENCIALES)).status, 429);
+      } finally {
+        ctx.api.close();
+      }
+    });
+  });
+
+  describe('login sin RBD (estudiantes y docentes)', () => {
+    const SIN_RBD = { email: 'camila@demo-a.cl', password: 'demo1234' };
+
+    test('entra solo con correo y clave; el colegio sale de la cuenta, no del cliente', async () => {
+      const ctx = await setUp();
+      try {
+        const res = await ctx.login({ ...SIN_RBD, email: ' Camila@Demo-A.cl ' });
+        assert.equal(res.status, 200);
+        const { access_token: token, user } = await res.json();
+        assert.equal(user.school.id, A);
+        const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url'));
+        assert.equal(claims.tenant_id, A);
+        assert.deepEqual(ctx.db.callsOf(Q.CUENTAS_POR_CORREO)[0].params, ['camila@demo-a.cl']);
+        assert.equal(ctx.db.callsOf(Q.COLEGIO_POR_RBD).length, 0);
+      } finally {
+        ctx.api.close();
+      }
+    });
+
+    test('correo inexistente o clave mala -> el mismo 401 que con RBD', async () => {
+      const ctx = await setUp();
+      try {
+        for (const cred of [{ ...SIN_RBD, email: 'nadie@demo-a.cl' }, { ...SIN_RBD, password: 'mala' }]) {
+          const res = await ctx.login(cred);
+          assert.equal(res.status, 401);
+          assert.match((await res.json()).type, /invalid-credentials$/);
+        }
+      } finally {
+        ctx.api.close();
+      }
+    });
+
+    test('mismo correo y clave en dos colegios -> 409 (pide el RBD), sin adivinar el colegio', async () => {
+      const ctx = await setUp();
+      try {
+        ctx.db.handlers.set(Q.CUENTAS_POR_CORREO, () => [
+          { id: CAMILA.id, colegio_id: A, rol: 'estudiante', password_hash: hash },
+          { id: 'b0000000-0000-0000-0000-000000000009', colegio_id: '22222222-2222-2222-2222-222222222222', rol: 'estudiante', password_hash: hash },
+        ]);
+        const res = await ctx.login(SIN_RBD);
+        assert.equal(res.status, 409);
+        assert.match((await res.json()).type, /school-required$/);
+      } finally {
+        ctx.api.close();
+      }
+    });
+
+    test('el freno cuenta por correo: con y sin RBD suman los mismos intentos', async () => {
+      const ctx = await setUp();
+      try {
+        for (let i = 0; i < 3; i++) assert.equal((await ctx.login({ ...SIN_RBD, password: 'mala' })).status, 401);
+        for (let i = 0; i < 2; i++) assert.equal((await ctx.login({ ...CREDENCIALES, password: 'mala' })).status, 401);
+        assert.equal((await ctx.login(SIN_RBD)).status, 429);
+      } finally {
+        ctx.api.close();
+      }
     });
   });
 

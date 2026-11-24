@@ -1,5 +1,5 @@
 import { LlmUnavailableError } from '../modules/tutor/llm-client.js';
-import { DbUnavailableError } from './db.js';
+import { DbUnavailableError, SessionRevokedError } from './db.js';
 
 const TYPE_BASE = 'https://api.feathersforall.example/errors/';
 
@@ -29,6 +29,9 @@ function toProblem(err) {
   if (err instanceof HttpProblem) return err;
   if (err instanceof LlmUnavailableError) {
     return new HttpProblem(503, 'Tutor no disponible', err.message, 'llm-unavailable');
+  }
+  if (err instanceof SessionRevokedError) {
+    return new HttpProblem(401, 'No autenticado', 'Tu sesión ya no es válida: vuelve a iniciar sesión', 'unauthorized');
   }
   if (err instanceof DbUnavailableError) {
     return new HttpProblem(503, 'Base de datos no disponible', err.message, 'db-unavailable');

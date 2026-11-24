@@ -69,4 +69,44 @@ describe('privacidad de lectura en la base (PostgreSQL)', { skip: SKIP }, () => 
     const enB = await db.withColegio(DEMO.colegioB, async (c) => (await c.query('SELECT id FROM credenciales_login($1)', ['camila@demo-a.cl'])).rows);
     assert.equal(enB.length, 0);
   });
+
+  // 09_integridad_evaluaciones.sql: aunque la API se equivocara, una sesión de estudiante no se pone nota.
+  describe('el estudiante no se autocalifica (09)', () => {
+    const escribir = (user, fn) => db.withUser(user, fn);
+    const benja = como(DEMO.benja, 'estudiante');
+
+    test('una respuesta mala guardada como correcta queda incorrecta', async () => {
+      await assert.rejects(escribir(benja, async (c) => {
+        const { rows: [intento] } = await c.query(
+          'INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id) VALUES ($1, $2, $3) RETURNING id',
+          [DEMO.mate, DEMO.decimales, DEMO.benja],
+        );
+        const { rows: [r] } = await c.query(
+          `INSERT INTO respuestas_estudiante (evaluacion_id, intento_id, pregunta_id, alternativa_elegida_id, es_correcta)
+           SELECT p.evaluacion_id, $1, p.id, a.id, true
+           FROM preguntas p JOIN alternativas a ON a.pregunta_id = p.id AND NOT a.es_correcta
+           WHERE p.evaluacion_id = $2 AND p.orden = 1 LIMIT 1
+           RETURNING es_correcta`,
+          [intento.id, DEMO.decimales],
+        );
+        assert.equal(r.es_correcta, false);
+        throw new Error('rollback');
+      }), /rollback/);
+    });
+
+    test('enviar el intento con puntaje 100 sin responder deja 0', async () => {
+      await assert.rejects(escribir(benja, async (c) => {
+        const { rows: [intento] } = await c.query(
+          'INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id) VALUES ($1, $2, $3) RETURNING id',
+          [DEMO.mate, DEMO.decimales, DEMO.benja],
+        );
+        const { rows: [i] } = await c.query(
+          'UPDATE intentos_evaluacion SET puntaje = 100, fecha_envio = now() WHERE id = $1 RETURNING puntaje',
+          [intento.id],
+        );
+        assert.equal(i.puntaje, 0);
+        throw new Error('rollback');
+      }), /rollback/);
+    });
+  });
 });

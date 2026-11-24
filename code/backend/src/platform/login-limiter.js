@@ -1,6 +1,6 @@
 /**
- * Freno de fuerza bruta para el login: cuenta los intentos FALLIDOS por clave (RBD + correo)
- * dentro de una ventana de tiempo. Pasado el máximo, el login responde 429 hasta que la ventana
+ * Freno de fuerza bruta para el login: cuenta los intentos FALLIDOS por llave (ver FRENOS en
+ * identidad.routes.js: ip+correo, ip y correo) dentro de una ventana de tiempo. Pasado el máximo, el login responde 429 hasta que la ventana
  * vence; un login correcto borra el contador.
  *
  * Vive en memoria y por proceso: con varias réplicas (HPA, S07) cada pod cuenta lo suyo y un
@@ -26,10 +26,12 @@ export function createLoginLimiter({ maxFailures = 5, windowMs = 15 * 60_000, ma
   }
 
   return {
-    /** Segundos que faltan para poder volver a intentar; 0 si puede intentar ahora. */
-    retryAfterSeconds(key) {
+    maxFailures,
+
+    /** Segundos que faltan para poder volver a intentar; 0 si puede intentar ahora. `max` cambia el tope para esa llave. */
+    retryAfterSeconds(key, max = maxFailures) {
       const entry = current(key);
-      return entry && entry.count >= maxFailures ? Math.ceil((entry.resetAt - now()) / 1000) : 0;
+      return entry && entry.count >= max ? Math.ceil((entry.resetAt - now()) / 1000) : 0;
     },
 
     recordFailure(key) {

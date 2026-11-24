@@ -2,9 +2,9 @@
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
-/** POST /v1/auth/login → { access_token, token_type, expires_in, user } */
+/** POST /v1/auth/login → { access_token, token_type, expires_in, user }. El RBD solo lo manda el acceso de administración. */
 export function login({ rbd, email, password }, opts) {
-  return requestJson('/v1/auth/login', { method: 'POST', body: { rbd, email, password }, ...opts });
+  return requestJson('/v1/auth/login', { method: 'POST', body: { ...(rbd && { rbd }), email, password }, ...opts });
 }
 
 /** GET /v1/me → perfil propio { id, name, email, role, school } */

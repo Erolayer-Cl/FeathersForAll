@@ -110,13 +110,13 @@ export function clearSession({ storages = browserStorages() } = {}) {
 }
 
 /**
- * Inicio de sesión completo: llama al login, recuerda el RBD y guarda la sesión SOLO si la cuenta es del rol de la
+ * Inicio de sesión completo: llama al login, recuerda el RBD (si se usó; solo administración) y guarda la sesión SOLO si la cuenta es del rol de la
  * pestaña (acceptLogin lanza RoleMismatchError antes de guardar). `loginFn` y `storages` se inyectan en las pruebas.
  * @returns {Promise<{token: string, expiresAt: number, user: object}>}
  */
 export async function signInWith(loginFn, { rbd, email, password, remember = false }, { expectedRole, storages, now } = {}) {
-  const body = await loginFn({ rbd, email, password });
-  saveLastRbd(rbd, { storages });
+  const body = await loginFn({ rbd: rbd || undefined, email, password });
+  if (rbd) saveLastRbd(rbd, { storages });
   const session = acceptLogin(body, { expectedRole, now });
   saveSession(session, { remember, storages });
   return session;
@@ -135,6 +135,6 @@ export function isSessionChange(event, current, next) {
   return (current?.token ?? null) !== (next?.token ?? null);
 }
 
-/** Último RBD usado (comodidad: el estudiante no lo escribe cada vez). No es un dato sensible. */
+/** Último RBD usado (comodidad del acceso de administración). No es un dato sensible. */
 export const loadLastRbd = ({ storages = browserStorages() } = {}) => read(storages.local, LAST_RBD_KEY) ?? '';
 export const saveLastRbd = (rbd, { storages = browserStorages() } = {}) => write(storages.local, LAST_RBD_KEY, rbd);
