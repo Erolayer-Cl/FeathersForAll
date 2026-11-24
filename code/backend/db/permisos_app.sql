@@ -20,3 +20,5 @@ GRANT SELECT (id, colegio_id, nombre, email, rol, activo, created_at, updated_at
 
 -- Login en dos pasos: RBD -> colegio (02 §7) y credenciales de ese colegio (04).
 GRANT EXECUTE ON FUNCTION colegio_por_rbd(TEXT), credenciales_login(CITEXT) TO feathersforall_app;
+-- Login solo con correo (estudiantes y docentes): el colegio sale de la cuenta (08).
+GRANT EXECUTE ON FUNCTION cuentas_por_correo(CITEXT) TO feathersforall_app;

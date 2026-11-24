@@ -16,11 +16,10 @@ describe('pantallas de acceso', () => {
     expect(LOGIN_TABS.map((id) => ROLES[id].label)).toEqual(['Estudiante', 'Docente']);
   });
 
-  it('cada rol tiene sus textos, con ayuda del RBD propia', () => {
-    for (const id of Object.keys(ROLES)) {
-      expect(LOGIN_TEXTOS[id].titulo).toBeTruthy();
-      expect(LOGIN_TEXTOS[id].ayudaRbd).toBeTruthy();
-    }
-    expect(LOGIN_TEXTOS.doc.ayudaRbd).not.toMatch(/profesor jefe/);
+  it('cada rol tiene sus textos; solo administración pide el RBD', () => {
+    for (const id of Object.keys(ROLES)) expect(LOGIN_TEXTOS[id].titulo).toBeTruthy();
+    expect(LOGIN_TEXTOS.adm.ayudaRbd).toBeTruthy();
+    expect(LOGIN_TEXTOS.est.ayudaRbd).toBeUndefined();
+    expect(LOGIN_TEXTOS.doc.ayudaRbd).toBeUndefined();
   });
 });

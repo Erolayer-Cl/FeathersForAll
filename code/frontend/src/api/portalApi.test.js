@@ -49,6 +49,12 @@ describe('portalApi', () => {
     expect(calls[0].init.headers.authorization).toBeUndefined();
   });
 
+  test('login sin RBD no manda el campo', async () => {
+    const { fetchImpl, calls } = fakeFetch({ body: { access_token: 'x', expires_in: 60, user: {} } });
+    await login({ email: 'camila@demo-a.cl', password: 'demo1234' }, { fetchImpl });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ email: 'camila@demo-a.cl', password: 'demo1234' });
+  });
+
   test('las rutas con datos envían el token como Bearer', async () => {
     const { fetchImpl, calls } = fakeFetch({ body: { courses: [] } });
     await getMyGrades('token-123', { fetchImpl });

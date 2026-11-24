@@ -25,14 +25,18 @@ import { createLoginLimiter } from './platform/login-limiter.js';
  * @param {string} [deps.defaultCourseId]   curso usado si el chat no envía `course_id`
  * @param {boolean} [deps.enableIngestApi]  expone la carga de apuntes por API (solo desarrollo)
  * @param {boolean} [deps.chatRequiresAuth] el chat exige JWT (producción)
+ * @param {boolean|number|string} [deps.trustProxy] proxies delante de la API (Express "trust proxy"); 1 = el Ingress
  */
 export function createApp({
   logger, llm, db, jwtSecret, rag, tenantId = 'dev', defaultCourseId,
   enableIngestApi = true, chatRequiresAuth = false,
-  jwtTtlSeconds = 8 * 3600, loginLimiter = createLoginLimiter(), aiLimiter = undefined,
+  jwtTtlSeconds = 8 * 3600, loginLimiter = createLoginLimiter(), aiLimiter = undefined, trustProxy = false,
 }) {
   const app = express();
   app.disable('x-powered-by');
+  // Detrás del Ingress, req.ip sería la IP del Ingress para todos: el freno del login por IP no serviría.
+  // Con TRUST_PROXY=1 Express toma la IP que agregó el Ingress en X-Forwarded-For (las que mande el cliente se ignoran).
+  app.set('trust proxy', trustProxy);
 
   app.use(requestContext(logger));
 
@@ -69,7 +73,7 @@ export function createApp({
 
   if (db) {
     // Las rutas con datos de colegio exigen JWT. La única excepción es POST /v1/auth/login,
-    // donde el colegio sale del RBD (nunca de un header ni del token).
+    // donde el colegio sale de la cuenta encontrada (nunca de un header ni del token).
     app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
     app.use(createCursosRouter({ db }));

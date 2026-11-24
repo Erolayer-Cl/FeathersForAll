@@ -19,7 +19,7 @@ export const SKIP = !ADMIN_URL && 'sin TEST_DATABASE_URL';
 
 const TEST_ROLE = 'feathersforall_app_test';
 const TEST_PASSWORD = 'test';
-const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', '05_conversaciones_tutor.sql', '06_alternativas_orden.sql', '07_rag_indices.sql', 'permisos_app.sql', '90_seed_demo.sql'];
+const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', '05_conversaciones_tutor.sql', '06_alternativas_orden.sql', '07_rag_indices.sql', '08_login_por_correo.sql', '09_integridad_evaluaciones.sql', 'permisos_app.sql', '90_seed_demo.sql'];
 
 const readSql = (file) => readFile(new URL(`../db/${file}`, import.meta.url), 'utf8');
 

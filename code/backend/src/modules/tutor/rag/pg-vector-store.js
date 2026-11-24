@@ -107,7 +107,11 @@ const toHits = (rows) => rows.map((r) => ({ doc_id: r.doc_id, chunk_index: r.chu
  */
 export function createPgVectorStore({ db, contextTtlMs = 30_000 }) {
   const session = ({ tenantId }, actor) => ({ colegioId: tenantId, usuarioId: actor?.id ?? '', rol: actor?.rol ?? '' });
-  const read = (ref, actor, fn, opts) => db.withSession(session(ref, actor), fn, { readOnly: true, ...opts });
+  // Con un usuario detrás se usa withUser, que además revisa que la cuenta siga vigente (ver db.js).
+  const open = (ref, actor, fn, opts) => (actor?.id && db.withUser
+    ? db.withUser({ id: actor.id, colegioId: ref.tenantId, rol: actor.rol }, fn, opts)
+    : db.withSession(session(ref, actor), fn, opts));
+  const read = (ref, actor, fn, opts) => open(ref, actor, fn, { readOnly: true, ...opts });
 
   // Títulos y datos del curso cambian poco: se guardan un rato por curso para no ir a la base en cada pregunta.
   // Subir o borrar un apunte desde este mismo proceso lo invalida; con varias réplicas, otra puede tardar hasta contextTtlMs.
@@ -144,7 +148,7 @@ export function createPgVectorStore({ db, contextTtlMs = 30_000 }) {
 
   async function write(ref, actor, fn) {
     try {
-      return await db.withSession(session(ref, actor), fn);
+      return await open(ref, actor, fn);
     } catch (err) {
       throw translate(err);
     }

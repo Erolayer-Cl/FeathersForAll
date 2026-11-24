@@ -161,6 +161,15 @@ describe('signInWith: el flujo completo del login', () => {
     expect(storages.local.data[LAST_RBD_KEY]).toBe('99901');
   });
 
+  it('sin RBD (estudiante o docente) no lo manda ni lo recuerda', async () => {
+    const storages = fakeStorages();
+    let enviado;
+    const login = async (body) => { enviado = body; return { access_token: 'jwt', expires_in: 60, user: ana }; };
+    await signInWith(login, { rbd: undefined, email: 'ana@demo-a.cl', password: 'x' }, { expectedRole: 'doc', storages, now: NOW });
+    expect(enviado.rbd).toBeUndefined();
+    expect(storages.local.data[LAST_RBD_KEY]).toBeUndefined();
+  });
+
   it('si el login falla (401), no guarda nada', async () => {
     const storages = fakeStorages();
     const failing = async () => { throw Object.assign(new Error('no'), { status: 401 }); };

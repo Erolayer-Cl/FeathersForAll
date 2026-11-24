@@ -7,6 +7,19 @@ pg.types.setTypeParser(pg.types.builtins.INT8, (v) => (v === null ? null : Numbe
 
 export class DbUnavailableError extends Error {}
 
+/** El token es válido, pero la cuenta se desactivó, cambió de rol o su colegio se dio de baja. */
+export class SessionRevokedError extends Error {}
+
+// La cuenta del token sigue activa, con el mismo rol y en un colegio activo. Se revisa al abrir cada
+// transacción de usuario: el JWT dura 8 h y no hay lista de revocación, así que sin esto una cuenta
+// desactivada (o un docente pasado a estudiante) seguiría operando hasta que venza el token.
+const SESION_VIGENTE = `
+SELECT EXISTS (
+    SELECT 1 FROM usuarios u
+    JOIN colegios c ON c.id = u.colegio_id
+    WHERE u.id = $1 AND u.rol::text = $2 AND u.activo AND c.activo
+) AS ok`;
+
 /**
  * Pool de conexiones a PostgreSQL. La API se conecta con feathersforall_app
  * (sin BYPASSRLS): todo pasa por withColegio(), que fija el colegio de la
@@ -75,8 +88,15 @@ export function createDb({ connectionString, max = 10, logger }) {
       }
     },
 
-    /** Sesión de un usuario autenticado: req.user = { id, colegioId, rol } (ver auth.js). */
-    withUser: (user, fn, opts) => withSession({ colegioId: user.colegioId, usuarioId: user.id, rol: user.rol }, fn, opts),
+    /**
+     * Sesión de un usuario autenticado: req.user = { id, colegioId, rol } (ver auth.js).
+     * Antes de fn() confirma que la cuenta sigue vigente (SESION_VIGENTE); si no, SessionRevokedError -> 401.
+     */
+    withUser: (user, fn, opts) => withSession({ colegioId: user.colegioId, usuarioId: user.id, rol: user.rol }, async (client) => {
+      const { rows } = await client.query(SESION_VIGENTE, [user.id, user.rol]);
+      if (!rows[0]?.ok) throw new SessionRevokedError('La cuenta ya no está activa');
+      return fn(client);
+    }, opts),
 
     /** Solo colegio (lecturas sin usuario). Escribir en tablas con permisos por rol fallará: es a propósito. */
     withColegio: (colegioId, fn, opts) => withSession({ colegioId }, fn, opts),

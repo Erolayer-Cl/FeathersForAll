@@ -23,6 +23,8 @@ const config = {
   jwtSecret: process.env.JWT_SECRET,
   // Duración del JWT del login: 8 h por defecto (una jornada escolar; no hay refresh token).
   jwtTtlSeconds: Number(process.env.JWT_TTL_SECONDS ?? 8 * 3600),
+  // Saltos de proxy delante de la API: "1" en el clúster (Ingress). Sin la variable, ninguno (se usa la IP del socket).
+  trustProxy: /^\d+$/.test(process.env.TRUST_PROXY ?? '') ? Number(process.env.TRUST_PROXY) : false,
 };
 const ragConfig = ragConfigFromEnv();
 
@@ -52,6 +54,7 @@ const server = createApp({
   db,
   jwtSecret: config.jwtSecret,
   jwtTtlSeconds: config.jwtTtlSeconds,
+  trustProxy: config.trustProxy,
   rag,
   tenantId: ragConfig.tenantId,
   defaultCourseId: ragConfig.defaultCourseId,

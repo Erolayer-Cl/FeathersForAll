@@ -23,7 +23,8 @@ export function LoginRoute({ route }) {
 
 /** Mensaje para la persona según el error de la API (el detalle técnico queda en el problema RFC 7807). */
 function mensajeDeError(error) {
-  if (error.status === 401) return 'El RBD, el correo o la contraseña no son correctos.';
+  if (error.status === 401) return 'El correo o la contraseña no son correctos.';
+  if (error.status === 409) return 'Tu correo está en más de un colegio. Pide ayuda a tu colegio para entrar.';
   if (error.status === 429) return error.message; // "Espera N min antes de volver a intentar"
   if (error.status === 0) return error.message;   // sin conexión con el servidor
   return 'No pudimos iniciar sesión. Inténtalo de nuevo en unos minutos.';
@@ -34,14 +35,15 @@ function mensajeDeError(error) {
  * Arriba se elige el tipo de cuenta (Estudiante o Docente); la administración entra por un enlace aparte.
  * Si la cuenta es de otro rol, no se entra: se avisa y se ofrece cambiar de pestaña (sin perder lo escrito,
  * porque las tres rutas de acceso usan este mismo componente; ver pages/index.jsx).
- * El RBD no está en el prototipo: hace falta porque un mismo correo puede existir en dos colegios.
- * En producción vendría del subdominio del colegio; aquí se recuerda el último usado.
+ * Estudiantes y docentes entran solo con correo: su cuenta ya está enlazada a su colegio y el backend
+ * lo resuelve. El RBD se pide únicamente en el acceso de administración (se recuerda el último usado).
  * Tras entrar, la guardia de rutas (PortalFrame) lleva a cada rol a su inicio.
  */
 export function LoginPage({ role }) {
   const { openPanel } = usePreferences();
   const { signIn, notice } = useSession();
   const text = LOGIN_TEXTOS[role];
+  const pideRbd = role === 'adm';
 
   const [form, setForm] = useState(() => ({ rbd: loadLastRbd(), email: '', password: '', remember: false }));
   // Resultado del último intento, atado a la pestaña donde ocurrió: al cambiar de pestaña deja de mostrarse.
@@ -65,7 +67,7 @@ export function LoginPage({ role }) {
     setFeedback(null);
     setSending(true);
     try {
-      await signIn(form, { expectedRole: role });
+      await signIn({ ...form, rbd: pideRbd ? form.rbd : undefined }, { expectedRole: role });
     } catch (err) {
       if (err instanceof RoleMismatchError) {
         // Las credenciales son correctas: se conserva la contraseña para entrar con un clic desde la otra pestaña.
@@ -113,23 +115,25 @@ export function LoginPage({ role }) {
           )}
           {mismatch && <AvisoOtroRol key={current.at} actual={mismatch} onNavigate={alNavegar} />}
 
-          <label className={styles.field}>
-            <span>Colegio (RBD)</span>
-            <input
-              name="rbd"
-              inputMode="numeric"
-              placeholder="Ej.: 99901"
-              autoComplete="off"
-              required
-              maxLength={20}
-              value={form.rbd}
-              onChange={change('rbd')}
-              aria-describedby="fp-rbd-ayuda"
-            />
-            <small id="fp-rbd-ayuda" className={styles.help}>
-              {text.ayudaRbd}
-            </small>
-          </label>
+          {pideRbd && (
+            <label className={styles.field}>
+              <span>Colegio (RBD)</span>
+              <input
+                name="rbd"
+                inputMode="numeric"
+                placeholder="Ej.: 99901"
+                autoComplete="off"
+                required
+                maxLength={20}
+                value={form.rbd}
+                onChange={change('rbd')}
+                aria-describedby="fp-rbd-ayuda"
+              />
+              <small id="fp-rbd-ayuda" className={styles.help}>
+                {text.ayudaRbd}
+              </small>
+            </label>
+          )}
           <label className={styles.field}>
             <span>Correo institucional</span>
             <input
