@@ -11,6 +11,10 @@ import {
   getAssessment,
   getAssessments,
   getEnrollments,
+  getGradebook,
+  getGradesSummary,
+  getStudentGrades,
+  updateGrading,
   setAssessmentStatus,
   submitAssessment,
   deleteTutorConversation,
@@ -233,5 +237,40 @@ describe('evaluaciones con IA y borradores (v1.5)', () => {
       const err = await generateAssessment('t', 'c1', { topic: 'x y z' }, { fetchImpl }).catch((e) => e);
       expect([err.status, err.message]).toEqual([status, detail]);
     }
+  });
+});
+
+describe('notas del curso para el docente (H3)', () => {
+  test('libro, resumen y notas de un estudiante son GET con los ids codificados', async () => {
+    const { fetchImpl, calls } = fakeFetch({ body: {} }, { body: {} }, { body: {} }, { body: {} });
+    await getGradebook('t', 'c/1', { fetchImpl });
+    await getGradesSummary('t', 'c1', { fetchImpl });
+    await getGradesSummary('t', 'c1', { threshold: 4.5, fetchImpl });
+    await getStudentGrades('t', 'c1', 's/1', { fetchImpl });
+    expect(calls.map((c) => [c.init.method, c.url])).toEqual([
+      ['GET', '/v1/courses/c%2F1/gradebook'],
+      ['GET', '/v1/courses/c1/grades/summary'],
+      ['GET', '/v1/courses/c1/grades/summary?threshold=4.5'],
+      ['GET', '/v1/courses/c1/students/s%2F1/grades'],
+    ]);
+    for (const c of calls) expect(c.init.headers.authorization).toBe('Bearer t');
+  });
+
+  test('cambiar exigencia o ponderación es un PATCH con solo los campos enviados', async () => {
+    const { fetchImpl, calls } = fakeFetch({ body: { assessment_id: 'e1', title: 'T', pass_threshold: 50, weight: 2 } });
+    const r = await updateGrading('t', 'e1', { pass_threshold: 50 }, { fetchImpl });
+    expect([calls[0].init.method, calls[0].url]).toEqual(['PATCH', '/v1/assessments/e1/grading']);
+    expect(JSON.parse(calls[0].init.body)).toEqual({ pass_threshold: 50 });
+    expect(calls[0].init.headers['idempotency-key']).toBeUndefined();
+    expect(r.weight).toBe(2);
+  });
+
+  test('un 403 (estudiante) o un 400 (valor fuera de rango) llegan como ApiError', async () => {
+    const { fetchImpl } = fakeFetch({ status: 403, body: { status: 403, detail: 'No tienes permiso' } }, { status: 400, body: { status: 400, detail: '"weight" debe ser un número mayor que 0' } });
+    const a = await getGradebook('t', 'c1', { fetchImpl }).catch((e) => e);
+    const b = await updateGrading('t', 'e1', { weight: 0 }, { fetchImpl }).catch((e) => e);
+    expect(a).toBeInstanceOf(ApiError);
+    expect(a.status).toBe(403);
+    expect([b.status, b.message]).toEqual([400, '"weight" debe ser un número mayor que 0']);
   });
 });
