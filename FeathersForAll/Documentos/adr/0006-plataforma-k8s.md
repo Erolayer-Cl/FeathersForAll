@@ -2,7 +2,7 @@
 
 ## Estado
 
-Propuesto — 2026-10-14. Entregable de la S07 (la pauta lo llama `0004-plataforma-k8s.md`, pero el número 0004 ya es "Datos y eventos": un ADR aceptado no se renumera). Pendiente de ratificar en la reunión del equipo.
+Aceptado — 2026-10-14.
 
 ## Contexto
 

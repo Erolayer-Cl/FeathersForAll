@@ -2,7 +2,12 @@
 
 ## Estado
 
-Aceptado — 2026-09-28 (D2 y D3 ajustadas el mismo día para alinearlas con el deck de S04). Decisión del Tech Lead (Iván Oliva); pendiente de ratificar en la reunión del equipo (Ignacio Ibañez, Juan Castillo, Bastián González, Cristofer Jeria, Alex Flores). Si el equipo objeta algún punto, se crea un ADR nuevo que lo reemplace (los ADR no se editan).
+Aceptado — 2026-09-28.
+
+Reemplazado parcialmente:
+- La línea de frontend de "Stack confirmado", por el [ADR 0005](0005-frontend-react.md).
+- D2 (Tutor IA como contenedor aparte) y D3 (worker con SQS), por el [ADR 0012](0012-tutor-sincrono-en-el-monolito.md).
+- `SET LOCAL app.tenant_id` pasó a llamarse `app.colegio_id` ([ADR 0004](0004-datos-y-eventos.md)).
 
 ## Contexto
 
@@ -24,14 +29,14 @@ Se adopta un **modular monolith** como estilo arquitectónico inicial, con front
 - Consecuencia: el aislamiento depende de que ninguna consulta evite RLS; se cubre con tests automatizados de fuga entre tenants (QA) y con el atributo de calidad "0 fugas".
 - En configuración (12-Factor): `TENANT_STRATEGY="shared_schema_rls"`.
 
-**D2. Tutor IA: contenedor propio en el C4, con módulo aislado y preparado para extracción.**
+**D2. Tutor IA: contenedor propio en el C4, con módulo aislado y preparado para extracción.** *(Reemplazada por el ADR 0012.)*
 - En el C4 L2 (S04) aparece como "Servicio Tutor IA": el backend lo consulta por HTTP/JSON y él lee apuntes y embeddings de PostgreSQL (pgvector), siempre filtrando por `tenant_id` y `course_id`.
 - En el código vive en su propia carpeta/módulo con interfaz explícita; ningún otro módulo toca sus tablas ni sus prompts. Así se mantiene el monolito modular y la extracción futura sigue siendo barata.
 - El hosting del Tutor IA queda por confirmar en el ADR 0003 (se asume junto al backend).
 - Debe tolerar la caída del proveedor LLM sin bloquear cursos ni evaluaciones (timeout y circuit breaker).
 - Se separa como servicio independiente solo si su latencia o su costo de LLM lo exigen.
 
-**D3. Worker / cola asíncrona: incluido, con AWS SQS (cerrado en S04).**
+**D3. Worker / cola asíncrona: incluido, con AWS SQS (cerrado en S04).** *(Reemplazada por el ADR 0012.)*
 - El C4 L2 actualizado incluye "Worker / cola" en Render: el backend encola tareas por SQS y el worker atiende consultas al LLM y notificaciones sin bloquear la API.
 - Esto reemplaza la postura de la versión anterior de este ADR (worker diferido); la selección de SQS y su justificación están en el ADR 0003.
 - La elección de broker y el catálogo de eventos se profundizan en el ADR 0004.
@@ -77,9 +82,3 @@ Este stack refuerza la decisión de modular monolith: sin un framework SPA ni mi
 ## Autores
 
 Equipo AulaViva (redacción: Tech Lead)
-
-## Próximos pasos
-
-- Ratificar este ADR en la reunión del equipo (lunes o miércoles) y dejar constancia en el PR.
-- D1–D3 ya están reflejadas en el C4 L2, el checklist 12-Factor y el ADR 0003 (S04).
-- Escribir el ADR 0004 (datos y eventos), que hereda estas decisiones.

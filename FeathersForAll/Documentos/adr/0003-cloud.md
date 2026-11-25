@@ -2,7 +2,9 @@
 
 ## Estado
 
-Aceptado — 2026-09-28. Decisión presentada por el equipo en la sesión S04 (deck del equipo); pendiente de ratificar en reunión y de confirmar los puntos abiertos al final.
+Aceptado — 2026-09-28.
+
+Reemplazado por el [ADR 0013](0013-despliegue-real.md). De esta decisión solo se mantiene Vercel para el frontend; Render, SQS, Secrets Manager y CloudWatch no se implementaron.
 
 ## Contexto
 
@@ -40,12 +42,6 @@ El detalle y la justificación por servicio están en [managed-services.md](../c
 
 - **Microservicios:** mayor complejidad operacional para el equipo actual.
 - **Serverless puro:** no es necesario para el MVP y no aporta una ventaja suficiente en esta etapa.
-
-## Puntos abiertos
-
-- Región de Render y AWS (datos de menores): definir y documentar antes del piloto.
-- Hosting del Servicio Tutor IA: el deck lo dibuja como contenedor propio sin indicar plataforma; se asume Render junto al backend hasta confirmar.
-- Cómo se envían los logs de Render a CloudWatch (agente o exportación) para cumplir el factor 11.
 
 ## Fecha
 
