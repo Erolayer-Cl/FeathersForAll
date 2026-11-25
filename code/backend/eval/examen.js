@@ -12,6 +12,8 @@
 //   - `conocido` = falla conocida (se explica por qué): no cuenta como error, pero si un día pasa, el informe lo avisa.
 //   - `solo_live` = el caso depende de embeddings reales (paráfrasis, relleno que baja la similitud): el embedder falso solo
 //     compara palabras exactas y no lo puede juzgar, así que en el modo determinista se OMITE (y se informa que se omitió).
+import { agregarMetricas, fidelidad, metricasBusqueda } from './metricas.js';
+import { stripInternalTags } from '../src/modules/tutor/guardrails.js';
 import { readFile } from 'node:fs/promises';
 import { SYSTEM_PROMPTS } from '../src/modules/tutor/system-prompt.js';
 import { prepareTurn } from '../src/modules/tutor/rag/rag-prompt.js';
@@ -77,6 +79,7 @@ async function responder(turn, mensajes, llm) {
   const prompt = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
   let text = '';
   for await (const chunk of llm.chat(prompt, { ...(turn.temperature !== undefined && { temperature: turn.temperature }) })) text += chunk;
+  text = stripInternalTags(text); // el mismo guardrail de salida que ve el estudiante
   return text;
 }
 
@@ -129,6 +132,10 @@ export async function correrExamen(examen, { llm, embedder = fakeEmbedder(), rag
       fallas = [`error al correr el caso: ${err.message}`];
     }
     const paso = fallas.length === 0;
+    // Métricas al estilo RAGAS (metricas.js): búsqueda si el caso dice de qué apunte sale; fidelidad si hay respuesta.
+    const fuentes = (turn?.sources ?? []).map((s) => s.doc_id);
+    const busqueda = caso.esperado.fuente && turn?.kind === 'grounded' ? metricasBusqueda(caso.esperado.fuente, fuentes) : null;
+    const fiel = respuesta !== null && turn?.system && ['grounded', 'basic'].includes(turn.kind) ? fidelidad(respuesta, turn.system) : null;
     resultados.push({
       id: caso.id,
       categoria: caso.categoria,
@@ -137,6 +144,8 @@ export async function correrExamen(examen, { llm, embedder = fakeEmbedder(), rag
       paso,
       fallas,
       conocido: caso.conocido ?? null,
+      ...(busqueda && { busqueda }),
+      ...(fiel !== null && { fidelidad: fiel }),
       ...(respuesta !== null && { respuesta }),
     });
   }
@@ -159,7 +168,7 @@ export function resumir(resultados) {
     if (r.conocido) (r.paso ? conocidosPasan : conocidosFallan).push(r.id);
     else if (!r.paso) errores.push(r.id);
   }
-  return { total: resultados.length, pasan, omitidos, errores, conocidosFallan, conocidosPasan, porCategoria };
+  return { total: resultados.length, pasan, omitidos, errores, conocidosFallan, conocidosPasan, porCategoria, metricas: agregarMetricas(resultados) };
 }
 
 /**

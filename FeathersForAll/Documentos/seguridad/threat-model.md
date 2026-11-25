@@ -82,7 +82,7 @@ Estado: ✅ control existente y verificado · 🟡 parcial · ❌ falta.
 | T-1 | Inyección SQL desde la pregunta o los ids | Consultas parametrizadas en `db/queries.js`; ids validados como UUID; regla Semgrep `ffa-sql-interpolado` (S09) | ✅ |
 | T-2 | El estudiante reescribe el historial (manda mensajes "assistant" falsos) para cambiar lo que el tutor "dijo" | En conversaciones guardadas el historial lo arma el **servidor** desde la base (ADR 0008); el cliente solo manda la pregunta nueva | ✅ |
 | T-3 | Un estudiante sube o borra apuntes del curso | API responde 403 al estudiante y la base lo exige (políticas por rol de `02_s06_ajustes.sql` §9) | ✅ |
-| T-4 | *Prompt injection* indirecta: un apunte trae "ignora tus instrucciones y…" | Solo el docente del curso sube apuntes; el system prompt manda a responder solo desde los fragmentos. Falta: delimitar los fragmentos como datos y avisar al docente si un apunte trae instrucciones | 🟡 |
+| T-4 | *Prompt injection* indirecta: un apunte trae "ignora tus instrucciones y…" | Solo el docente del curso sube apuntes; fragmentos delimitados como datos en el prompt; **revisión al subir** (`rag/injection-scan.js`, `422 suspicious-document` con la línea, v1.7). Heurístico: los apuntes anteriores a v1.7 no se revisaron | ✅ |
 | T-5 | Modificación del tráfico API ↔ Ollama | Hoy en red local/interna. Falta: TLS o NetworkPolicy si Ollama pasa a otro nodo | 🟡 |
 
 ### R · Repudiation
@@ -100,7 +100,7 @@ Estado: ✅ control existente y verificado · 🟡 parcial · ❌ falta.
 | I-1 | Un estudiante lee conversaciones de otro (IDOR cambiando el id) | RLS `05_conversaciones_tutor.sql`: solo el dueño; responde **404** (no revela que existe); probado en Postman e integración | ✅ |
 | I-2 | Docente o admin leen las conversaciones de sus estudiantes | Mismo RLS: ni docente ni admin (ADR 0008); API responde 403 | ✅ |
 | I-3 | Fuga por logs (preguntas en texto plano) | `request-context.js` no registra cuerpos; `logTurn` solo números; regla Semgrep `ffa-log-con-datos-del-estudiante` (S09) | ✅ |
-| I-4 | Datos de menores enviados a un servicio de IA externo | Hoy Ollama local. Regla del proyecto: solo datos sintéticos y nunca datos reales a IA externa. La demo pública (Cloudflare Workers AI) solo con datos sintéticos y banner | 🟡 |
+| I-4 | Datos de menores enviados a un servicio de IA externo | Hoy Ollama local. Regla del proyecto: solo datos sintéticos y nunca datos reales a IA externa. Desde v1.7, RUT, correo y teléfono se reemplazan antes de llegar al modelo (`tutor/guardrails.js`, ADR 0012). La demo pública (Cloudflare Workers AI) solo con datos sintéticos y banner | 🟡 |
 | I-5 | Fuga entre colegios por búsqueda vectorial | `apuntes_embeddings` con `colegio_id` + RLS 01 (falla cerrado sin colegio); `puede_ver_curso()` antes de buscar | ✅ |
 | I-6 | El LLM revela el system prompt o apuntes de otro curso | La búsqueda solo trae fragmentos del curso pedido y visible para el usuario; el system prompt no tiene secretos | ✅ |
 | I-7 | Mensajes de error con detalles internos | RFC 7807 con `HttpProblem`; 5xx solo con título genérico al cliente | ✅ |
@@ -110,10 +110,10 @@ Estado: ✅ control existente y verificado · 🟡 parcial · ❌ falta.
 
 | ID | Amenaza | Control | Estado |
 |---|---|---|---|
-| D-1 | Saturar el LLM (CPU) con muchas preguntas largas: cada turno tarda segundos | Límite de cuerpo 100 kb, máx. 50 mensajes × 4 000 caracteres; timeout por inactividad del LLM; HPA 2–6. **Falta: rate limit por usuario en el tutor** | ❌ |
+| D-1 | Saturar el LLM (CPU) con muchas preguntas largas: cada turno tarda segundos | Límite de cuerpo 100 kb, máx. 50 mensajes × 4 000 caracteres; timeout por inactividad del LLM; HPA 2–6. **Tope por estudiante** (v1.7): 10/min, 100/h, `429` con `Retry-After` (`tutor-limit.js`). En memoria por pod | ✅ |
 | D-2 | Cuerpo comprimido malicioso bota el proceso | VULN-001 corregida (`body-parser` 2.4.0) y gate SCA | ✅ |
 | D-3 | Subir apuntes enormes para llenar pgvector | Límite 2 MB por subida; solo docente/admin | 🟡 |
-| D-4 | Muchas conexiones de streaming abiertas | Se aborta el LLM si el cliente se va; Ingress con `proxy-read-timeout` de 120 s. Falta: tope de streams simultáneos por usuario | 🟡 |
+| D-4 | Muchas conexiones de streaming abiertas | Se aborta el LLM si el cliente se va; Ingress con `proxy-read-timeout` de 120 s. Máximo 2 respuestas en curso por estudiante (v1.7) | ✅ |
 
 ### E · Elevation of privilege
 

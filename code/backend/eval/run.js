@@ -60,6 +60,10 @@ if (flag('json')) {
   for (const [cat, { total, pasan }] of Object.entries(resumen.porCategoria)) {
     console.log(`  ${cat.padEnd(ancho)}  ${String(pasan).padStart(2)}/${String(total).padEnd(2)} ${pasan === total ? '✔' : '✖'}`);
   }
+  const m = resumen.metricas;
+  const n = (x) => (x === null ? '—' : x.toFixed(2));
+  console.log(`\n  Métricas (estilo RAGAS, ver eval/metricas.js) · búsqueda en ${m.casosBusqueda} casos: acierto@k ${n(m.aciertoK)} · MRR ${n(m.mrr)} · precisión de contexto ${n(m.precisionContexto)}`);
+  console.log(`  Fidelidad de la respuesta al contexto: ${m.casosFidelidad ? `${n(m.fidelidad)} en ${m.casosFidelidad} respuestas` : '— (solo con --live)'}`);
   if (resumen.omitidos.length) console.log(`\n  (${resumen.omitidos.length} casos solo se corren con --live: ${resumen.omitidos.join(', ')})`);
   const malos = resultados.filter((r) => !r.paso);
   if (malos.length) {
@@ -79,7 +83,7 @@ if (flag('json')) {
 }
 
 if (flag('guardar')) {
-  await writeFile(BASELINE_URL, `${JSON.stringify({ modo, guardado: new Date().toISOString().slice(0, 10), casos: aBaseline(resultados) }, null, 2)}\n`);
+  await writeFile(BASELINE_URL, `${JSON.stringify({ modo, guardado: new Date().toISOString().slice(0, 10), metricas: resumen.metricas, casos: aBaseline(resultados) }, null, 2)}\n`);
   if (!flag('json')) console.log(`\nGuardado en eval/${live ? 'baseline-live.json' : 'baseline.json'}.`);
 }
 

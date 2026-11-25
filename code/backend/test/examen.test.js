@@ -107,3 +107,30 @@ describe('comparación con una corrida anterior', () => {
     assert.deepEqual([r.errores, r.conocidosFallan, r.conocidosPasan], [['d'], ['b'], ['c']]);
   });
 });
+
+describe('métricas al estilo RAGAS', async () => {
+  const { metricasBusqueda, fidelidad, agregarMetricas } = await import('../eval/metricas.js');
+
+  test('búsqueda: acierto, MRR y precisión según la posición del apunte esperado', () => {
+    assert.deepEqual(metricasBusqueda('a.md', ['a.md', 'b.md']), { acierto: 1, rr: 1, precision: 0.5 });
+    assert.deepEqual(metricasBusqueda('a.md', ['b.md', 'a.md', 'a.md', 'c.md']), { acierto: 1, rr: 0.5, precision: 0.5 });
+    assert.deepEqual(metricasBusqueda('a.md', ['b.md']), { acierto: 0, rr: 0, precision: 0 });
+  });
+
+  test('fidelidad: 1 si la respuesta repite el apunte; baja si agrega datos que no están', () => {
+    const ctx = 'Una fracción representa partes iguales de un todo. El numerador indica cuántas partes se toman.';
+    assert.equal(fidelidad('Una fracción representa partes iguales de un todo [1]. ¿Me das un ejemplo?', ctx), 1);
+    assert.equal(fidelidad('Las fracciones las inventaron los egipcios antiguos en Mesopotamia.', ctx), 0);
+    assert.equal(fidelidad('El numerador indica cuántas partes tomamos. Napoleón conquistó Europa occidental.', ctx), 0.5);
+    assert.equal(fidelidad('¿Qué quieres saber?', ctx), null);
+  });
+
+  test('el resumen del examen trae las métricas agregadas', async () => {
+    const examen = await cargarExamen();
+    const { resumen } = await correrExamen(examen, { categorias: ['con apuntes'] });
+    assert.ok(resumen.metricas.casosBusqueda >= 5);
+    assert.ok(resumen.metricas.aciertoK >= 0.9, `acierto@k ${resumen.metricas.aciertoK}`);
+    assert.equal(resumen.metricas.fidelidad, null);
+    assert.deepEqual(agregarMetricas([]), { casosBusqueda: 0, aciertoK: null, mrr: null, precisionContexto: null, casosFidelidad: 0, fidelidad: null });
+  });
+});
