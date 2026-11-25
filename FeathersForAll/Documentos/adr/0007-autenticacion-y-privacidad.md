@@ -2,7 +2,9 @@
 
 ## Estado
 
-Propuesto — 2026-10-16. Etapa 1 (rol estudiante). Pendiente de ratificar en la reunión del equipo.
+Aceptado — 2026-10-16.
+
+Reemplazado parcialmente por el [ADR 0015](0015-login-por-correo-y-revocacion.md): el login con RBD para estudiantes y docentes (punto 1), el freno por (RBD, correo) (punto 4) y la falta de revocación de sesión. La privacidad de lectura en la base (puntos 5 a 7) sigue vigente.
 
 ## Contexto
 
@@ -83,5 +85,3 @@ Al revisar la base aparecieron dos problemas:
 ## Autores
 
 Ignacio (DevSecOps), con asistencia de IA (Claude Code), declarada según el Charter.
-
-> Regla del taller: un ADR nunca se edita una vez aceptado. Si cambia la decisión, se marca como "Reemplazado" y se crea uno nuevo.

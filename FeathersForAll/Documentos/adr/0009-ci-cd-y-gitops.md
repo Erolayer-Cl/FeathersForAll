@@ -1,10 +1,8 @@
 # ADR 0009 · CI/CD con GitHub Actions y GitOps pull-based con Argo CD
 
-> La PPT S08 pide este ADR como `0005-gitops-strategy.md`. En este repo el 0005 ya es el del frontend, así que va con el siguiente número.
-
 ## Estado
 
-Propuesto — 2026-10-26. Pendiente de ratificar en la reunión del equipo.
+Aceptado — 2026-10-26.
 
 ## Contexto
 
@@ -62,5 +60,3 @@ Hasta S07, desplegar era manual: `k8s/tools/publicar-imagenes.ps1` construía la
 ## Autores
 
 Ignacio (DevSecOps), con asistencia de IA (Claude Code).
-
-> Regla del taller: un ADR nunca se edita una vez aceptado. Si cambia la decisión, se marca como "Reemplazado" y se crea uno nuevo. Un archivo por ADR en `Documentos/adr/`, numerados: `NNNN-titulo-corto.md`.

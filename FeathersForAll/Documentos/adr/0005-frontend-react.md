@@ -2,7 +2,7 @@
 
 ## Estado
 
-Propuesto — 2026-10-07. Documenta una decisión que ya está en el código (`code/frontend/`). Pendiente de ratificar en la reunión del equipo.
+Aceptado — 2026-10-07. Documenta una decisión que ya estaba en el código (`code/frontend/`).
 
 ## Contexto
 

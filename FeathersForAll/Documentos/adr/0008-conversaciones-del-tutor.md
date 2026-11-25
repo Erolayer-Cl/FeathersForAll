@@ -2,7 +2,7 @@
 
 ## Estado
 
-Propuesto — 2026-10-19. Pendiente de ratificar en la reunión del equipo.
+Aceptado — 2026-10-19.
 
 ## Contexto
 
@@ -61,5 +61,3 @@ Las conversaciones se guardan **en PostgreSQL**, en tablas nuevas (`conversacion
 ## Autores
 
 Ignacio (DevSecOps), con asistencia de IA (Claude Code).
-
-> Regla del taller: un ADR nunca se edita una vez aceptado. Si cambia la decisión, se marca como "Reemplazado" y se crea uno nuevo. Un archivo por ADR en `Documentos/adr/`, numerados: `NNNN-titulo-corto.md`.
