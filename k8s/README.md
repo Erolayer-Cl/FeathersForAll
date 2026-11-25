@@ -32,6 +32,9 @@ localhost:8088 ──▶ ingress-nginx ─────────┼──▶ �
 | `tools/publicar-imagenes.ps1` | Build + push a GHCR + digest en `kustomization.yaml` |
 | `tools/carga.yaml` | Carga sintética para probar el HPA (no se aplica con `-k`) |
 | `tools/sin-firma.yaml` | Pod con una imagen sin firmar, para probar que la policy lo rechaza (S10) |
+| `tools/respaldo-bd.ps1` | Respaldo diario de PostgreSQL, verificado y con rotación ([plan de DR](../FeathersForAll/Documentos/resiliencia/plan-dr.md)) |
+| `tools/restaurar-bd.ps1` | Simulacro de restauración o recuperación real |
+| `tools/sonda.ps1` | Mide disponibilidad y latencia desde fuera durante el [game day](../FeathersForAll/Documentos/resiliencia/game-day.md) |
 
 ## 0. Prerrequisitos (una vez)
 
