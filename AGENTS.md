@@ -275,3 +275,10 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **Apuntes tramposos (T-4):** `rag/injection-scan.js` revisa el texto al subir (`422 suspicious-document`, indica línea/página, no repite la frase ni la guarda en logs). Es heurístico.
 - **PDFs sin frenar a los demás:** `rag/offload.js` (workers con límite de memoria, tiempo y cola; cola llena → `503 busy`). Variables: `PDF_WORKERS`, `PDF_QUEUE`, `PDF_TIMEOUT_MS`, `PDF_WORKER_MEMORY_MB`. El tiempo de proceso no cambia; lo que baja es el bloqueo del hilo principal (medido: 1164→4 ms con 300 páginas).
 - **Examen del tutor:** `code/backend/eval/` (50 preguntas, `npm run eval`; `npm run eval:live` con Ollama). El modo determinista corre en `npm test`. Ver `eval/README.md`.
+
+## IA responsable (ADR 0012)
+
+- Evidencia para la rúbrica en `FeathersForAll/Documentos/ia/` (README con tabla rúbrica → archivo): `model-card.md`, `guardrails.md`, `marco-legal.md`.
+- Guardrails nuevos en `code/backend/src/modules/tutor/guardrails.js`: RUT/correo/teléfono fuera del prompt (`redactMessages`) y etiquetas internas fuera de la respuesta (`createOutputFilter`, también en streaming). Pruebas: `test/guardrails.test.js`.
+- El examen (`eval/`) suma métricas estilo RAGAS (`eval/metricas.js`). **Pendiente:** correr `npm run eval:live -- --guardar` y completar la tabla de la sección 4 de la model card.
+- Si cambia el modelo, el prompt o una ley citada (21.719 tiene postergación en trámite), actualizar la model card y el marco legal.

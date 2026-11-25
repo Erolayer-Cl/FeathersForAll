@@ -1,6 +1,14 @@
 {
   "modo": "determinista",
   "guardado": "2026-11-25",
+  "metricas": {
+    "casosBusqueda": 17,
+    "aciertoK": 1,
+    "mrr": 1,
+    "precisionContexto": 1,
+    "casosFidelidad": 0,
+    "fidelidad": null
+  },
   "casos": {
     "charla-01": true,
     "charla-03": true,

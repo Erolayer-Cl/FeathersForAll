@@ -1,5 +1,6 @@
 import { SYSTEM_PROMPTS } from './system-prompt.js';
 import { prepareTurn } from './rag/rag-prompt.js';
+import { createOutputFilter, redactMessages } from './guardrails.js';
 
 /**
  * Atiende un turno del tutor y responde en streaming (text/plain). Lo usan el chat de desarrollo
@@ -26,9 +27,11 @@ import { prepareTurn } from './rag/rag-prompt.js';
 export async function streamTurn({ req, res, llm, rag, tenantId, courseId, mode, messages, onAnswer }) {
   const t0 = performance.now();
   const elapsed = () => Math.round(performance.now() - t0);
-  const turn = await prepareTurn({ rag, tenantId, courseId, messages, systemPrompt: SYSTEM_PROMPTS[mode] });
+  // Guardrail de entrada: RUT, correos y teléfonos no llegan al modelo (ni a la búsqueda). Se guarda lo que escribió.
+  const { messages: safeMessages, redacted } = redactMessages(messages);
+  const turn = await prepareTurn({ rag, tenantId, courseId, messages: safeMessages, systemPrompt: SYSTEM_PROMPTS[mode] });
   const sources = turn.kind === 'grounded' ? turn.sources : [];
-  const metrics = { rag: turn.kind, best_score: turn.best ?? null, ...turn.timings, prepare_ms: elapsed() };
+  const metrics = { rag: turn.kind, best_score: turn.best ?? null, ...turn.timings, prepare_ms: elapsed(), ...(redacted && { pii_redacted: redacted }) };
   // Solo números y el tipo de turno: nunca el contenido de la pregunta ni de la respuesta (menores de edad).
   const logTurn = (extra) => req.log.info({ ...metrics, ...extra, total_ms: elapsed() }, 'tutor');
 
@@ -61,7 +64,7 @@ export async function streamTurn({ req, res, llm, rag, tenantId, courseId, mode,
   }
 
   const system = turn.kind === 'plain' ? SYSTEM_PROMPTS[mode] : turn.system;
-  const history = turn.kind === 'plain' ? messages : turn.messages;
+  const history = turn.kind === 'plain' ? safeMessages : turn.messages;
   const prompt = [{ role: 'system', content: system }, ...history.map(({ role, content }) => ({ role, content }))];
 
   // Si el cliente cierra la conexión, se corta también la generación en el LLM.
@@ -96,19 +99,21 @@ export async function streamTurn({ req, res, llm, rag, tenantId, courseId, mode,
   res.set('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  // Guardrail de salida: si el modelo repite una etiqueta interna del prompt, no llega al estudiante ni se guarda.
+  const filter = createOutputFilter();
   let text = '';
+  const emit = (piece) => {
+    if (!piece) return;
+    text += piece;
+    res.write(piece);
+  };
   try {
-    if (!first.done) {
-      text += first.value;
-      res.write(first.value);
-    }
-    for await (const chunk of stream) {
-      text += chunk;
-      res.write(chunk);
-    }
+    if (!first.done) emit(filter.push(first.value));
+    for await (const chunk of stream) emit(filter.push(chunk));
+    emit(filter.flush());
     if (text) await save(text);
     res.end();
-    logTurn({ llm: llmStats });
+    logTurn({ llm: llmStats, ...(filter.removed && { tags_removed: filter.removed }) });
   } catch (err) {
     if (!abort.signal.aborted) req.log.warn({ err: err.message }, 'respuesta del LLM interrumpida');
     res.destroy();
