@@ -2,7 +2,7 @@
 
 ## Estado
 
-Propuesto — 2026-11-11
+Aceptado — 2026-11-11
 
 ## Contexto
 
@@ -92,6 +92,4 @@ Cada una entra por PR. Se revisan al cerrar el semestre o si cambia lo que las j
 
 ## Autores
 
-Iván (Tech Lead). Pendiente de revisión del equipo.
-
-> Regla del taller: un ADR nunca se edita una vez aceptado. Si cambia la decisión, se marca como "Reemplazado" y se crea uno nuevo. Un archivo por ADR en `Documentos/adr/`, numerados: `NNNN-titulo-corto.md`.
+Iván (Tech Lead).

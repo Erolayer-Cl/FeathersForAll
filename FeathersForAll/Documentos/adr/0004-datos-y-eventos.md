@@ -2,7 +2,11 @@
 
 ## Estado
 
-Propuesto — 2026-10-07. Pendiente de ratificar en la reunión del equipo y en la presentación del Hito parcial 1 (inicio de S07).
+Aceptado — 2026-10-07.
+
+Reemplazado parcialmente:
+- El broker (SQS), el relay de la outbox en un worker y el tutor asíncrono con `202`, por el [ADR 0013](0013-tutor-sincrono-en-el-monolito.md). Las tablas `outbox_eventos` y `consultas_tutor_ia` siguen en el esquema, sin uso.
+- El login en dos pasos (colegio por RBD, luego usuario por email), por el [ADR 0015](0015-login-por-correo-y-revocacion.md).
 
 ## Contexto
 
@@ -101,13 +105,6 @@ Verificado en PostgreSQL 16 + pgvector: `98_test_s06_ajustes.sql` (52 pruebas, i
 - **MongoDB u otro documental (por ejemplo, exámenes en JSON):** el dominio es relacional (curso → evaluación → pregunta → alternativa) y necesita integridad referencial; se perderían las FKs compuestas y la RLS por tabla.
 - **Kafka o RabbitMQ:** sobredimensionados para el piloto; SQS ya está decidido (ADR 0003).
 - **Email único global:** se prefirió único por colegio (un docente puede trabajar en dos colegios) a cambio del login en dos pasos.
-
-## Decisiones a confirmar
-
-- Dimensión `vector(1024)` si se cambia el modelo de embeddings (hoy bge-m3).
-- Escala de puntaje 0–100 (o nota 1.0–7.0).
-- Plazo de retención de `consultas_tutor_ia` (datos de menores).
-- Almacenamiento de archivos (S3 u otro) en S07.
 
 ## Fecha
 
