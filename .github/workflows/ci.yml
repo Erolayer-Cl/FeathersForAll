@@ -204,11 +204,13 @@ jobs:
           load: true
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
-      - name: Container scan · Trivy (falla con CVE High/Critical que tengan arreglo)
-        run: >-
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.76.1
-          image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress
-          ${{ env.IMAGE }}:${{ github.sha }}
+      - name: Container scan · Trivy (falla con CVE High/Critical que tengan arreglo; respeta las excepciones VEX)
+        run: |
+          vex=()
+          for f in .vex/*.openvex.json; do [ -e "$f" ] && vex+=(--vex "/repo/$f"); done
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/repo:ro" aquasec/trivy:0.76.1 \
+            image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
+            "${vex[@]}" ${{ env.IMAGE }}:${{ github.sha }}
       - name: SBOM CycloneDX de la imagen (S09, lo que de verdad llega a producción)
         run: >-
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/out" aquasec/trivy:0.76.1

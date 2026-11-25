@@ -1,0 +1,16 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/Erolayer-Cl/feathersforall/.vex/2026-001",
+  "author": "Ignacio (DevSecOps)",
+  "timestamp": "2026-11-25T18:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": { "name": "CVE-2026-124851" },
+      "products": [ { "@id": "pkg:deb/debian/libzstd1" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "libzstd1 viene en la imagen base distroless/nodejs22-debian13, pero ningún proceso la carga: el binario oficial de Node trae zstd y OpenSSL estáticos (node_shared_zstd=false) y la imagen no tiene shell ni otros programas. Vence cuando distroless publique libzstd1 1.5.7+dfsg-1+deb13u1 o el 23-02-2027."
+    }
+  ]
+}
