@@ -30,3 +30,11 @@ export class UnreadableDocumentError extends Error {
     this.name = 'UnreadableDocumentError';
   }
 }
+
+/** Hay demasiados archivos esperando que se lean: se pide reintentar en un rato (503). Nada se perdió: no se guardó nada. */
+export class ProcessingBusyError extends Error {
+  constructor(message = 'Hay muchos archivos procesándose en este momento. Inténtalo de nuevo en un minuto.') {
+    super(message);
+    this.name = 'ProcessingBusyError';
+  }
+}

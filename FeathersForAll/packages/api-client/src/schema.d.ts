@@ -516,9 +516,13 @@ export interface paths {
          *     de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
          *     eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
          *
-         *     Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
-         *     que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
-         *     responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+         *     Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. También responde
+         *     `422` (`suspicious-document`) si el texto trae órdenes dirigidas a la IA del tutor («ignora tus reglas», «actúa
+         *     como…», etiquetas que imitan el prompt): el detalle indica la línea o la página, sin repetir la frase, y no se
+         *     guarda nada. Es una revisión por patrones, no una garantía. Los nombres que empiezan con `MINEDUC` están
+         *     reservados para las Bases Curriculares. Si el proveedor de embeddings no responde, o hay demasiados archivos
+         *     procesándose a la vez (`busy`), `503` y no se guarda nada: se puede reintentar. Solo el docente del curso y el
+         *     admin del colegio.
          */
         put: operations["putCourseDocument"];
         post?: never;
@@ -2041,8 +2045,8 @@ export interface operations {
                     "X-Trace-Id": components["headers"]["X-Trace-Id"];
                     /** @description Modo de la conversación (`tutor` o `pruebas`). */
                     "X-Conversation-Mode"?: "tutor" | "pruebas";
-                    /** @description Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes). */
-                    "X-Tutor-Turn"?: "grounded" | "chat" | "no-info" | "no-notes";
+                    /** @description Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `basic` (pregunta básica explicada sin apuntes: un cálculo o un concepto elemental), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes). */
+                    "X-Tutor-Turn"?: "grounded" | "chat" | "basic" | "no-info" | "no-notes";
                     /** @description Solo si `X-Tutor-Turn = grounded`. Arreglo JSON de `TutorSource`, codificado con encodeURIComponent. */
                     "X-Rag-Sources"?: string;
                     [name: string]: unknown;
@@ -2056,6 +2060,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["RateLimited"];
             503: components["responses"]["ServiceUnavailable"];
         };
     };

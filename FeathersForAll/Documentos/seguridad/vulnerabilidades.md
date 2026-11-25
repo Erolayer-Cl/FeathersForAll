@@ -9,6 +9,7 @@ Un hallazgo **High o Critical** bloquea el pipeline hasta que se corrige o se ac
 | [VULN-001](#vuln-001--dos-en-body-parser-con-cuerpos-comprimidos) | `body-parser` 2.3.0 (vía `express` 5.2.1) | CVE-2026-111181 | CWE-248 | 7.5 High | Corregida (26-10-2026) |
 | [VULN-002](#vuln-002--openssl-desactualizado-en-la-imagen-base-de-la-api) | Imagen base API `distroless/nodejs22-debian12` (`libssl3`) | CVE-2026-31789 y 6 más | CWE-787, CWE-416, CWE-476, CWE-125, CWE-825 | 9.8 Critical (máx.) | Corregida (26-10-2026) |
 | [VULN-003](#vuln-003--imagen-base-del-frontend-sin-parches) | Imagen base web `nginx-unprivileged:1.27-alpine` | CVE-2026-31789 y 42 más | CWE-787 (máx.) y otros | 9.8 Critical (máx.) | Corregida (26-10-2026) |
+| [VULN-005](#vuln-005--libzstd1-en-la-imagen-base-de-la-api) | Imagen base API `distroless/nodejs22-debian13` (`libzstd1`) | CVE-2026-124851 | Fuga de información (búfer sin inicializar) | High | Excepción VEX (25-11-2026), vence 23-02-2027 |
 
 ---
 
@@ -147,3 +148,24 @@ Además, `zlib` 1.3.2-r0 (CVE-2026-85091) y `musl`, que ya corregía el `apk upg
 **Por qué mainline y no `apk upgrade`:** el paquete `nginx` de esta imagen viene del repositorio de nginx.org, no del de Alpine, así que `apk upgrade` no lo actualiza. La imagen `1.30.7-alpine` todavía no existe. La línea mainline (1.31) es la que nginx recomienda para uso general y ya trae el arreglo. Se verificó `nginx -t`, `/livez`, la redirección `/portal`, la CSP y el arranque con `--read-only` sobre la nueva base.
 
 **Pendiente:** se puede volver a la línea stable cuando se publique `nginx-unprivileged:1.30.7-alpine`, pero no es necesario.
+
+---
+
+## VULN-005 · libzstd1 en la imagen base de la API
+
+| Campo | Valor |
+|---|---|
+| **Componente** | `gcr.io/distroless/nodejs22-debian13:nonroot` (Debian 13.8), paquete `libzstd1` 1.5.7+dfsg-1 |
+| **Detectada por** | Gate Trivy de CI (`build-and-push (api)`), PR de `feat/tutor-v1.7`, 25-11-2026 |
+| **Arreglo upstream** | `libzstd1` 1.5.7+dfsg-1+deb13u1 (Debian ya lo publicó; la imagen distroless todavía no lo incluye) |
+| **Estado** | Excepción VEX `not_affected` en `.vex/2026-001-libzstd1.openvex.json`, vence el 23-02-2027 |
+| **Responsable** | Ignacio (DevSecOps) |
+
+**CVE-2026-124851** (High): zstd puede devolver contenido de un búfer sin inicializar (fuga de información).
+
+**¿Nos afectaba?** No. No se puede parchar desde nuestro Dockerfile: distroless no tiene `apt`. Además, ningún proceso de la imagen carga la biblioteca:
+
+- El único proceso es `node`. El binario oficial trae zstd y OpenSSL compilados por dentro: `process.config.variables.node_shared_zstd` y `node_shared_openssl` valen `false`, y `ldd` solo muestra libc, libm, libdl, libpthread y libgcc_s.
+- La imagen no tiene shell ni otros programas que puedan cargar `libzstd.so.1`.
+
+**Qué hacer después:** cuando distroless publique la imagen con el parche, Trivy deja de reportarlo. En ese momento se borra la excepción. Si al 23-02-2027 sigue igual, se revisa de nuevo.

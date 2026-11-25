@@ -97,6 +97,9 @@ export function tutorErrorText(error) {
     case 413:
     case 415:
       return error.message;
+    case 429:
+      // Tope de preguntas por estudiante: el servidor ya explica cuánto esperar ("Vuelve a intentarlo en N segundos").
+      return error.message || 'Hiciste muchas preguntas seguidas. Espera un momento y vuelve a intentarlo.';
     default:
       return 'No pude responder. Revisa tu conexión e inténtalo de nuevo.';
   }
@@ -125,4 +128,15 @@ const DIA = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short' })
 export function shortDate(iso, now = new Date()) {
   const d = new Date(iso);
   return d.toDateString() === now.toDateString() ? HORA.format(d) : DIA.format(d);
+}
+
+/**
+ * Quita las citas [1], [2, 3] del texto del tutor (también una a medio llegar al final del streaming, como "[1").
+ * @param {string} text
+ */
+export function sinCitas(text) {
+  return text
+    .replace(/[ \t]*\[\d+(?:\s*,\s*\d+)*\]/g, '')
+    .replace(/[ \t]*\[\d*(?:\s*,\s*\d*)*$/, '')
+    .replace(/ +([.,;:?!])/g, '$1');
 }

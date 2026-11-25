@@ -10,7 +10,7 @@ import { useSession } from '../../session/useSession.js';
 import { useTutorChat } from '../../hooks/useTutorChat.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { usePortalRoute } from '../../router/usePortalRoute.js';
-import { activeConversationId, chooseConversation, pickCourse, shortDate } from '../../utils/tutorChat.js';
+import { activeConversationId, chooseConversation, pickCourse, shortDate, sinCitas } from '../../utils/tutorChat.js';
 import styles from './TutorPage.module.css';
 
 // Modos del backend (src/modules/tutor/system-prompt.js): el prompt vive en el servidor, aquí solo se elige.
@@ -102,7 +102,7 @@ function Historial({ courseId, version, activeId, onOpen, onDeleted }) {
 
 /** Conversación con el tutor; el ramo se elige con la flecha junto a donde se escribe (cambiarlo empieza otra conversación). */
 function TutorChat({ ramo, ramos, mode, conversationId, onPickCourse, onSaved, onNew }) {
-  const { messages, pendingId, busy, loading, typing, send, reset } = useTutorChat({
+  const { messages, busy, loading, typing, send, reset } = useTutorChat({
     courseId: ramo.course_id,
     mode,
     conversationId,
@@ -171,10 +171,7 @@ function TutorChat({ ramo, ramos, mode, conversationId, onPickCourse, onSaved, o
               <div key={m.id} className={styles.aiRow}>
                 <PortalLogo size={34} className={styles.avatar} />
                 <div className={`${styles.msg} ${m.role === 'error' ? styles.error : ''}`} role={m.role === 'error' ? 'alert' : undefined}>
-                  {m.text}
-                  {m.id !== pendingId && m.sources?.length > 0 && (
-                    <small className={styles.src}>Fuente · {m.sources.map((s) => s.doc_id).join(', ')}</small>
-                  )}
+                  {m.role === 'ai' ? sinCitas(m.text) : m.text}
                 </div>
               </div>
             ),

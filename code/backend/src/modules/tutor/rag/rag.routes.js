@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import { HttpProblem } from '../../../platform/problem.js';
-import { CourseNotFoundError, EmbeddingDimensionError, RagForbiddenError, UnreadableDocumentError } from './errors.js';
+import { assertCleanDocument } from './injection-scan.js';
+import { CourseNotFoundError, EmbeddingDimensionError, ProcessingBusyError, RagForbiddenError, UnreadableDocumentError } from './errors.js';
 
 export const COURSE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,6 +13,7 @@ export function toRagProblem(err) {
   if (err instanceof CourseNotFoundError) return new HttpProblem(404, 'No encontrado', 'El curso no existe en este colegio', 'not-found');
   if (err instanceof RagForbiddenError) return new HttpProblem(403, 'Prohibido', 'No puedes gestionar los apuntes de este curso', 'forbidden');
   if (err instanceof EmbeddingDimensionError) return new HttpProblem(503, 'Configuración inválida', err.message);
+  if (err instanceof ProcessingBusyError) return new HttpProblem(503, 'Servidor ocupado', err.message, 'busy');
   if (err instanceof UnreadableDocumentError) return new HttpProblem(422, 'Archivo ilegible', err.message);
   if (err instanceof RangeError) return new HttpProblem(422, 'Documento inválido', err.message);
   return err;
@@ -70,6 +72,7 @@ export function createRagRouter({ rag, tenantId }) {
       throw new HttpProblem(422, 'Documento inválido', `"text" debe ser texto de 1 a ${MAX_TEXT} caracteres`);
     }
 
+    assertCleanDocument({ text }, req);
     try {
       res.status(201).json(await rag.ingest({ ...ref, docId: name.trim(), text, actor: actorOf(req) }));
     } catch (err) {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  sinCitas,
   activeConversationId,
   chooseConversation,
   fromSavedMessages,
@@ -76,6 +77,8 @@ describe('tutorErrorText', () => {
     expect(tutorErrorText({ status: 503 })).toMatch(/no está disponible/);
     expect(tutorErrorText({ status: 404 })).toMatch(/flecha/);
     expect(tutorErrorText({ status: 400, message: '"messages" debe ser un arreglo' })).toBe('"messages" debe ser un arreglo');
+    expect(tutorErrorText({ status: 429, message: 'Hiciste muchas preguntas seguidas. Vuelve a intentarlo en 20 segundos.' })).toMatch(/20 segundos/);
+    expect(tutorErrorText({ status: 429 })).toMatch(/muchas preguntas/);
     expect(tutorErrorText(new TypeError('Failed to fetch'))).toMatch(/conexión/);
     expect(tutorErrorText({ status: 500, message: 'stack…' })).not.toMatch(/stack/);
   });
@@ -153,5 +156,20 @@ describe('shortDate', () => {
     const texto = shortDate(new Date(2026, 9, 18, 23, 59).toISOString(), now);
     expect(texto).toMatch(/^18/);
     expect(texto).toMatch(/oct/i);
+  });
+});
+
+describe('sinCitas', () => {
+  test('quita las citas y deja la puntuación en su lugar', () => {
+    expect(sinCitas('9 ÷ 3 = 3. [1] ¿Qué obtienes?')).toBe('9 ÷ 3 = 3. ¿Qué obtienes?');
+    expect(sinCitas('Es el producto [1].')).toBe('Es el producto.');
+    expect(sinCitas('Dato [1, 2] y otro [3]')).toBe('Dato y otro');
+  });
+  test('oculta una cita que todavía está llegando', () => {
+    expect(sinCitas('Es el producto [')).toBe('Es el producto');
+    expect(sinCitas('Es el producto [1')).toBe('Es el producto');
+  });
+  test('no toca corchetes que no son citas', () => {
+    expect(sinCitas('El intervalo [a, b]')).toBe('El intervalo [a, b]');
   });
 });

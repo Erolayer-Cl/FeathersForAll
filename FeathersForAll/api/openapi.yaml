@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FeathersForAll API
-  version: 1.5.0
+  version: 1.7.0
   summary: API pública del monolito modular de FeathersForAll.
   description: |
     Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
@@ -31,6 +31,16 @@ info:
     (`generateAssessment`, a partir de un tema y de los apuntes del curso) o ambas: la IA solo **propone**, no guarda
     nada; el docente revisa, edita y guarda con `createAssessment`, y puede seguir editando el borrador
     (`updateAssessment`) hasta publicarlo.
+    **Nociones básicas (v1.6):** el tutor responde sin apuntes las preguntas elementales (un cálculo como `1+1` o un
+    concepto de enseñanza básica como «¿qué es una fracción?»). Lo nuevo es el valor `basic` de la cabecera
+    `X-Tutor-Turn`: la respuesta no sale de los apuntes del curso (no trae `X-Rag-Sources`). Los apuntes del docente
+    siguen siendo la fuente principal: si cubren la pregunta, el turno es `grounded`.
+    **Tope de preguntas y apuntes más seguros (v1.7):** cada estudiante tiene un tope de preguntas al tutor (por defecto
+    10 por minuto, 100 por hora y 2 en curso a la vez); al pasarlo, `sendTutorMessage` responde `429` con `Retry-After`.
+    Al subir un apunte, el servidor revisa que no traiga órdenes dirigidas a la IA («ignora tus reglas…»): si las trae
+    responde `422` (`suspicious-document`) con la línea o página, sin repetir la frase, y no guarda nada. Si hay demasiados
+    archivos procesándose a la vez, `putCourseDocument` responde `503` (`busy`) y conviene reintentar. Solo se agregan
+    respuestas posibles: ningún cambio rompe a los clientes existentes.
     El tutor asíncrono (`tutor-questions`) queda **deprecado**: lo reemplazan las conversaciones guardadas.
 
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
@@ -915,8 +925,8 @@ paths:
               description: Modo de la conversación (`tutor` o `pruebas`).
               schema: { type: string, enum: [tutor, pruebas] }
             X-Tutor-Turn:
-              description: "Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes)."
-              schema: { type: string, enum: [grounded, chat, no-info, no-notes] }
+              description: "Cómo se respondió: `grounded` (con apuntes), `chat` (charla), `basic` (pregunta básica explicada sin apuntes: un cálculo o un concepto elemental), `no-info` (los apuntes no lo cubren) o `no-notes` (el curso aún no tiene apuntes)."
+              schema: { type: string, enum: [grounded, chat, basic, no-info, no-notes] }
             X-Rag-Sources:
               description: Solo si `X-Tutor-Turn = grounded`. Arreglo JSON de `TutorSource`, codificado con encodeURIComponent.
               schema: { type: string }
@@ -932,6 +942,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
   /courses/{courseId}/documents:
@@ -973,9 +985,13 @@ paths:
         de responder (un PDF largo puede tardar minutos). Si ya existe un apunte con ese nombre, se reemplaza: por
         eso es `PUT` y no necesita `Idempotency-Key` (repetirlo deja el mismo resultado).
 
-        Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. Los nombres
-        que empiezan con `MINEDUC` están reservados para las Bases Curriculares. Si el proveedor de embeddings no
-        responde, `503` y no se guarda nada. Solo el docente del curso y el admin del colegio.
+        Un PDF escaneado (sin texto seleccionable), dañado o protegido con contraseña responde `422`. También responde
+        `422` (`suspicious-document`) si el texto trae órdenes dirigidas a la IA del tutor («ignora tus reglas», «actúa
+        como…», etiquetas que imitan el prompt): el detalle indica la línea o la página, sin repetir la frase, y no se
+        guarda nada. Es una revisión por patrones, no una garantía. Los nombres que empiezan con `MINEDUC` están
+        reservados para las Bases Curriculares. Si el proveedor de embeddings no responde, o hay demasiados archivos
+        procesándose a la vez (`busy`), `503` y no se guarda nada: se puede reintentar. Solo el docente del curso y el
+        admin del colegio.
       operationId: putCourseDocument
       parameters:
         - $ref: '#/components/parameters/CourseId'

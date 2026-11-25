@@ -39,6 +39,8 @@ const LEXICAL_BONUS = 0.03;
  * @param {'curricular' | 'always' | 'off'} [deps.referenceMode]  cuándo se consultan las Bases del Mineduc además de los
  *   apuntes: solo si preguntan por el currículum (por defecto), siempre, o nunca
  * @param {{maxChars?: number, overlapChars?: number}} [deps.chunk]
+ * @param {(pages: string[], options: object) => string[] | Promise<string[]>} [deps.chunkPagesFn]  cómo se trocean las páginas de un
+ *   PDF. Por defecto en el mismo hilo; en producción (create-rag.js) se manda a un worker para no frenar la API con PDFs grandes.
  */
 export function createRagService({
   embedder,
@@ -48,6 +50,7 @@ export function createRagService({
   strongScore = minScore + STRONG_MARGIN,
   referenceMode = 'curricular',
   chunk = {},
+  chunkPagesFn = chunkPages,
 }) {
   async function embedAll(texts, onProgress) {
     const out = [];
@@ -104,7 +107,7 @@ export function createRagService({
    * @param {{text?: string, pages?: string[], title?: string, pageOffset?: number, onProgress?: (done: number, total: number) => void}} doc
    */
   async function prepare({ text, pages, title, pageOffset, onProgress }) {
-    const pieces = pages ? chunkPages(pages, { title, ...chunk, ...(pageOffset && { pageOffset }) }) : chunkMarkdown(text ?? '', { title, ...chunk });
+    const pieces = pages ? await chunkPagesFn(pages, { title, ...chunk, ...(pageOffset && { pageOffset }) }) : chunkMarkdown(text ?? '', { title, ...chunk });
     if (pieces.length === 0) throw new RangeError('El documento no tiene texto');
     const embeddings = await embedAll(pieces, onProgress);
     return {

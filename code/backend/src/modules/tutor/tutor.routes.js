@@ -3,6 +3,7 @@ import { MODES } from './system-prompt.js';
 import { HttpProblem } from '../../platform/problem.js';
 import { COURSE_ID_PATTERN, UUID_PATTERN } from './rag/rag.routes.js';
 import { streamTurn } from './turn.js';
+import { takeTutorSlot } from './tutor-limit.js';
 
 export const MAX_MESSAGES = 50;
 export const MAX_CONTENT_LENGTH = 4000;
@@ -40,7 +41,7 @@ function validateBody(body, coursePattern) {
  * (estudiante matriculado, docente del curso o admin). Sin token se usa `tenantId` de la config (solo desarrollo).
  * El cliente nunca elige el colegio.
  */
-export function createTutorRouter({ llm, rag, tenantId = 'dev', defaultCourseId }) {
+export function createTutorRouter({ llm, rag, tenantId = 'dev', defaultCourseId, tutorLimiter }) {
   const router = Router();
   const coursePattern = rag?.backend === 'postgres' ? UUID_PATTERN : COURSE_ID_PATTERN;
 
@@ -51,6 +52,9 @@ export function createTutorRouter({ llm, rag, tenantId = 'dev', defaultCourseId 
     const mode = req.body.mode ?? 'tutor';
     const tenant = req.user?.colegioId ?? tenantId;
     const courseId = req.body.course_id ?? defaultCourseId;
+
+    // Mismo tope por usuario que las conversaciones guardadas (sin token, por IP). Va antes de consultar la base.
+    takeTutorSlot(tutorLimiter, req, res);
 
     if (rag && courseId && req.user && !(await rag.canUseCourse({ tenantId: tenant, courseId, user: req.user }))) {
       // 404 y no 403: no se revela si el curso existe.

@@ -1,9 +1,13 @@
 # `.vex/` — excepciones de vulnerabilidades (VEX)
 
 Aquí van los documentos **OpenVEX** (`*.openvex.json`) con los que el equipo declara que un CVE **no nos afecta**.
-El job `sca` de `.github/workflows/security.yml` se los pasa a Trivy (`--vex`) y Trivy deja de bloquear por ese CVE.
+El job `sca` de `.github/workflows/security.yml` y el escaneo de imágenes de `ci.yml` (`build-and-push`) se los pasan a Trivy (`--vex`) y Trivy deja de bloquear por ese CVE.
 
-Hoy la carpeta no tiene excepciones: el primer escaneo no las necesitó.
+Excepciones vigentes:
+
+| Archivo | CVE | Paquete | Vence |
+|---|---|---|---|
+| `2026-001-libzstd1.openvex.json` | CVE-2026-124851 | `libzstd1` de la imagen base de la API ([VULN-005](../FeathersForAll/Documentos/seguridad/vulnerabilidades.md#vuln-005--libzstd1-en-la-imagen-base-de-la-api)) | Cuando distroless traiga el parche, o 23-02-2027 |
 
 **Proceso completo** (cuándo se acepta una excepción, quién la aprueba y SLA): [`Documentos/seguridad/triage-y-excepciones.md`](../FeathersForAll/Documentos/seguridad/triage-y-excepciones.md).
 
