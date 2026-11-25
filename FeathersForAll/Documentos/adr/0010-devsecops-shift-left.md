@@ -2,7 +2,7 @@
 
 ## Estado
 
-Propuesto — 2026-11-06
+Aceptado — 2026-11-06
 
 ## Contexto
 
@@ -63,6 +63,4 @@ Detalle:
 
 ## Autores
 
-Ignacio (DevSecOps), con asistencia de IA. Pendiente de revisión del equipo.
-
-> Regla del taller: un ADR nunca se edita una vez aceptado. Si cambia la decisión, se marca como "Reemplazado" y se crea uno nuevo. Un archivo por ADR en `Documentos/adr/`, numerados: `NNNN-titulo-corto.md`.
+Ignacio (DevSecOps), con asistencia de IA.
