@@ -180,6 +180,17 @@ cosign verify ghcr.io/erolayer-cl/feathersforall-api@sha256:<digest> \
 
 ![kubectl get all -n feathersforall](FeathersForAll/Documentos/infra/kubectl-get-all.png)
 
+### Resiliencia y FinOps (S18)
+
+| Pieza | Dónde | Resumen |
+|---|---|---|
+| SLOs | [`resiliencia/slos.md`](FeathersForAll/Documentos/resiliencia/slos.md) | 99,5 % en horario escolar para la API y el login, 99 % para el tutor, presupuesto de error y política. SLI desde los logs: `code/backend/scripts/sli.js` |
+| Plan de DR | [`resiliencia/plan-dr.md`](FeathersForAll/Documentos/resiliencia/plan-dr.md) | RTO/RPO por escenario, respaldo diario verificado (`k8s/tools/respaldo-bd.ps1`) y restauración (`restaurar-bd.ps1`) |
+| Game day | [`resiliencia/game-day.md`](FeathersForAll/Documentos/resiliencia/game-day.md) | 6 experimentos con hipótesis y sonda externa (`k8s/tools/sonda.ps1`) |
+| Runbook | [`resiliencia/runbook.md`](FeathersForAll/Documentos/resiliencia/runbook.md) | Qué hacer ante cada falla conocida |
+| Post-mortems | [`resiliencia/postmortems/`](FeathersForAll/Documentos/resiliencia/postmortems/) | CI bloqueado por un CVE de la imagen base (25-11-2026) y plantilla |
+| FinOps | [`finops/costos.md`](FeathersForAll/Documentos/finops/costos.md) | Costo actual, piloto en AWS (~172 a ~591 USD/mes según el escenario), API vs GPU para el LLM, palancas y costo por colegio |
+
 ### Datos (S06)
 
 Esquema en `code/backend/db/`: `01_schema.sql` (base del equipo, ver `CAMBIOS_SCHEMA.md`) + `02_s06_ajustes.sql` (tutor asíncrono, periodo, retroalimentación por pregunta, outbox, idempotencia, login por RBD, embeddings de 1024 para bge-m3 y permisos por rol). Requiere PostgreSQL 16 con las extensiones `citext` y `vector` (pgvector).
