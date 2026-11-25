@@ -8,8 +8,10 @@ import { prepareTurn } from './rag/rag-prompt.js';
  * Cómo responde (ver prepareTurn en rag/rag-prompt.js):
  *  - charla (saludo, gracias, "¿quién eres?", "estoy nervioso"…) → conversa con el LLM, sin contenidos.
  *  - pregunta de materia con apuntes relevantes → LLM anclado SOLO a esos apuntes, con fuentes [n].
- *  - pregunta de materia sin apuntes relevantes → "No encuentro eso…" fijo, SIN llamar al LLM (no inventa).
- *  - curso sin apuntes → aviso fijo, SIN llamar al LLM.
+ *  - pregunta BÁSICA que los apuntes no cubren (un cálculo como "1+1" o un concepto como "¿qué es una fracción?") →
+ *    el LLM la explica con la calculadora exacta o el glosario básico; sin fuentes y aclarando que es una idea general.
+ *  - pregunta de materia sin apuntes relevantes (y no básica) → "No encuentro eso…" fijo, SIN llamar al LLM (no inventa).
+ *  - curso sin apuntes (y pregunta no básica) → aviso fijo, SIN llamar al LLM.
  *
  * Cabeceras: X-Tutor-Turn (tipo de turno), X-Rag-Grounded y X-Rag-Sources (fuentes, JSON en URI).
  *

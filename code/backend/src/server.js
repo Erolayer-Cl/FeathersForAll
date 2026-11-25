@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { createOllamaClient } from './modules/tutor/llm-client.js';
 import { createDb } from './platform/db.js';
 import { createRag, ragConfigFromEnv } from './modules/tutor/rag/create-rag.js';
+import { tutorLimiterFromEnv } from './platform/rate-limiter.js';
 
 const production = process.env.NODE_ENV === 'production';
 // "true"/"false" explícito gana; si no viene, se usa el valor por defecto del ambiente.
@@ -55,6 +56,8 @@ const server = createApp({
   jwtSecret: config.jwtSecret,
   jwtTtlSeconds: config.jwtTtlSeconds,
   trustProxy: config.trustProxy,
+  // Tope de preguntas por estudiante (TUTOR_RATE_PER_MIN, TUTOR_RATE_PER_HOUR, TUTOR_MAX_CONCURRENT; 0 = sin ese tope).
+  tutorLimiter: tutorLimiterFromEnv(),
   rag,
   tenantId: ragConfig.tenantId,
   defaultCourseId: ragConfig.defaultCourseId,

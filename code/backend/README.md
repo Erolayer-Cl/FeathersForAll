@@ -119,18 +119,29 @@ TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm test
  mensaje del estudiante
    ├─ charla ("hola", "gracias", "¿quién eres?", "estoy nervioso por la prueba")
    │     → el LLM conversa en 1–3 frases, SIN contenidos de materia            X-Tutor-Turn: chat
-   ├─ el curso no tiene apuntes → aviso fijo, sin LLM                          X-Tutor-Turn: no-notes
+   ├─ el curso no tiene apuntes → ¿pregunta básica? sí: la explica (abajo)      X-Tutor-Turn: basic
+   │                              no: aviso fijo, sin LLM                       X-Tutor-Turn: no-notes
    └─ pregunta de materia → bge-m3 → top-K fragmentos del curso (HNSW, coseno)
-         ├─ ninguno ≥ RAG_MIN_SCORE → "No encuentro eso en los apuntes…", sin LLM   X-Tutor-Turn: no-info
+         ├─ ninguno ≥ RAG_MIN_SCORE → ¿pregunta básica? sí: la explica           X-Tutor-Turn: basic
+         │                            no: "No encuentro eso en los apuntes…", sin LLM   X-Tutor-Turn: no-info
          └─ sí → prompt + fragmentos numerados → qwen2.5:3b → respuesta con citas [1]   X-Tutor-Turn: grounded
 ```
 
 - **Coincide con el curso:** solo se buscan fragmentos de ese curso; el LLM recibe la orden de usar solo esos apuntes.
-- **No inventa:** sin apuntes relevantes la respuesta es un texto fijo; el LLM ni se llama. La charla tiene prohibido explicar contenidos.
+- **No inventa:** sin apuntes relevantes la respuesta es un texto fijo; el LLM ni se llama, salvo las nociones básicas (siguiente punto). La charla tiene prohibido explicar contenidos.
+- **Nociones básicas sin apuntes** (`rag/basics.js`): el tutor no sabe nada por su cuenta, pero tiene dos fuentes acotadas:
+  - *Calculadora exacta* (`rag/arithmetic.js`): `1+1`, `10x10`, `3/4 + 1/2`, `(2+3)*4`… los calcula el código (fracciones exactas, sin `eval`) y el LLM solo explica el resultado ya verificado. Si además hay apuntes que cubren la pregunta, el resultado verificado se agrega al prompt de los apuntes.
+  - *Glosario curado* (`rag/basics-glossary.json`, ~60 conceptos de Matemática, Lenguaje, Ciencias e Historia y Geografía): definiciones cortas escritas por el equipo. Solo se usa si TODAS las palabras importantes de la pregunta están en el glosario («¿qué es una fracción?» sí; «¿cómo se suman fracciones con distinto denominador?» no: eso es del curso y va a los apuntes). Las preguntas «cómo…», «por qué…», «cuándo…» nunca son básicas.
+  - Los apuntes del docente siguen mandando: si cubren la pregunta, el turno es `grounded`. La respuesta `basic` no trae fuentes y aclara que es una idea general. Para agregar un concepto basta una entrada nueva en el JSON (`materia`, `termino`, `alias`, `definicion`, `ejemplo`) y correr `npm test`.
 - **Cada colegio tiene lo suyo:** el colegio sale del JWT (`tenant_id`) y la base filtra con RLS; otro colegio ve 0 filas.
 - **Solo el docente del curso o el admin suben apuntes:** la ruta da 403 al estudiante y, aunque la API fallara, la base lo rechaza (políticas por rol de `02_s06_ajustes.sql` §9).
 - La charla se detecta con reglas fijas (`isSmallTalk` en `rag-prompt.js`), no con el LLM: "hola" es charla; "hola, ¿qué es una fracción?" va a los apuntes.
 - En los logs solo queda el tipo de turno y el puntaje, nunca el texto de la pregunta (menores de edad).
+- **Tope por estudiante:** 10 preguntas por minuto, 100 por hora y 2 a la vez (`TUTOR_RATE_PER_MIN`, `TUTOR_RATE_PER_HOUR`, `TUTOR_MAX_CONCURRENT`); al pasarlo responde `429` con `Retry-After`. Vive en la memoria de cada pod.
+- **Glosario por asignatura:** un curso de Lenguaje no recibe definiciones de Ciencias; se usa la asignatura del curso.
+- **Apuntes sospechosos:** al subir, se revisa que no traigan órdenes a la IA («ignora tus reglas…»); si las traen, `422` con la línea o página y no se guarda. Es una revisión por patrones, no una garantía.
+- **PDFs grandes:** se leen en worker threads (`PDF_WORKERS`, `PDF_QUEUE`, `PDF_TIMEOUT_MS`, `PDF_WORKER_MEMORY_MB`); si la cola se llena, `503`.
+- **Examen del tutor:** `npm run eval` corre 50 preguntas con respuesta esperada (sin Ollama ni base) y compara con `eval/baseline.json`; `npm run eval:live` lo hace con el modelo real. Ver `eval/README.md`.
 
 ### Probarlo (con `ollama serve` corriendo)
 

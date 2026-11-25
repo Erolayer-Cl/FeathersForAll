@@ -352,11 +352,24 @@ describe('retrieve: las Bases del Mineduc solo cuentan para preguntas curricular
 });
 
 describe('prepareTurn: los casos de las capturas', () => {
-  test('"1+1" con apuntes de fracciones y las Bases cargadas → "no encuentro eso", no un objetivo de aprendizaje', async () => {
+  test('"1+1" con apuntes de fracciones y las Bases cargadas → lo calcula el código, no responde un objetivo de aprendizaje', async () => {
     const rag = makeRag();
     await rag.ingest({ ...A, docId: 'fracciones.md', text: FRACCIONES });
     await rag.ingest({ ...A, docId: B1_6, text: OBJETIVOS });
-    for (const q of ['1+1', '10x10', 'cuanto es 10x10']) {
+    for (const [q, calculo] of [['1+1', '1 + 1 = 2'], ['10x10', '10 × 10 = 100'], ['cuanto es 10x10', '10 × 10 = 100']]) {
+      const turn = await ask(rag, q);
+      assert.equal(turn.kind, 'basic', q);
+      assert.ok(turn.system.includes(`<calculo>\n${calculo}\n</calculo>`), q);
+      assert.ok(!turn.system.includes('Sumar números hasta 20'), 'no se cuela un objetivo de las Bases');
+      assert.deepEqual(turn.sources ?? [], []);
+    }
+  });
+
+  test('una pregunta que no es básica ni está en los apuntes sigue sin inventarse', async () => {
+    const rag = makeRag();
+    await rag.ingest({ ...A, docId: 'fracciones.md', text: FRACCIONES });
+    await rag.ingest({ ...A, docId: B1_6, text: OBJETIVOS });
+    for (const q of ['capital de Francia', '¿cuándo fue la batalla de Rancagua?', 'resuelve la ecuación 3x + 5 = 20 paso a paso']) {
       const turn = await ask(rag, q);
       assert.equal(turn.kind, 'no-info', q);
       assert.equal(turn.reply, NO_INFO_REPLY);
@@ -374,10 +387,14 @@ describe('prepareTurn: los casos de las capturas', () => {
     assert.ok(!turn.system.includes('Sumar números hasta 20'));
   });
 
-  test('solo las Bases cargadas y una pregunta de contenido → "tu docente aún no ha subido apuntes"', async () => {
+  test('solo las Bases cargadas: lo básico se responde; el contenido del curso pide apuntes al docente', async () => {
     const rag = makeRag();
     await rag.ingest({ ...A, docId: B7_2M, text: OBJETIVOS });
-    for (const q of ['1+1', 'cómo se suman fracciones']) {
+    const basic = await ask(rag, '1+1');
+    assert.equal(basic.kind, 'basic');
+    assert.match(basic.system, /el curso aún no tiene/, 'avisa que aún no hay apuntes');
+    assert.match(basic.system, /cuando su docente suba apuntes/);
+    for (const q of ['cómo se suman fracciones', '¿cómo se suman fracciones con distinto denominador?']) {
       const turn = await ask(rag, q);
       assert.equal(turn.kind, 'no-notes', q);
       assert.equal(turn.reply, NO_NOTES_REPLY);

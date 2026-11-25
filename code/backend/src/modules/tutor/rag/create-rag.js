@@ -2,6 +2,7 @@ import { createOllamaEmbedder } from '../embeddings-client.js';
 import { createPgVectorStore } from './pg-vector-store.js';
 import { createRagService } from './rag-service.js';
 import { createVectorStore } from './vector-store.js';
+import { sharedOffloader } from './offload.js';
 
 // Datos de db/90_seed_demo.sql: Colegio Demo A y el curso Matemáticas 7°A (docente Ana Rojas).
 export const DEMO_TENANT_ID = '11111111-1111-1111-1111-111111111111';
@@ -51,6 +52,8 @@ export async function createRag(config, { db } = {}) {
     ...(config.strongScore !== undefined && { strongScore: config.strongScore }),
     referenceMode: config.referenceMode,
     chunk: { maxChars: config.chunkChars, overlapChars: Math.round(config.chunkChars * 0.15) },
+    // Los PDF se trocean en un worker (como su lectura): con 1000 páginas son ~0,3 s que no deben frenar a los demás.
+    chunkPagesFn: (pages, options) => sharedOffloader().run('chunk-pages', { pages, options }),
   });
   return { ...service, backend: db ? 'postgres' : 'archivo' };
 }

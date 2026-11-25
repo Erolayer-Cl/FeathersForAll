@@ -20,6 +20,8 @@
     "tutor:purgar": "node --env-file-if-exists=.env src/jobs/purgar-conversaciones.js",
     "hash:password": "node scripts/hash-password.js",
     "test:postman": "npx --yes newman@6 run requests/postman/FeathersForAll.postman_collection.json -e requests/postman/FeathersForAll.local.postman_environment.json",
+    "eval": "node --env-file-if-exists=.env eval/run.js",
+    "eval:live": "node --env-file-if-exists=.env eval/run.js --live",
     "ingest:mineduc": "node --env-file-if-exists=.env scripts/ingest-mineduc.js"
   },
   "dependencies": {

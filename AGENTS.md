@@ -95,6 +95,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **S09 (DevSecOps I):** preparada el 06-11-2026 en la rama `feat/s09-devsecops` (detalle abajo). Su PPT ya está en `models.md`.
 - **S10 (DevSecOps II):** preparada el 11-11-2026 sobre la rama de la S09 (detalle abajo). Su PPT ya está en `models.md`.
 - **RAG v1.0 (PR #16, rama `rag-V1.0`):** revisado y corregido el 14-11-2026 (detalle abajo). Falta la decisión del equipo sobre el Mineduc antes de mergear.
+- **Nociones básicas del tutor (contrato v1.6):** el tutor responde sin apuntes los cálculos (`1+1`, `3/4 + 1/2`, con calculadora exacta) y los conceptos elementales del glosario (`rag/basics-glossary.json`), con el nuevo turno `X-Tutor-Turn: basic`. Los apuntes del docente siguen mandando y lo que no es básico sigue sin inventarse (detalle en `code/backend/README.md`). Falta probarlo con el LLM real (`qwen2.5:3b`) y que el equipo revise el glosario.
 - **Ciclo mínimo H1, H2, H4:** hecho el 14-11-2026 sobre la misma rama (detalle abajo): el docente crea curso, matricula y crea y publica evaluaciones; el estudiante las rinde y ve su nota.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
@@ -237,8 +238,8 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 | Auditoría | Sin registro de quién subió apuntes, publicó o cambió una exigencia (R-1 del threat model) | Tabla de auditoría escrita por la API |
 | Métricas | El NFR promete 99,5 % y p95 < 500 ms, pero no se mide | Endpoint de métricas y paneles |
 | Migraciones | El esquema son archivos SQL aplicados en orden (`01`–`06`) | Herramienta de migraciones antes de tener datos reales |
-| PDF y hilo principal | Un PDF grande frena a los demás (D-1) | Worker thread o cola |
-| Búsqueda por texto | `to_tsvector` fila por fila, sin índice GIN | Índice GIN |
+| Tope del tutor por pod | El límite de preguntas vive en memoria de cada pod: con N réplicas el tope real es N veces mayor | Contador compartido (Redis o la base) si se escala |
+| Revisión de apuntes | El escáner de órdenes a la IA es heurístico y solo mira apuntes nuevos; los ya subidos no se revisan | Revisar los existentes; sumar un clasificador si hace falta |
 | Documentos | `atributos-calidad.md` aún dice «HTML/JS» como frontend | Actualizar |
 
 ### Decisiones que son del equipo (no se pueden cerrar desde código)
@@ -260,9 +261,17 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **Imagen de la API: 211 MB**, sobre la meta de < 200 MB del ADR 0006 (la base distroless debian13 ya pesa 203 MB).
 - **`k8s/` duplicado con `base/` del repo gitops:** desde S08 manda el repo gitops; si se cambia un manifiesto, hay que cambiarlo en ambos lados (o borrar `k8s/` cuando el equipo lo decida).
 - **Puerto 5432:** si hay un PostgreSQL nativo instalado, el contenedor no arranca (ver README del backend).
-- **Del threat model del tutor (S09):** sin rate limit por usuario en el tutor (D-1, prioridad alta), prompt injection indirecta desde apuntes (T-4) y sin audit log de apuntes (R-1). La CSP (S-4) se cerró en la S10.
+- **Del threat model del tutor (S09):** el tope por usuario en el tutor (D-1) y la revisión de apuntes al subirlos (T-4) se hicieron en v1.7 (ver «Cambios v1.7»); sigue sin audit log de apuntes (R-1). La CSP (S-4) se cerró en la S10.
 - **Del DAST (S10):** las respuestas JSON de la API no envían `X-Content-Type-Options` ni `Cache-Control: no-store` (hoy WARN en `dast/zap-rules.tsv`; cambia el contrato). Las fuentes vienen de Google Fonts: sin SRI y cada visita le entrega la IP del estudiante a Google; conviene servirlas desde el propio sitio. Falta un escaneo de la API con el contrato (`zap-api-scan`).
-- **Del RAG v1.0:** el PDF se procesa en el hilo principal de la API (un archivo grande frena a los demás mientras se lee; D-1); la búsqueda por texto calcula `to_tsvector` fila por fila, sin índice GIN; las pantallas docentes (`.jsx`) no tienen pruebas propias.
+- **Del RAG v1.0:** el PDF y el troceado ya corren en worker threads (v1.7); el índice GIN de la búsqueda por texto ya existía (`07_rag_indices.sql`); las pantallas docentes (`.jsx`) no tienen pruebas propias.
 - **Supply chain (S10):** SLSA Build L2; para L3 falta generar la provenance fuera del job (`actions/attest-build-provenance` o `slsa-github-generator`). Sin respaldo de firmas y attestations fuera de GHCR. Con la policy de Kyverno, `publicar-imagenes.ps1` ya no sirve para desplegar.
 - **Limitador del login:** guarda los intentos en memoria, así que cada pod cuenta los suyos. En producción iría en Redis o en el Ingress.
 - **Funciones `SECURITY DEFINER`** (`colegio_por_rbd`, `credenciales_login`): en producción su dueño debe ser `feathersforall_plataforma`. Hoy, en local, es el superusuario.
+
+## Cambios v1.7 (tope del tutor, glosario por asignatura, apuntes seguros, PDFs en worker, examen de la IA)
+
+- **Tope de preguntas (D-1):** `platform/rate-limiter.js` + `modules/tutor/tutor-limit.js`. Por estudiante (o IP si no hay token): 10/min, 100/h y 2 en curso. `429` RFC 7807 con `Retry-After`. Variables: `TUTOR_RATE_PER_MIN`, `TUTOR_RATE_PER_HOUR`, `TUTOR_MAX_CONCURRENT` (0 apaga ese tope). En memoria por pod.
+- **Glosario por asignatura:** `rag/basics.js` filtra por la asignatura del curso (`courseSubjectKey`); la calculadora no depende de la asignatura. Sin asignatura reconocible no se filtra.
+- **Apuntes tramposos (T-4):** `rag/injection-scan.js` revisa el texto al subir (`422 suspicious-document`, indica línea/página, no repite la frase ni la guarda en logs). Es heurístico.
+- **PDFs sin frenar a los demás:** `rag/offload.js` (workers con límite de memoria, tiempo y cola; cola llena → `503 busy`). Variables: `PDF_WORKERS`, `PDF_QUEUE`, `PDF_TIMEOUT_MS`, `PDF_WORKER_MEMORY_MB`. El tiempo de proceso no cambia; lo que baja es el bloqueo del hilo principal (medido: 1164→4 ms con 300 páginas).
+- **Examen del tutor:** `code/backend/eval/` (50 preguntas, `npm run eval`; `npm run eval:live` con Ollama). El modo determinista corre en `npm test`. Ver `eval/README.md`.

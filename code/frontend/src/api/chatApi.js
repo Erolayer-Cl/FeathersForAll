@@ -8,7 +8,7 @@ export { ApiError };
  * Lee las cabeceras con que el backend describe el turno (ver tutor.routes.js).
  * @param {Headers} headers
  * @returns {{turn: string | null, sources: {doc_id: string, score: number}[]}}
- *   `turn`: grounded (respondió con apuntes) | chat (charla) | no-info | no-notes | null (sin RAG)
+ *   `turn`: grounded (respondió con apuntes) | chat (charla) | basic (pregunta básica sin apuntes) | no-info | no-notes | null (sin RAG)
  */
 export function readTutorMeta(headers) {
   let sources = [];

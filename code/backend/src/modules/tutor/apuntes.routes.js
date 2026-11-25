@@ -5,6 +5,7 @@ import { esStaffDelCurso } from '../cursos/acceso-curso.js';
 import { isReferenceDoc } from './rag/doc-kinds.js';
 import { extractPdfPages } from './rag/pdf-text.js';
 import { toRagProblem } from './rag/rag.routes.js';
+import { assertCleanDocument } from './rag/injection-scan.js';
 
 export const MAX_DOCUMENT_NAME = 120;
 /** Tamaño máximo de un archivo de apuntes (el portal valida lo mismo antes de enviarlo). */
@@ -131,6 +132,8 @@ export function createApuntesRouter({ db, rag }) {
       try {
         const input = isPdf ? { pages: await extractPdfPages(body) } : { text: decodeText(body) };
         if (!isPdf && !input.text.trim()) throw new RangeError('El documento no tiene texto');
+        // T-4: antes de gastar embeddings, se revisa que el apunte no traiga órdenes para la IA.
+        assertCleanDocument(input, req);
         const result = await rag.ingest({ ...ref, docId: name, title: name.replace(/\.[^.]+$/, ''), ...input, actor: actorOf(req) });
         // 200 = reemplazó a uno con ese nombre; 201 = nuevo (lo decide la misma transacción que guarda).
         res.status(result.created === false ? 200 : 201).json(toDocument(result, input.pages?.length));

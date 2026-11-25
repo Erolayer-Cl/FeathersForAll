@@ -6,6 +6,7 @@ import * as Q from '../../../db/queries.js';
 import { MODES } from './system-prompt.js';
 import { MAX_CONTENT_LENGTH, MAX_MESSAGES } from './tutor.routes.js';
 import { streamTurn } from './turn.js';
+import { takeTutorSlot } from './tutor-limit.js';
 
 const TITLE_CHARS = 60;
 
@@ -44,7 +45,7 @@ const toMessage = (row) => ({ role: row.rol, content: row.contenido, sources: ro
  * POST previo ni Idempotency-Key, y un turno que falla (LLM caído, el estudiante se fue) no deja
  * conversaciones vacías: se guarda pregunta + respuesta juntas solo cuando la respuesta terminó.
  */
-export function createConversacionesRouter({ db, llm, rag }) {
+export function createConversacionesRouter({ db, llm, rag, tutorLimiter }) {
   const router = Router();
   const read = (user, fn) => db.withUser(user, fn, { readOnly: true });
   const cursoVisible = async (c, courseId) => (await c.query('SELECT puede_ver_curso($1) AS ok', [courseId])).rows[0].ok === true;
@@ -94,6 +95,10 @@ export function createConversacionesRouter({ db, llm, rag }) {
       throw invalid(`"mode" debe ser uno de: ${MODES.join(', ')}`);
     }
     const text = content.trim();
+
+    // Tope por estudiante (D-1 del threat model): después de validar la forma y ANTES de tocar la base, el RAG o el LLM.
+    // Una pregunta mal formada (400) no gasta cupo.
+    takeTutorSlot(tutorLimiter, req, res);
 
     // Historial guardado (si la conversación ya existe) y su modo, que manda sobre el del cuerpo.
     const { mode, history } = await read(req.user, async (c) => {
