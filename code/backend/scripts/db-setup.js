@@ -1,5 +1,5 @@
 // Crea la base de desarrollo SIN psql (alternativa a db/crear_bdd.sql).
-//   npm run db:setup              → esquema (01 a 09), usuario feathersforall_app y sus permisos
+//   npm run db:setup              → esquema (01 a 12), usuario feathersforall_app y sus permisos
 //   npm run db:setup -- --demo    → además los datos demo (90_seed_demo.sql), si la base está vacía
 //
 // Requiere en .env:
@@ -65,6 +65,18 @@ try {
   const { rows: v9 } = await client.query("SELECT to_regproc('fijar_puntaje_intento') IS NOT NULL AS hay");
   if (v9[0].hay) console.log('· 09_integridad_evaluaciones.sql ya estaba aplicado');
   else await apply('09_integridad_evaluaciones.sql');
+  // 10 (material visible y tareas con hora límite): se aplica si su tabla todavía no existe.
+  const { rows: v10 } = await client.query("SELECT to_regclass('public.tareas') IS NOT NULL AS hay");
+  if (v10[0].hay) console.log('· 10_material_y_tareas.sql ya estaba aplicado');
+  else await apply('10_material_y_tareas.sql');
+  // 11 (preguntas de respuesta escrita): se aplica si preguntas todavía no tiene la columna tipo.
+  const { rows: v11 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'preguntas' AND column_name = 'tipo') AS hay");
+  if (v11[0].hay) console.log('· 11_preguntas_texto.sql ya estaba aplicado');
+  else await apply('11_preguntas_texto.sql');
+  // 12 (revisión docente de respuestas escritas): se aplica si respuestas_estudiante no tiene revision_pendiente.
+  const { rows: v12 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'respuestas_estudiante' AND column_name = 'revision_pendiente') AS hay");
+  if (v12[0].hay) console.log('· 12_revision_docente.sql ya estaba aplicado');
+  else await apply('12_revision_docente.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN

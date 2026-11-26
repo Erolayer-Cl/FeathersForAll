@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.5.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.11.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
@@ -148,7 +148,15 @@ export function createAssessment(token, courseId, input, idempotencyKey, opts) {
 
 /** PATCH /v1/assessments/{id} → la evaluación con su nuevo estado ('published' | 'closed'). 422 si falta una alternativa correcta. */
 export function setAssessmentStatus(token, assessmentId, status, opts) {
-  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'PATCH', token, body: { status }, ...opts });
+  return patchAssessment(token, assessmentId, { status }, opts);
+}
+
+/**
+ * PATCH /v1/assessments/{id} (v1.9) → la evaluación. `cambios`: { status?, closes_at? }; closes_at es ISO con zona
+ * o null (sin cierre automático). Sirve para publicar con su hora de cierre o para cambiarla después.
+ */
+export function patchAssessment(token, assessmentId, cambios, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'PATCH', token, body: cambios, ...opts });
 }
 
 /** GET /v1/assessments/{id}/results → resumen, acierto por pregunta y entregas (docente y admin). */
@@ -199,4 +207,135 @@ export function getStudentGrades(token, courseId, studentId, opts) {
 /** PATCH /v1/assessments/{id}/grading → { assessment_id, title, pass_threshold, weight }. `input`: { pass_threshold?, weight? }; las notas se recalculan solas. */
 export function updateGrading(token, assessmentId, input, opts) {
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/grading`, { method: 'PATCH', token, body: input, ...opts });
+}
+
+// --- Material del curso y tareas con hora límite (contrato v1.8).
+
+/** Tamaño máximo del archivo de una tarea o de una entrega (igual que el backend). */
+export const MAX_ARCHIVO_BYTES = 10 * 1024 * 1024;
+/** Extensiones que aceptan las tareas y las entregas (el servidor revisa además el contenido). */
+export const ARCHIVO_EXTENSIONES = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods', '.txt', '.md', '.jpg', '.jpeg', '.png', '.zip'];
+
+const seg = encodeURIComponent;
+
+/** PUT de un archivo como cuerpo binario (el nombre va en la URL). Devuelve el JSON de la respuesta. */
+async function subirArchivo(token, path, file, { signal, fetchImpl = fetch } = {}) {
+  let res;
+  try {
+    res = await fetchImpl(`${API_URL}${path}`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${token}`, 'content-type': file.type || 'application/octet-stream', accept: 'application/json' },
+      body: file,
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    throw new ApiError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.', 0);
+  }
+  if (!res.ok) throw await toApiError(res);
+  return res.json();
+}
+
+/** GET de un archivo → { blob, name } (el nombre sale de Content-Disposition; si no viene, `nombre`). */
+async function bajarArchivo(token, path, nombre, { signal, fetchImpl = fetch } = {}) {
+  let res;
+  try {
+    res = await fetchImpl(`${API_URL}${path}`, { headers: { authorization: `Bearer ${token}` }, signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+    throw new ApiError('No pudimos conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.', 0);
+  }
+  if (!res.ok) throw await toApiError(res);
+  return { blob: await res.blob(), name: nombreDeDescarga(res.headers.get('content-disposition')) ?? nombre };
+}
+
+/** filename*=UTF-8''... (o filename="...") de un Content-Disposition. */
+export function nombreDeDescarga(header) {
+  if (!header) return null;
+  const utf8 = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8) {
+    try {
+      return decodeURIComponent(utf8[1]);
+    } catch {
+      /* sigue con filename= */
+    }
+  }
+  return header.match(/filename="([^"]*)"/i)?.[1] ?? null;
+}
+
+/** GET /v1/courses/{id}/materials → { data: [{ name, content_type, size_bytes, original, uploaded_at }] } */
+export function getCourseMaterials(token, courseId, opts) {
+  return requestJson(`/v1/courses/${seg(courseId)}/materials`, { token, ...opts });
+}
+
+/** Descarga un material del curso → { blob, name }. */
+export function downloadCourseMaterial(token, courseId, name, opts) {
+  return bajarArchivo(token, `/v1/courses/${seg(courseId)}/materials/${seg(name)}/file`, name, opts);
+}
+
+/** GET /v1/courses/{id}/tasks → { data: [Task] } (el estudiante recibe my_submission; el docente, los conteos). */
+export function getTasks(token, courseId, opts) {
+  return requestJson(`/v1/courses/${seg(courseId)}/tasks`, { token, ...opts });
+}
+
+/** GET /v1/tasks/{id} → la tarea (el docente recibe además `students`, con o sin entrega). */
+export function getTask(token, taskId, opts) {
+  return requestJson(`/v1/tasks/${seg(taskId)}`, { token, ...opts });
+}
+
+/** POST /v1/courses/{id}/tasks → la tarea creada. `input`: { title, instructions?, due_at } (ISO con zona). */
+export function createTask(token, courseId, input, idempotencyKey, opts) {
+  return requestJson(`/v1/courses/${seg(courseId)}/tasks`, { method: 'POST', token, body: input, idempotencyKey, ...opts });
+}
+
+/** PATCH /v1/tasks/{id} → la tarea. `input`: { title?, instructions?, due_at? }. */
+export function updateTask(token, taskId, input, opts) {
+  return requestJson(`/v1/tasks/${seg(taskId)}`, { method: 'PATCH', token, body: input, ...opts });
+}
+
+/** DELETE /v1/tasks/{id} → null (204). Borra también las entregas. */
+export function deleteTask(token, taskId, opts) {
+  return requestJson(`/v1/tasks/${seg(taskId)}`, { method: 'DELETE', token, ...opts });
+}
+
+/** PUT /v1/tasks/{id}/attachment/{nombre} → la tarea con su archivo. */
+export function uploadTaskAttachment(token, taskId, file, opts) {
+  return subirArchivo(token, `/v1/tasks/${seg(taskId)}/attachment/${seg(file.name)}`, file, opts);
+}
+
+/** DELETE /v1/tasks/{id}/attachment → null (204). */
+export function deleteTaskAttachment(token, taskId, opts) {
+  return requestJson(`/v1/tasks/${seg(taskId)}/attachment`, { method: 'DELETE', token, ...opts });
+}
+
+/** Descarga el archivo de la tarea → { blob, name }. */
+export function downloadTaskAttachment(token, taskId, name, opts) {
+  return bajarArchivo(token, `/v1/tasks/${seg(taskId)}/attachment`, name, opts);
+}
+
+/** PUT /v1/tasks/{id}/submission/{nombre} → { file_name, size_bytes, submitted_at }. 409 si la tarea ya cerró. */
+export function uploadSubmission(token, taskId, file, opts) {
+  return subirArchivo(token, `/v1/tasks/${seg(taskId)}/submission/${seg(file.name)}`, file, opts);
+}
+
+/** Descarga mi entrega → { blob, name }. */
+export function downloadMySubmission(token, taskId, name, opts) {
+  return bajarArchivo(token, `/v1/tasks/${seg(taskId)}/submission`, name, opts);
+}
+
+/** Descarga la entrega de un estudiante (docente/admin) → { blob, name }. */
+export function downloadStudentSubmission(token, taskId, studentId, name, opts) {
+  return bajarArchivo(token, `/v1/tasks/${seg(taskId)}/submissions/${seg(studentId)}/file`, name, opts);
+}
+
+// --- Revisión docente de respuestas escritas (contrato v1.11).
+
+/** GET /v1/assessments/{id}/text-answers → { pending, data: [{ id, question_order, question, student_name, text_answer, correct, pending_review, … }] } */
+export function getTextAnswers(token, assessmentId, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/text-answers`, { token, ...opts });
+}
+
+/** PATCH /v1/assessments/{id}/text-answers/{answerId} → { id, correct, reviewed_at, student_percentage, student_grade } */
+export function reviewTextAnswer(token, assessmentId, answerId, correct, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/text-answers/${encodeURIComponent(answerId)}`, { method: 'PATCH', token, body: { correct }, ...opts });
 }

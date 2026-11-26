@@ -11,6 +11,10 @@ const MAX_PREGUNTAS = 100;
 const MAX_ENUNCIADO = 1000;
 const MAX_ALTERNATIVA = 300;
 const MAX_RETRO = 1000;
+const MAX_ACEPTADAS = 10;
+const MAX_RESPUESTA_TEXTO = 1000;
+// Tipos de pregunta: API (inglés) <-> base (preguntas.tipo, 11_preguntas_texto.sql).
+const TIPO_API = { alternativas: 'multiple_choice', texto: 'text' };
 
 const forbidden = (detail) => new HttpProblem(403, 'Prohibido', detail, 'forbidden');
 const notFound = (what) => new HttpProblem(404, 'No encontrado', `${what} no existe o no es visible`, 'not-found');
@@ -20,6 +24,22 @@ const conflict = (detail) => new HttpProblem(409, 'Conflicto', detail, 'conflict
 const STATUS = { borrador: 'draft', publicada: 'published', cerrada: 'closed' };
 
 // ---------------------------------------------------------------- validación (H2)
+
+const MAX_DIAS_CIERRE = 366;
+
+/**
+ * "closes_at" de PATCH: undefined (no viene), null (sin cierre automático) o una fecha futura ISO 8601 con zona
+ * horaria, a menos de un año. Sirve tanto para "cierra el jueves a las 23:59" como para "cierra en 90 minutos"
+ * (el portal calcula la hora y manda la fecha).
+ */
+export function leerCierre(valor) {
+  if (valor === undefined || valor === null) return valor;
+  const fecha = typeof valor === 'string' && /([zZ]|[+-]\d{2}:?\d{2})$/.test(valor) ? new Date(valor) : null;
+  if (!fecha || Number.isNaN(fecha.getTime())) throw invalid('"closes_at" debe ser una fecha y hora ISO 8601 con zona horaria, o null');
+  if (fecha.getTime() <= Date.now()) throw invalid('"closes_at" debe ser una fecha y hora futuras');
+  if (fecha.getTime() > Date.now() + MAX_DIAS_CIERRE * 864e5) throw invalid(`"closes_at" no puede estar a más de ${MAX_DIAS_CIERRE} días`);
+  return fecha.toISOString();
+}
 
 /** Cuerpo de POST /v1/courses/{id}/assessments (schema AssessmentInput) -> datos limpios, o 400. */
 export function leerEvaluacion(body) {
@@ -42,6 +62,12 @@ export function leerEvaluacion(body) {
     const en = `questions[${i}]`;
     const statement = typeof q?.statement === 'string' ? q.statement.trim() : '';
     if (statement.length < 3 || statement.length > MAX_ENUNCIADO) throw invalid(`${en}.statement debe ser un texto de 3 a ${MAX_ENUNCIADO} caracteres`);
+    const type = q.type ?? 'multiple_choice';
+    if (type !== 'multiple_choice' && type !== 'text') throw invalid(`${en}.type debe ser "multiple_choice" o "text"`);
+    if (q.feedback !== undefined && q.feedback !== null && (typeof q.feedback !== 'string' || q.feedback.length > MAX_RETRO)) {
+      throw invalid(`${en}.feedback debe ser un texto de hasta ${MAX_RETRO} caracteres`);
+    }
+    if (type === 'text') return leerPreguntaTexto(q, en, statement);
     if (!Array.isArray(q.options) || q.options.length < 2 || q.options.length > 6) throw invalid(`${en}.options debe tener de 2 a 6 alternativas`);
     const options = q.options.map((o, j) => {
       const texto = typeof o === 'string' ? o.trim() : '';
@@ -56,9 +82,28 @@ export function leerEvaluacion(body) {
     if (q.feedback !== undefined && q.feedback !== null && (typeof q.feedback !== 'string' || q.feedback.length > MAX_RETRO)) {
       throw invalid(`${en}.feedback debe ser un texto de hasta ${MAX_RETRO} caracteres`);
     }
-    return { statement, options, correct, feedback: q.feedback?.trim() || null };
+    return { type, statement, options, correct, accepted: null, feedback: q.feedback?.trim() || null };
   });
   return { title, closesAt, questions };
+}
+
+/**
+ * Pregunta de respuesta escrita (v1.10): sin alternativas; `accepted_answers` = 1 a 10 respuestas que se dan por
+ * correctas (la base compara sin mayúsculas, tildes ni puntuación final, y los números por valor). Un borrador puede
+ * no tenerlas todavía; publicar las exige (422), como la alternativa correcta.
+ */
+function leerPreguntaTexto(q, en, statement) {
+  if (q.options !== undefined && !(Array.isArray(q.options) && q.options.length === 0)) throw invalid(`${en}.options no va en una pregunta de texto`);
+  if (q.correct_option !== undefined && q.correct_option !== null) throw invalid(`${en}.correct_option no va en una pregunta de texto: usa accepted_answers`);
+  const lista = q.accepted_answers ?? [];
+  if (!Array.isArray(lista) || lista.length > MAX_ACEPTADAS) throw invalid(`${en}.accepted_answers debe ser una lista de hasta ${MAX_ACEPTADAS} respuestas`);
+  const accepted = lista.map((r, j) => {
+    const texto = typeof r === 'string' ? r.trim() : '';
+    if (!texto || texto.length > MAX_ALTERNATIVA) throw invalid(`${en}.accepted_answers[${j}] debe ser un texto de 1 a ${MAX_ALTERNATIVA} caracteres`);
+    return texto;
+  });
+  if (new Set(accepted.map((r) => r.toLowerCase())).size !== accepted.length) throw invalid(`${en}.accepted_answers tiene respuestas repetidas`);
+  return { type: 'text', statement, options: [], correct: null, accepted: accepted.length ? accepted : null, feedback: q.feedback?.trim() || null };
 }
 
 // ---------------------------------------------------------------- lectura
@@ -78,9 +123,11 @@ async function evaluacionParaDocente(c, ev) {
       const correct = p.alternativas.findIndex((a) => a.es_correcta);
       return {
         id: p.id,
+        type: TIPO_API[p.tipo] ?? 'multiple_choice',
         statement: p.enunciado,
         options: p.alternativas.map((a) => a.texto),
         correct_option: correct === -1 ? null : correct,
+        ...(p.tipo === 'texto' && { accepted_answers: p.respuestas_aceptadas ?? [] }),
         feedback: p.retroalimentacion ?? '',
       };
     }),
@@ -98,7 +145,7 @@ async function evaluacionParaEstudiante(c, ev) {
     max_attempts: 1,
     published_at: ev.fecha_publicacion ?? null,
     closes_at: ev.fecha_cierre ?? null,
-    questions: preguntas.map((p) => ({ id: p.id, statement: p.enunciado, options: p.alternativas.map((a) => a.texto) })),
+    questions: preguntas.map((p) => ({ id: p.id, type: TIPO_API[p.tipo] ?? 'multiple_choice', statement: p.enunciado, options: p.alternativas.map((a) => a.texto) })),
   };
 }
 
@@ -261,26 +308,37 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
     res.status(204).end();
   });
 
-  // H2 · Publicar o cerrar. No se publica si alguna pregunta no tiene alternativa correcta (422, con cuáles).
+  // H2 · Publicar o cerrar, y (v1.9) fijar o cambiar la hora de cierre. No se publica si alguna pregunta no tiene
+  // alternativa correcta (422, con cuáles).
   router.patch('/v1/assessments/:assessmentId', async (req, res) => {
     const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
     const status = req.body?.status;
-    if (status !== 'published' && status !== 'closed') throw invalid('"status" debe ser "published" o "closed"');
+    const cierre = leerCierre(req.body?.closes_at);
+    if (status === undefined && cierre === undefined) throw invalid('Envía "status" ("published" o "closed") o "closes_at"');
+    if (status !== undefined && status !== 'published' && status !== 'closed') throw invalid('"status" debe ser "published" o "closed"');
+    if (status === 'closed' && cierre !== undefined) throw invalid('Al cerrar una evaluación no se envía "closes_at": se cierra ahora');
 
     const body = await db.withUser(req.user, async (c) => {
       const ev = await cargarEvaluacion(c, assessmentId);
-      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador publican evaluaciones');
+      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador publican, cierran o cambian el cierre de una evaluación');
 
       if (status === 'published') {
         const sinCorrecta = (await c.query(Q.PREGUNTAS_SIN_CORRECTA, [assessmentId])).rows;
         if (sinCorrecta.length > 0) {
           const nums = sinCorrecta.map((p) => p.orden).join(', ');
           throw new HttpProblem(422, 'Datos inválidos', `No se puede publicar: la pregunta ${nums} no tiene respuesta correcta.`, 'validation-error', {
-            errors: sinCorrecta.map((p) => ({ field: `questions[${p.orden - 1}].correct_option`, message: 'Requerido para publicar.' })),
+            errors: sinCorrecta.map((p) => ({ field: `questions[${p.orden - 1}].${p.tipo === 'texto' ? 'accepted_answers' : 'correct_option'}`, message: p.tipo === 'texto' ? 'Falta al menos una respuesta aceptada.' : 'Requerido para publicar.' })),
           });
         }
         if (ev.estado !== 'borrador') throw conflict('Solo una evaluación en borrador se puede publicar');
-        await c.query(Q.PUBLICAR_EVALUACION, [assessmentId]);
+        // Un borrador guardado con un cierre que ya pasó no se publica (se cerraría al instante): hay que elegir otro.
+        if (cierre === undefined && ev.fecha_cierre && new Date(ev.fecha_cierre).getTime() <= Date.now()) {
+          throw conflict('La hora de cierre del borrador ya pasó: elige una nueva al publicar o quítala');
+        }
+        await c.query(Q.PUBLICAR_EVALUACION, [assessmentId, cierre !== undefined, cierre ?? null]);
+      } else if (status === undefined) {
+        if (ev.estado === 'cerrada') throw conflict('La evaluación ya está cerrada: no se puede cambiar su cierre');
+        await c.query(Q.CAMBIAR_CIERRE_EVALUACION, [assessmentId, cierre]);
       } else {
         if (ev.estado !== 'publicada') throw conflict('Solo una evaluación publicada se puede cerrar');
         await c.query(Q.CERRAR_EVALUACION, [assessmentId]);
@@ -317,9 +375,10 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
 
         const answers = [];
         for (const p of preguntas) {
-          const r = (await c.query(Q.INSERTAR_RESPUESTA, [intento.id, p.id, elegidas.get(p.id) ?? null])).rows[0];
+          const elegida = elegidas.get(p.id);
+        const r = (await c.query(Q.INSERTAR_RESPUESTA, [intento.id, p.id, elegida?.alternativaId ?? null, elegida?.texto ?? null])).rows[0];
           if (!r) throw conflict('La evaluación ya no recibe respuestas');
-          answers.push({ question_id: p.id, correct: r.es_correcta, feedback: r.retroalimentacion ?? '' });
+          answers.push({ question_id: p.id, correct: r.es_correcta, pending_review: r.revision_pendiente, feedback: r.retroalimentacion ?? '' });
         }
         const enviado = (await c.query(Q.ENVIAR_INTENTO, [intento.id])).rows[0];
         const nota = (await c.query(Q.NOTA_ESTUDIANTE_EVALUACION, [req.user.id, assessmentId])).rows[0];
@@ -332,6 +391,8 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
             max_score: preguntas.length,
             percentage: enviado.puntaje,
             grade: nota?.nota ?? null,
+            // v1.11: respuestas escritas que el docente todavía debe revisar (valen 0 hasta entonces: nota provisional).
+            pending_review: answers.filter((a) => a.pending_review).length,
             answers,
             submitted_at: enviado.fecha_envio,
           },
@@ -340,20 +401,61 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
     });
   });
 
+  // v1.11 · Revisión docente de las respuestas escritas: la bandeja (por revisar primero) y la decisión por respuesta.
+  router.get('/v1/assessments/:assessmentId/text-answers', async (req, res) => {
+    const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
+    const rows = await db.withUser(req.user, async (c) => {
+      const ev = await cargarEvaluacion(c, assessmentId);
+      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador revisan respuestas');
+      return (await c.query(Q.RESPUESTAS_ESCRITAS, [assessmentId])).rows;
+    }, { readOnly: true });
+    res.json({
+      pending: rows.filter((r) => r.revision_pendiente).length,
+      data: rows.map((r) => ({
+        id: r.id,
+        question_id: r.pregunta_id,
+        question_order: r.orden,
+        question: r.enunciado,
+        accepted_answers: r.respuestas_aceptadas ?? [],
+        student_id: r.estudiante_id,
+        student_name: r.nombre,
+        text_answer: r.respuesta_texto,
+        correct: r.es_correcta,
+        pending_review: r.revision_pendiente,
+        reviewed_at: r.revisada_at,
+        submitted_at: r.fecha_envio,
+      })),
+    });
+  });
+
+  router.patch('/v1/assessments/:assessmentId/text-answers/:answerId', async (req, res) => {
+    const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
+    const answerId = uuidParam(req.params.answerId, 'answerId');
+    if (typeof req.body?.correct !== 'boolean') throw invalid('"correct" debe ser true o false');
+    const fila = await db.withUser(req.user, async (c) => {
+      const ev = await cargarEvaluacion(c, assessmentId);
+      if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador revisan respuestas');
+      const r = (await c.query(Q.REVISAR_RESPUESTA, [assessmentId, answerId, req.body.correct])).rows[0];
+      if (!r) throw new HttpProblem(404, 'No encontrado', 'La respuesta escrita no existe en esta evaluación', 'not-found');
+      return r;
+    });
+    res.json({ id: fila.id, correct: fila.es_correcta, pending_review: false, reviewed_at: fila.revisada_at, student_percentage: Number(fila.puntaje), student_grade: Number(fila.nota) });
+  });
+
   return router;
 }
 
 /** Crea las preguntas y alternativas de una evaluación (en la transacción de quien llama). */
 async function escribirPreguntas(c, evaluacionId, questions) {
   for (const [i, q] of questions.entries()) {
-    const pregunta = (await c.query(Q.CREAR_PREGUNTA, [evaluacionId, q.statement, i + 1, q.feedback])).rows[0];
+    const pregunta = (await c.query(Q.CREAR_PREGUNTA, [evaluacionId, q.statement, i + 1, q.feedback, q.type === 'text' ? 'texto' : 'alternativas', q.accepted])).rows[0];
     for (const [j, texto] of q.options.entries()) {
       await c.query(Q.CREAR_ALTERNATIVA, [pregunta.id, texto, j === q.correct, j]);
     }
   }
 }
 
-/** Cuerpo de submissions (schema SubmissionInput) -> [{ question_id, selected_option }], o 400. */
+/** Cuerpo de submissions (schema SubmissionInput) -> [{ questionId, selected } | { questionId, text }], o 400. */
 function leerRespuestas(body) {
   const answers = body?.answers;
   if (!Array.isArray(answers) || answers.length < 1 || answers.length > MAX_PREGUNTAS) {
@@ -362,9 +464,14 @@ function leerRespuestas(body) {
   const vistas = new Set();
   return answers.map((a, i) => {
     const questionId = uuidParam(a?.question_id, `answers[${i}].question_id`);
-    if (!Number.isInteger(a.selected_option) || a.selected_option < 0) throw invalid(`answers[${i}].selected_option debe ser el índice (desde 0) de la alternativa elegida`);
     if (vistas.has(questionId)) throw invalid(`answers[${i}]: la pregunta ya fue respondida en este envío`);
     vistas.add(questionId);
+    if (a.text_answer !== undefined) {
+      if (a.selected_option !== undefined) throw invalid(`answers[${i}]: envía selected_option (alternativas) o text_answer (texto), no ambos`);
+      if (typeof a.text_answer !== 'string' || a.text_answer.length > MAX_RESPUESTA_TEXTO) throw invalid(`answers[${i}].text_answer debe ser un texto de hasta ${MAX_RESPUESTA_TEXTO} caracteres`);
+      return { questionId, text: a.text_answer.trim() };
+    }
+    if (!Number.isInteger(a.selected_option) || a.selected_option < 0) throw invalid(`answers[${i}].selected_option debe ser el índice (desde 0) de la alternativa elegida`);
     return { questionId, selected: a.selected_option };
   });
 }
@@ -373,12 +480,20 @@ function leerRespuestas(body) {
 function resolverRespuestas(preguntas, respuestas) {
   const porId = new Map(preguntas.map((p) => [p.id, p]));
   const elegidas = new Map();
-  for (const { questionId, selected } of respuestas) {
+  const invalida = (detalle) => new HttpProblem(422, 'Datos inválidos', detalle, 'validation-error');
+  for (const { questionId, selected, text } of respuestas) {
     const pregunta = porId.get(questionId);
-    if (!pregunta) throw new HttpProblem(422, 'Datos inválidos', 'Una de las respuestas es de una pregunta que no pertenece a esta evaluación', 'validation-error');
+    if (!pregunta) throw invalida('Una de las respuestas es de una pregunta que no pertenece a esta evaluación');
+    if (pregunta.tipo === 'texto') {
+      if (text === undefined) throw invalida(`La pregunta ${pregunta.orden} se responde escribiendo (text_answer), no eligiendo una alternativa`);
+      // Una respuesta en blanco cuenta como sin responder.
+      if (text) elegidas.set(questionId, { texto: text });
+      continue;
+    }
+    if (text !== undefined) throw invalida(`La pregunta ${pregunta.orden} es de alternativas: envía selected_option`);
     const alternativa = pregunta.alternativas[selected];
-    if (!alternativa) throw new HttpProblem(422, 'Datos inválidos', `La pregunta ${pregunta.orden} no tiene una alternativa ${selected + 1}`, 'validation-error');
-    elegidas.set(questionId, alternativa.id);
+    if (!alternativa) throw invalida(`La pregunta ${pregunta.orden} no tiene una alternativa ${selected + 1}`);
+    elegidas.set(questionId, { alternativaId: alternativa.id });
   }
   return elegidas;
 }

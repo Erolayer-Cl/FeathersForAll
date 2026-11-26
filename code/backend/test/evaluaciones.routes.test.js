@@ -22,7 +22,7 @@ const pregunta = { statement: '¿Cuánto es 3/4 + 1/4?', options: ['1/2', '1'], 
 describe('leerEvaluacion (validación del cuerpo)', () => {
   test('normaliza espacios y devuelve la forma interna', () => {
     const r = leerEvaluacion({ title: '  Prueba de fracciones ', questions: [{ ...pregunta, statement: ' ¿Cuánto es? ', options: [' a ', 'b'] }] });
-    assert.deepEqual(r, { title: 'Prueba de fracciones', closesAt: null, questions: [{ statement: '¿Cuánto es?', options: ['a', 'b'], correct: 1, feedback: 'Es 1.' }] });
+    assert.deepEqual(r, { title: 'Prueba de fracciones', closesAt: null, questions: [{ type: 'multiple_choice', statement: '¿Cuánto es?', options: ['a', 'b'], correct: 1, accepted: null, feedback: 'Es 1.' }] });
   });
   test('correct_option y feedback son opcionales (se exigen al publicar, no al crear)', () => {
     const [q] = leerEvaluacion({ title: 'Borrador', questions: [{ statement: 'Enunciado', options: ['a', 'b'] }] }).questions;
@@ -167,5 +167,42 @@ describe('rutas del ciclo mínimo (unitarias, sin base)', () => {
       assert.equal((await patch('ANA', { status: 'draft' })).status, 400);
       assert.equal(db.callsOf(Q.PUBLICAR_EVALUACION).length, 0);
     });
+  });
+});
+
+describe('leerCierre (v1.9): hora de cierre al publicar o después', async () => {
+  const { leerCierre } = await import('../src/modules/evaluaciones/evaluaciones.routes.js');
+  const en = (min) => new Date(Date.now() + min * 60_000).toISOString();
+  test('undefined = no cambia; null = sin cierre; fecha futura con zona = se normaliza a UTC', () => {
+    assert.equal(leerCierre(undefined), undefined);
+    assert.equal(leerCierre(null), null);
+    const dia = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+    assert.equal(leerCierre(`${dia}T23:59:00-03:00`), new Date(`${dia}T23:59:00-03:00`).toISOString());
+    assert.match(leerCierre(en(90)), /Z$/);
+  });
+  test('rechaza pasado, sin zona horaria, a más de un año o que no sea texto', () => {
+    for (const malo of [en(-1), '2026-12-01T10:00', en(60 * 24 * 400), 123, 'mañana']) {
+      assert.throws(() => leerCierre(malo), (e) => e.status === 400, String(malo));
+    }
+  });
+});
+
+describe('preguntas de texto (v1.10): validación', () => {
+  const base = { title: 'Mixta' };
+  test('acepta una pregunta de texto con respuestas aceptadas, y sin ellas en un borrador', () => {
+    const { questions } = leerEvaluacion({ ...base, questions: [{ statement: '¿Cuánto es 3 + 4?', type: 'text', accepted_answers: [' 7 ', 'siete'] }, { statement: '¿Capital de Chile?', type: 'text' }] });
+    assert.deepEqual(questions[0], { type: 'text', statement: '¿Cuánto es 3 + 4?', options: [], correct: null, accepted: ['7', 'siete'], feedback: null });
+    assert.equal(questions[1].accepted, null);
+  });
+  test('rechaza mezclar alternativas con texto, tipos desconocidos y respuestas repetidas o vacías', () => {
+    const malas = [
+      { statement: 'Pregunta', type: 'text', options: ['a', 'b'] },
+      { statement: 'Pregunta', type: 'text', correct_option: 0 },
+      { statement: 'Pregunta', type: 'abierta' },
+      { statement: 'Pregunta', type: 'text', accepted_answers: ['7', '7'] },
+      { statement: 'Pregunta', type: 'text', accepted_answers: [''] },
+      { statement: 'Pregunta', type: 'text', accepted_answers: Array.from({ length: 11 }, (_, i) => String(i)) },
+    ];
+    for (const q of malas) assert.throws(() => leerEvaluacion({ ...base, questions: [q] }), (e) => e.status === 400, JSON.stringify(q));
   });
 });

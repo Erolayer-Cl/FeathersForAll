@@ -5,7 +5,9 @@ import { Button, Card, Chip, EmptyState, LoadState, PageHead } from '../../compo
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { routeHref } from '../../router/parseRoute.js';
+import { formatCierre } from '../../utils/fechas.js';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
+import { MaterialCard, TareasCard } from './ContenidoCurso.jsx';
 import styles from './CursoPage.module.css';
 
 // 404: el curso no existe o no participas en él (la API no distingue, para no revelar nada).
@@ -34,13 +36,20 @@ function DetalleEvaluacion({ assessmentId }) {
       {data?.answers.length === 0 && (
         <EmptyState>Esta evaluación no tiene preguntas registradas: solo se guardó tu puntaje.</EmptyState>
       )}
+      {data?.pending_review > 0 && (
+        <p className={styles.provisional} role="status">
+          Nota provisional: {data.pending_review === 1 ? '1 respuesta escrita espera' : `${data.pending_review} respuestas escritas esperan`} la revisión de tu docente.
+        </p>
+      )}
       {data?.answers.length > 0 && (
         <ol className={styles.answers}>
           {data.answers.map((a) => (
-            <li key={a.order} className={a.correct ? styles.ok : styles.bad}>
+            <li key={a.order} className={a.pending_review ? styles.pendiente : a.correct ? styles.ok : styles.bad}>
               <div className={styles.answerHead}>
                 <b>{a.question}</b>
-                <Chip tone={a.correct ? 'success' : 'danger'}>{a.correct ? 'Correcta' : 'Incorrecta'}</Chip>
+                {a.pending_review
+                  ? <Chip tone="warning">Por revisar</Chip>
+                  : <Chip tone={a.correct ? 'success' : 'danger'}>{a.correct ? 'Correcta' : 'Incorrecta'}</Chip>}
               </div>
               <p className={styles.chosen}>Tu respuesta: {a.selected_option ?? 'Sin responder'}</p>
               {a.feedback && <p className={styles.feedback}>{a.feedback}</p>}
@@ -79,6 +88,12 @@ export function CursoPage({ param: courseId }) {
               </Card>
             </div>
 
+            {/* v1.8: lo que sube el docente y las tareas con hora límite. */}
+            <div className={styles.contenido}>
+              <TareasCard courseId={courseId} />
+              <MaterialCard courseId={courseId} />
+            </div>
+
             <div className={styles.split}>
               <Card as="section">
                 {porRendir.length > 0 && (
@@ -89,7 +104,7 @@ export function CursoPage({ param: courseId }) {
                         <li key={e.id} className={styles.pendiente}>
                           <span className={styles.grow}>
                             <b>{e.title}</b>
-                            <small>{e.questions_count} pregunta{e.questions_count === 1 ? '' : 's'}{e.closes_at ? ` · cierra el ${formatFecha(e.closes_at)}` : ''}</small>
+                            <small>{e.questions_count} pregunta{e.questions_count === 1 ? '' : 's'}{e.closes_at ? ` · cierra ${formatCierre(e.closes_at)}` : ''}</small>
                           </span>
                           <Button size="sm" href={routeHref('est-evaluacion', e.id)} aria-label={`Rendir ${e.title}`}>Rendir</Button>
                         </li>

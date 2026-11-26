@@ -1,0 +1,9 @@
+.sub{margin:5px 0 0;color:var(--fp-muted);font-size:12px}.alerta{margin-top:10px;color:var(--fp-danger-ink);font-size:12px}.ok{margin-top:10px;color:var(--fp-success-ink);font-size:12px;font-weight:600}
+.lista{display:flex;flex-direction:column;gap:10px;margin:16px 0 0;padding:0;list-style:none}
+.item{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 10px;border-bottom:1px solid var(--fp-line);font-size:13px}
+.grow{flex:1;min-width:0}.grow b,.grow small{display:block;overflow-wrap:anywhere}.grow b{font-weight:650;color:var(--fp-ink)}.grow small{margin-top:2px;color:var(--fp-muted);font-size:11px}
+.tarea{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid var(--fp-line);border-left:3px solid var(--fp-accent);border-radius:10px;background:var(--fp-surface);font-size:13px}
+.cerrada{border-left-color:var(--fp-line);opacity:.85}
+.tareaHead,.entrega{display:flex;flex-wrap:wrap;align-items:center;gap:12px;width:100%}
+.entrega{padding:10px 12px;border-radius:8px;background:var(--fp-accent-soft)}
+.instrucciones{margin:0;white-space:pre-wrap;color:var(--fp-ink);font-size:12px;line-height:1.6}

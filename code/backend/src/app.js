@@ -10,6 +10,7 @@ import { createNotasRouter } from './modules/notas/notas.routes.js';
 import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
 import { createCursosRouter } from './modules/cursos/cursos.routes.js';
 import { createEvaluacionesRouter } from './modules/evaluaciones/evaluaciones.routes.js';
+import { createContenidoRouter } from './modules/contenido/contenido.routes.js';
 import { createLoginLimiter } from './platform/login-limiter.js';
 import { createRateLimiter } from './platform/rate-limiter.js';
 
@@ -76,11 +77,13 @@ export function createApp({
   if (db) {
     // Las rutas con datos de colegio exigen JWT. La única excepción es POST /v1/auth/login,
     // donde el colegio sale de la cuenta encontrada (nunca de un header ni del token).
-    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tutor-conversations'], requireAuth(jwtSecret));
+    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tasks', '/v1/tutor-conversations'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
     app.use(createCursosRouter({ db }));
     app.use(createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter }));
     app.use(createNotasRouter({ db }));
+    // Material visible para el estudiante y tareas con hora límite (v1.8).
+    app.use(createContenidoRouter({ db }));
     // Conversaciones guardadas del tutor (ADR 0008) y apuntes del curso (v1.3): necesitan el RAG en PostgreSQL.
     if (rag?.backend === 'postgres') {
       app.use(createConversacionesRouter({ db, llm, rag, tutorLimiter }));

@@ -295,8 +295,8 @@ describe('ciclo mínimo H1 → H2 → H4 (PostgreSQL)', { skip: SKIP }, () => {
       assert.equal(r.percentage, 50);
       assert.equal(r.grade, 3.5); // 50 % con exigencia 60 %: 1,0 + 3,0 · 50/60 = 3,5
       assert.deepEqual(r.answers, [
-        { question_id: q1.id, correct: true, feedback: 'Suma los numeradores con igual denominador: 4/4 = 1.' },
-        { question_id: q2.id, correct: false, feedback: 'El denominador cuenta las partes iguales del todo.' },
+        { question_id: q1.id, correct: true, pending_review: false, feedback: 'Suma los numeradores con igual denominador: 4/4 = 1.' },
+        { question_id: q2.id, correct: false, pending_review: false, feedback: 'El denominador cuenta las partes iguales del todo.' },
       ]);
     });
 

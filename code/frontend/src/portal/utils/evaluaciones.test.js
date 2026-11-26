@@ -137,3 +137,30 @@ describe('cierre y borradores que vienen de la API o de la IA', () => {
     expect(borradorTieneTexto({ title: '', closesAt: '', questions: [pregunta()] })).toBe(true);
   });
 });
+
+describe('preguntas de respuesta escrita (v1.10)', () => {
+  const texto = (extra = {}) => ({ ...preguntaVacia('text'), statement: '¿Cuánto es 3 + 4?', accepted: [' 7 ', 'siete', ''], ...extra });
+
+  it('el cuerpo lleva type y las respuestas aceptadas con texto, sin alternativas', () => {
+    const cuerpo = borradorACuerpo({ title: 'Mixta', closesAt: '', questions: [texto(), pregunta()] });
+    expect(cuerpo.questions[0]).toEqual({ statement: '¿Cuánto es 3 + 4?', type: 'text', accepted_answers: ['7', 'siete'] });
+    expect(cuerpo.questions[1]).not.toHaveProperty('type');
+    expect(cuerpo.questions[1].options).toEqual(['1/2', '1', '4/8']);
+  });
+
+  it('sin respuestas aceptadas se guarda y publica (la revisa el docente); repetidas es error', () => {
+    expect(revisarBorrador({ title: 'Mixta', closesAt: '', questions: [texto({ accepted: [''] })] })).toEqual({ errores: [], avisos: [] });
+    expect(revisarBorrador({ title: 'Mixta', closesAt: '', questions: [texto({ accepted: ['7', ' 7'] })] }).errores[0]).toMatch(/repetidas/);
+    expect(revisarBorrador({ title: 'Mixta', closesAt: '', questions: [texto()] })).toEqual({ errores: [], avisos: [] });
+  });
+
+  it('desde la API vuelve como pregunta de texto editable', () => {
+    const d = borradorDesdeApi({ title: 'T', closes_at: null, questions: [{ id: 'a', type: 'text', statement: 'E', options: [], correct_option: null, accepted_answers: ['7'], feedback: '' }] });
+    expect(d.questions[0]).toMatchObject({ type: 'text', accepted: ['7'], correct: null });
+  });
+
+  it('el estudiante envía text_answer; un texto en blanco cuenta como sin responder', () => {
+    expect(respuestasACuerpo({ q1: 1, q2: '  siete ', q3: '   ' })).toEqual([{ question_id: 'q1', selected_option: 1 }, { question_id: 'q2', text_answer: 'siete' }]);
+    expect(sinResponder([{ id: 'q1' }, { id: 'q2' }, { id: 'q3' }], { q1: 0, q2: 'x', q3: ' ' })).toBe(1);
+  });
+});

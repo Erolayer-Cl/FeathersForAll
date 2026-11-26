@@ -6,6 +6,7 @@ import { routeHref } from '../../router/parseRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { EvaluacionesCard } from './EvaluacionesCard.jsx';
 import { MatriculadosCard } from './MatriculadosCard.jsx';
+import { TareasCard } from './TareasCard.jsx';
 import styles from './CursoPage.module.css';
 
 const NO_DISPONIBLE = {
@@ -76,7 +77,7 @@ export function DocenteCursoPage({ param: courseId }) {
   }
 
   async function borrar(nombre) {
-    if (!window.confirm(`¿Quitar «${nombre}» del tutor? Tus estudiantes dejarán de recibir respuestas basadas en este apunte.`)) return;
+    if (!window.confirm(`¿Quitar «${nombre}»? Tus estudiantes dejarán de verlo en el curso y el tutor dejará de usarlo.`)) return;
     setBorrando(nombre);
     setErrorBorrar(null);
     try {
@@ -112,12 +113,15 @@ export function DocenteCursoPage({ param: courseId }) {
           <EvaluacionesCard courseId={courseId} />
         </div>
 
+        <TareasCard courseId={courseId} />
+
         <div className={styles.split}>
           <Card as="section" aria-labelledby="subir-titulo">
-            <h2 id="subir-titulo" className={styles.h2}>Subir apuntes</h2>
+            <h2 id="subir-titulo" className={styles.h2}>Subir material y apuntes</h2>
             <p className={styles.sub}>
               Acepta PDF, TXT o MD (hasta {MAX_APUNTE_BYTES / 1024 / 1024} MB). El tutor los lee, los divide en fragmentos y responde a tus
-              estudiantes citando este material. Si subes un archivo con el mismo nombre, se reemplaza.
+              estudiantes citando este material. Tus estudiantes también lo ven y lo pueden descargar en su curso. Si subes un archivo
+              con el mismo nombre, se reemplaza.
             </p>
 
             <label

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { LoadState } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
-import { formatFecha, formatNota } from '../../utils/notas.js';
+import { formatCierre, tiempoRestante } from '../../utils/fechas.js';
+import { formatNota } from '../../utils/notas.js';
 import { assessmentCategory, getStudentAssessmentDashboard, sortAssessments } from './studentAssessments.js';
 import styles from './EvaluacionesPage.module.css';
 
@@ -55,7 +56,7 @@ export function EstudianteEvaluacionesPage() {
           <table className={styles.table}><thead><tr><th scope="col">Evaluación</th><th scope="col">Asignatura</th><th scope="col">Cierre</th><th scope="col">Estado</th><th scope="col">Acción</th></tr></thead>
             <tbody>{visible.map((ev) => { const category = assessmentCategory(ev); return <tr key={ev.id}>
               <th scope="row">{ev.title}<small>{ev.questions_count ?? '—'} preguntas</small></th>
-              <td>{ev.subject}</td><td>{ev.closes_at ? formatFecha(ev.closes_at) : 'Sin fecha'}</td>
+              <td>{ev.subject}</td><td className={styles.cierre}>{ev.closes_at ? <>{formatCierre(ev.closes_at)}{category === 'pendiente' && <small>{tiempoRestante(ev.closes_at)}</small>}</> : 'Sin fecha de cierre'}</td>
               <td><span className={`${styles.status} ${styles[category]}`}>{category === 'pendiente' ? 'Por rendir' : category === 'entregada' ? `Entregada${ev.grade != null ? ` · ${formatNota(ev.grade)}` : ''}` : 'Cerrada'}</span></td>
               <td>{category === 'pendiente' ? <PortalLink className={styles.action} to="est-evaluacion" param={ev.id}>Rendir evaluación</PortalLink> : <PortalLink className={styles.action} to="est-curso" param={ev.courseId}>{category === 'entregada' ? 'Ver resultado' : 'Ver curso'}</PortalLink>}</td>
             </tr>; })}</tbody></table>

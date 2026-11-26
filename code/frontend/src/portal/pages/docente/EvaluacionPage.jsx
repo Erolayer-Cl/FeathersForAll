@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { deleteAssessment, getAssessment, getAssessmentResults, setAssessmentStatus } from '../../../api/portalApi.js';
 import { Button, Card, Chip, EmptyState, FormMessage, Kpi, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
+import { useNow } from '../../hooks/useNow.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { usePortalRoute } from '../../router/usePortalRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { estadoEvaluacion } from '../../utils/evaluaciones.js';
+import { formatCierre } from '../../utils/fechas.js';
+import { CierreEvaluacion } from './CierreEvaluacion.jsx';
+import { RevisionRespuestas } from './RevisionRespuestas.jsx';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
 import styles from './EvaluacionPage.module.css';
 import gestion from './Gestion.module.css';
@@ -78,12 +82,14 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
   const { data: ev, loading, error, reload } = useApiData((t, opts) => getAssessment(t, assessmentId, opts), assessmentId);
   const [cambiando, setCambiando] = useState(false);
   const [problema, setProblema] = useState(null);
+  const ahora = useNow();
+  const [panelCierre, setPanelCierre] = useState(null); // 'publicar' | 'cambiar' | null
+  const [aviso, setAviso] = useState(null);
+  const [revisiones, setRevisiones] = useState(0); // al revisar una respuesta se refrescan los resultados
 
+  // Publicar abre el panel de cierre (CierreEvaluacion); aquí solo queda cerrar a mano.
   async function cambiarEstado(status) {
-    const texto = status === 'published'
-      ? '¿Publicar la evaluación? Tus estudiantes podrán rendirla y ya no podrás editar sus preguntas.'
-      : '¿Cerrar la evaluación? Nadie más podrá rendirla.';
-    if (!window.confirm(texto)) return;
+    if (!window.confirm('¿Cerrar la evaluación ahora? Nadie más podrá rendirla.')) return;
     setCambiando(true);
     setProblema(null);
     try {
@@ -112,6 +118,19 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
   }
 
   const estado = estadoEvaluacion(ev?.status);
+  const vencio = ev?.closes_at && new Date(ev.closes_at).getTime() <= ahora;
+  const lineaCierre = ev?.closes_at
+    ? `${ev.status === 'published' && !vencio ? 'cierra' : ev.status === 'draft' ? 'cierre previsto' : 'cerró'} ${formatCierre(ev.closes_at, ahora)}`
+    : ev?.status === 'published' ? 'sin cierre automático' : null;
+  const subtitulo = [ev?.published_at ? `Publicada el ${formatFecha(ev.published_at)}` : 'Aún no está publicada: los estudiantes no la ven.', lineaCierre].filter(Boolean).join(' · ');
+
+  function listo(texto) {
+    return () => {
+      setPanelCierre(null);
+      setAviso(texto);
+      reload();
+    };
+  }
   return (
     <>
       <p className={gestion.crumbs}>
@@ -120,15 +139,27 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
       <LoadState loading={loading} error={error} onRetry={reload} notFound={NO_DISPONIBLE}>
         {ev && (
           <>
-            <PageHead title={ev.title} subtitle={ev.published_at ? `Publicada el ${formatFecha(ev.published_at)}` : 'Aún no está publicada: los estudiantes no la ven.'}>
-              <Chip tone={estado.tone}>{estado.label}</Chip>
-              {ev.status === 'draft' && <Button disabled={cambiando} onClick={() => cambiarEstado('published')}>{cambiando ? 'Publicando…' : 'Publicar'}</Button>}
+            <PageHead title={ev.title} subtitle={subtitulo}>
+              <span className={styles.estado}><Chip tone={estado.tone}>{estado.label}</Chip></span>
+              {ev.status === 'draft' && <Button disabled={cambiando || panelCierre === 'publicar'} onClick={() => { setPanelCierre('publicar'); setAviso(null); }}>Publicar</Button>}
               {ev.status === 'draft' && <Button variant="soft" href={`#/portal/doc-evaluacion-editar/${encodeURIComponent(assessmentId)}`}>Editar</Button>}
               {ev.status === 'draft' && <Button variant="warn" disabled={cambiando} onClick={eliminar}>Eliminar borrador</Button>}
+              {ev.status === 'published' && <Button variant="soft" disabled={cambiando || panelCierre === 'cambiar'} onClick={() => { setPanelCierre('cambiar'); setAviso(null); }}>Cambiar cierre</Button>}
               {ev.status === 'published' && <Button variant="warn" disabled={cambiando} onClick={() => cambiarEstado('closed')}>{cambiando ? 'Cerrando…' : 'Cerrar evaluación'}</Button>}
               <Button variant="ghost" href={`#/portal/doc-curso/${encodeURIComponent(ev.course_id)}`}>Volver al curso</Button>
             </PageHead>
             {problema && <FormMessage>{problema}</FormMessage>}
+            {aviso && <FormMessage tone="success">{aviso}</FormMessage>}
+            {panelCierre && (
+              <CierreEvaluacion
+                ev={ev}
+                modo={panelCierre}
+                onCancelar={() => setPanelCierre(null)}
+                onListo={(nueva) => listo(panelCierre === 'publicar'
+                  ? `Evaluación publicada. ${nueva.closes_at ? `Se cierra ${formatCierre(nueva.closes_at)}` : 'No se cierra sola: ciérrala tú cuando quieras.'}`
+                  : nueva.closes_at ? `Nuevo cierre: ${formatCierre(nueva.closes_at)}` : 'Ahora no se cierra sola: ciérrala tú cuando quieras.')()}
+              />
+            )}
 
             <Card as="section" aria-labelledby="preguntas-titulo">
               <h2 id="preguntas-titulo" className={gestion.h2}>Preguntas ({ev.questions.length})</h2>
@@ -136,22 +167,37 @@ export function DocenteEvaluacionPage({ param: assessmentId }) {
                 {ev.questions.map((q) => (
                   <li key={q.id}>
                     <b>{q.statement}</b>
-                    <ul className={styles.opciones}>
-                      {q.options.map((o, k) => (
-                        <li key={k} className={q.correct_option === k ? styles.correcta : undefined}>
-                          {o}
-                          {q.correct_option === k && <Chip tone="success">Correcta</Chip>}
-                        </li>
-                      ))}
-                    </ul>
-                    {q.correct_option === null && <FormMessage tone="info">Falta marcar la alternativa correcta: sin ella no se puede publicar.</FormMessage>}
+                    {q.type === 'text' ? (
+                      <>
+                        {q.accepted_answers?.length > 0 && <p className={styles.tipoTexto}>Respuesta escrita · se acepta:</p>}
+                        <ul className={styles.opciones}>
+                          {(q.accepted_answers ?? []).map((a) => <li key={a} className={styles.correcta}>{a}<Chip tone="success">Aceptada</Chip></li>)}
+                        </ul>
+                        {!q.accepted_answers?.length && <p className={styles.tipoTexto}>Sin respuestas aceptadas: tú revisas cada respuesta.</p>}
+                      </>
+                    ) : (
+                      <>
+                        <ul className={styles.opciones}>
+                          {q.options.map((o, k) => (
+                            <li key={k} className={q.correct_option === k ? styles.correcta : undefined}>
+                              {o}
+                              {q.correct_option === k && <Chip tone="success">Correcta</Chip>}
+                            </li>
+                          ))}
+                        </ul>
+                        {q.correct_option === null && <FormMessage tone="info">Falta marcar la alternativa correcta: sin ella no se puede publicar.</FormMessage>}
+                      </>
+                    )}
                     {q.feedback && <p className={styles.retro}>Retroalimentación: {q.feedback}</p>}
                   </li>
                 ))}
               </ol>
             </Card>
 
-            {ev.status !== 'draft' && <Resultados assessmentId={assessmentId} preguntas={ev.questions} />}
+            {ev.status !== 'draft' && ev.questions.some((q) => q.type === 'text') && (
+              <RevisionRespuestas assessmentId={assessmentId} onRevisada={() => setRevisiones((n) => n + 1)} />
+            )}
+            {ev.status !== 'draft' && <Resultados key={revisiones} assessmentId={assessmentId} preguntas={ev.questions} />}
           </>
         )}
       </LoadState>

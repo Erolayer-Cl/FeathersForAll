@@ -29,6 +29,9 @@
 \ir 07_rag_indices.sql
 \ir 08_login_por_correo.sql
 \ir 09_integridad_evaluaciones.sql
+\ir 10_material_y_tareas.sql
+\ir 11_preguntas_texto.sql
+\ir 12_revision_docente.sql
 
 -- Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
 -- El rol es del servidor (no de la base): puede existir de otra base.

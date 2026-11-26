@@ -33,6 +33,7 @@ export const PORTAL_ROUTES = [
   { id: 'doc-evaluacion-editar', title: 'Editar borrador', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
   { id: 'doc-evaluacion', title: 'Evaluación (preguntas y resultados)', group: 'Docente', role: 'doc', nav: 'evaluaciones', detail: true },
   { id: 'doc-libro', title: 'Libro de notas', group: 'Docente', role: 'doc', nav: 'cursos', detail: true },
+  { id: 'doc-tarea', title: 'Tarea (plazo y entregas)', group: 'Docente', role: 'doc', nav: 'cursos', detail: true },
   { id: 'doc-estudiantes', title: 'Mis estudiantes', group: 'Docente', role: 'doc', nav: 'estudiantes' },
   // El id es "<curso>/<estudiante>" (routeHref lo codifica como un solo segmento).
   { id: 'doc-estudiante', title: 'Notas de un estudiante', group: 'Docente', role: 'doc', nav: 'estudiantes', detail: true },

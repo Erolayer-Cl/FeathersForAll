@@ -120,6 +120,19 @@ describe('apuntes del tutor por curso (contrato v1.3)', { skip: SKIP }, () => {
       assert.match(r.rows[0].contenido, /parte entera/);
     });
 
+    test('v1.8: lo que sube el docente lo ve y lo descarga el estudiante, con el archivo original', async () => {
+      const { data } = await (await fetch(`${url}/v1/courses/${MATE}/materials`, { headers: auth(CAMILA) })).json();
+      const pdf = data.find((m) => m.name === 'decimales.pdf');
+      assert.equal(pdf.original, true);
+      assert.equal(pdf.content_type, 'application/pdf');
+      const res = await fetch(`${url}/v1/courses/${MATE}/materials/decimales.pdf/file`, { headers: auth(CAMILA) });
+      assert.equal(res.status, 200);
+      assert.equal((await res.arrayBuffer()).byteLength, pdf.size_bytes);
+      const md = await fetch(`${url}/v1/courses/${MATE}/materials/fracciones.md/file`, { headers: auth(CAMILA) });
+      assert.match(md.headers.get('content-type'), /^text\/markdown/);
+      assert.match(await md.text(), /Otro párrafo/); // el reemplazo también reemplaza el archivo
+    });
+
     test('nombres con espacios y tildes viajan codificados en la URL', async () => {
       assert.equal((await put('Clase 3 · Ángulos.md', '# Ángulos\n\nUn ángulo recto mide 90 grados.', ANA)).status, 201);
       const { data } = await (await list(ANA)).json();
