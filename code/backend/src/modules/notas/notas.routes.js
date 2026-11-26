@@ -77,10 +77,14 @@ export function createNotasRouter({ db }) {
         answers: detalle.map((d) => ({
           order: d.orden,
           question: d.enunciado,
-          selected_option: d.respuesta_elegida,
+          type: d.tipo === 'texto' ? 'text' : 'multiple_choice',
+          selected_option: d.respuesta_elegida, // texto de la alternativa elegida, o lo que escribió (pregunta de texto)
           correct: d.es_correcta,
+          pending_review: d.revision_pendiente ?? false,
           feedback: d.retroalimentacion,
         })),
+        // v1.11: si hay respuestas por revisar, la nota es provisional.
+        pending_review: detalle.filter((d) => d.revision_pendiente).length,
       };
     });
     res.json(body);

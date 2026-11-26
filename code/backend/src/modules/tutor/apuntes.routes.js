@@ -6,6 +6,7 @@ import { isReferenceDoc } from './rag/doc-kinds.js';
 import { extractPdfPages } from './rag/pdf-text.js';
 import { toRagProblem } from './rag/rag.routes.js';
 import { assertCleanDocument } from './rag/injection-scan.js';
+import * as Q from '../../../db/queries.js';
 
 export const MAX_DOCUMENT_NAME = 120;
 /** Tamaño máximo de un archivo de apuntes (el portal valida lo mismo antes de enviarlo). */
@@ -84,6 +85,19 @@ function uploadName(raw) {
  */
 export function createApuntesRouter({ db, rag }) {
   const router = Router();
+
+  /**
+   * v1.8: guarda el archivo ORIGINAL para que los estudiantes del curso lo descarguen (GET .../materials).
+   * El tutor ya quedó listo con el texto: si esto falla, el apunte igual sirve y el estudiante recibe el texto
+   * (.txt) en vez del archivo. Por eso solo se avisa en el log (sin el contenido).
+   */
+  async function guardarOriginal(req, courseId, name, tipo, body) {
+    try {
+      await db.withUser(req.user, (c) => c.query(Q.GUARDAR_ARCHIVO_APUNTE, [courseId, name, tipo, body.length, body]));
+    } catch (err) {
+      req.log?.warn({ err: err.message, code: err.code }, 'no se pudo guardar el archivo original del apunte');
+    }
+  }
   const base = '/v1/courses/:courseId/documents';
 
   /** Verifica el acceso ANTES de leer el cuerpo: un estudiante no alcanza a subir 40 MB. */
@@ -135,6 +149,7 @@ export function createApuntesRouter({ db, rag }) {
         // T-4: antes de gastar embeddings, se revisa que el apunte no traiga órdenes para la IA.
         assertCleanDocument(input, req);
         const result = await rag.ingest({ ...ref, docId: name, title: name.replace(/\.[^.]+$/, ''), ...input, actor: actorOf(req) });
+        await guardarOriginal(req, ref.courseId, name, isPdf ? 'application/pdf' : /\.md$|\.markdown$/i.test(name) ? 'text/markdown' : 'text/plain', body);
         // 200 = reemplazó a uno con ese nombre; 201 = nuevo (lo decide la misma transacción que guarda).
         res.status(result.created === false ? 200 : 201).json(toDocument(result, input.pages?.length));
       } catch (err) {

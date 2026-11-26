@@ -14,8 +14,9 @@ export function Field({ label, hint, children, className = '' }) {
 /** Mensaje de un formulario: `error` se anuncia como alerta; `success` y `info`, como estado. */
 export function FormMessage({ tone = 'error', children }) {
   return (
-    <p className={`${styles.message} ${styles[tone]}`} role={tone === 'error' ? 'alert' : 'status'}>
+    // div (no p): el editor de evaluaciones pone listas (<ul>) dentro del mensaje, y un <ul> no puede ir en un <p>.
+    <div className={`${styles.message} ${styles[tone]}`} role={tone === 'error' ? 'alert' : 'status'}>
       {children}
-    </p>
+    </div>
   );
 }

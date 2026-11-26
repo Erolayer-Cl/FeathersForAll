@@ -21,6 +21,7 @@ import { DocenteEstudianteNotasPage } from './docente/EstudianteNotasPage.jsx';
 import { DocenteLibroNotasPage } from './docente/LibroNotasPage.jsx';
 import { DocenteMisEstudiantesPage } from './docente/MisEstudiantesPage.jsx';
 import { DocenteReportesPage } from './docente/ReportesPage.jsx';
+import { DocenteTareaPage } from './docente/TareaPage.jsx';
 import { EvaluacionPage } from './estudiante/EvaluacionPage.jsx';
 import { SettingsPage } from './shared/SettingsPage.jsx';
 import { AdministradorInicioPage } from './administrador/InicioPage.jsx';
@@ -49,6 +50,7 @@ export const PAGES = {
   'doc-evaluaciones': DocenteEvaluacionesPage,
   'doc-evaluacion-nueva': DocenteEvaluacionNuevaPage,
   'doc-evaluacion': DocenteEvaluacionPage,
+  'doc-tarea': DocenteTareaPage,
   'doc-evaluacion-editar': DocenteEvaluacionEditarPage,
   'doc-libro': DocenteLibroNotasPage,
   'doc-estudiantes': DocenteMisEstudiantesPage,

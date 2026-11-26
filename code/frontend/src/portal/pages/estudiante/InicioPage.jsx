@@ -2,7 +2,8 @@ import { LoadState } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { useSession } from '../../session/useSession.js';
-import { contarNotas, formatFecha, formatNota, periodosDe, primerNombre, promedioGeneral } from '../../utils/notas.js';
+import { formatCierre } from '../../utils/fechas.js';
+import { contarNotas, formatNota, periodosDe, primerNombre, promedioGeneral } from '../../utils/notas.js';
 import { assessmentCategory, getStudentAssessmentDashboard, sortAssessments } from './studentAssessments.js';
 import styles from './InicioPage.module.css';
 
@@ -36,7 +37,7 @@ export function EstudianteInicioPage() {
       <div className={styles.stack}>
         <section className={styles.panel}><div className={styles.sectionHeading}><div><h2>Evaluaciones por rendir</h2><p>Pruebas que puedes realizar</p></div><PortalLink to="est-evaluaciones" className={styles.link}>Ver todas →</PortalLink></div>
           <LoadState loading={loading} error={error} onRetry={reload}>
-            {upcoming.length ? <ul className={styles.evaluationList}>{upcoming.slice(0,4).map((ev) => <li key={ev.id}><div><b>{ev.title}</b><small>{ev.subject}{ev.closes_at ? ` · Hasta ${formatFecha(ev.closes_at)}` : ''}</small></div><PortalLink to="est-evaluacion" param={ev.id} className={styles.link}>Rendir →</PortalLink></li>)}</ul> : <p className={styles.empty}>No tienes evaluaciones pendientes.</p>}
+            {upcoming.length ? <ul className={styles.evaluationList}>{upcoming.slice(0,4).map((ev) => <li key={ev.id}><div><b>{ev.title}</b><small>{ev.subject}{ev.closes_at ? ` · Cierra ${formatCierre(ev.closes_at)}` : ''}</small></div><PortalLink to="est-evaluacion" param={ev.id} className={styles.link}>Rendir →</PortalLink></li>)}</ul> : <p className={styles.empty}>No tienes evaluaciones pendientes.</p>}
           </LoadState>
         </section>
         <section className={styles.panel}><div className={styles.sectionHeading}><div><h2>Practica con Pluma</h2><p>Aprendizaje y preparación</p></div></div><p className={styles.empty}>Elige un curso en Tutor IA y selecciona «Practicar una prueba» para entrenar con preguntas.</p><PortalLink to="est-tutor" className={styles.link}>Abrir el tutor →</PortalLink></section>

@@ -250,11 +250,61 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Publicar o cerrar evaluación
+         * Publicar, cerrar o cambiar la hora de cierre
          * @description Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta: `422`
          *     con `errors` indicando cuáles. Solo se publica un borrador y solo se cierra una publicada (si no, `409`).
+         *
+         *     `closes_at` (v1.9) fija la hora de cierre: una fecha futura con zona horaria, a menos de 366 días, o `null`
+         *     para que no se cierre sola.
+         *     - Con `status: published`: se publica y se fija la hora en el mismo paso. Si no viene, se conserva la del
+         *       borrador. Si esa hora ya pasó, `409`.
+         *     - Sin `status`: solo cambia la hora de un borrador o de una publicada. Extender el plazo de una publicada que
+         *       ya venció la reabre. Una cerrada responde `409`.
+         *     - Con `status: closed` no se envía (`400`): se cierra en ese momento.
          */
         patch: operations["updateAssessmentStatus"];
+        trace?: never;
+    };
+    "/assessments/{assessmentId}/text-answers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Respuestas escritas para revisar
+         * @description Todas las respuestas escritas de los estudiantes que ya entregaron, las por revisar primero. Solo el docente del
+         *     curso o el admin (`403` para el resto).
+         */
+        get: operations["listTextAnswers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assessments/{assessmentId}/text-answers/{answerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Revisar una respuesta escrita
+         * @description El docente decide si la respuesta es correcta. Se guarda quién y cuándo, y el puntaje del estudiante se recalcula
+         *     de inmediato. Se puede volver a cambiar. Solo el docente del curso o el admin.
+         */
+        patch: operations["reviewTextAnswer"];
         trace?: never;
     };
     "/assessments/{assessmentId}/submissions": {
@@ -561,6 +611,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/courses/{courseId}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Material del curso
+         * @description Los apuntes que subió el docente al curso, del más reciente al más antiguo, para que sus estudiantes los vean y
+         *     los descarguen. No incluye las Bases Curriculares del Mineduc. `original = true` indica que se guardó el
+         *     archivo tal como se subió; si es `false` (apuntes anteriores a v1.8), la descarga entrega su texto como `.txt`.
+         *     Cualquiera que participe en el curso (estudiante matriculado, su docente o el admin); si no, `404`.
+         */
+        get: operations["listCourseMaterials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/materials/{materialName}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Descargar un material del curso
+         * @description Descarga el archivo como adjunto (`Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`,
+         *     `Content-Security-Policy: sandbox`): el navegador no lo interpreta. Mismo acceso que `listCourseMaterials`.
+         */
+        get: operations["downloadCourseMaterial"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/courses/{courseId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tareas del curso
+         * @description Tareas del curso, de la que cierra antes a la que cierra después. `is_open` dice si todavía se puede entregar.
+         *     El estudiante recibe `my_submission` (su entrega o `null`); el docente y el admin reciben
+         *     `submissions_count` y `students_count`.
+         */
+        get: operations["listCourseTasks"];
+        put?: never;
+        /**
+         * Crear una tarea con hora límite
+         * @description El docente del curso (o el admin) publica una tarea con fecha y hora límite. La hora va en ISO 8601 **con zona
+         *     horaria** (por ejemplo `-03:00` para Chile), debe ser futura y estar a menos de 366 días. Hasta esa hora cada
+         *     estudiante puede subir un archivo (y reemplazarlo); después, la API y la base rechazan las entregas.
+         *     El archivo del enunciado, si hay, se sube después con `putTaskAttachment`.
+         */
+        post: operations["createTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Una tarea
+         * @description La tarea. Para el docente y el admin incluye `students`: todos los estudiantes con matrícula activa, con su
+         *     entrega o `null` (así se ve quién no entregó).
+         */
+        get: operations["getTask"];
+        put?: never;
+        post?: never;
+        /**
+         * Borrar una tarea
+         * @description Borra la tarea, su archivo y **todas las entregas**. Solo el docente del curso o el admin.
+         */
+        delete: operations["deleteTask"];
+        options?: never;
+        head?: never;
+        /**
+         * Editar una tarea
+         * @description Cambia el título, las instrucciones (`null` las quita) o la hora límite. Mover la hora al futuro reabre la tarea;
+         *     moverla al pasado la cierra de inmediato. Solo el docente del curso o el admin.
+         */
+        patch: operations["updateTask"];
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Descargar el archivo de la tarea
+         * @description El enunciado o guía que adjuntó el docente. Cualquiera que participe en el curso.
+         */
+        get: operations["downloadTaskAttachment"];
+        put?: never;
+        post?: never;
+        /**
+         * Quitar el archivo de la tarea
+         * @description Quita el enunciado adjunto; la tarea y las entregas siguen. Solo el docente del curso o el admin.
+         */
+        delete: operations["deleteTaskAttachment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/attachment/{fileName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Adjuntar (o reemplazar) el archivo de la tarea
+         * @description Cuerpo binario de hasta 10 MB. Formatos: `.pdf`, `.doc(x)`, `.ppt(x)`, `.xls(x)`, `.odt`, `.odp`, `.ods`, `.txt`,
+         *     `.md`, `.jpg`, `.jpeg`, `.png`, `.zip`. El tipo lo decide el servidor por la extensión y revisa que el contenido
+         *     calce (`422 invalid-file` si no). Solo el docente del curso o el admin.
+         */
+        put: operations["putTaskAttachment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/submission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Descargar mi entrega
+         * @description El estudiante descarga lo que entregó. El docente usa `downloadTaskSubmission`.
+         */
+        get: operations["downloadMyTaskSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/submission/{fileName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Entregar (o reemplazar) mi archivo
+         * @description El estudiante matriculado sube su archivo (mismos formatos y tope que el archivo de la tarea). Una entrega por
+         *     estudiante: subir otra vez la reemplaza (`200`) mientras la tarea siga abierta. Pasada la hora límite responde
+         *     `409` (`task-closed`) y no guarda nada; la base de datos aplica la misma regla (RLS), así que una subida que
+         *     termina después de la hora también se rechaza. La hora de la entrega la pone el servidor.
+         */
+        put: operations["putTaskSubmission"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{taskId}/submissions/{studentId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Descargar la entrega de un estudiante
+         * @description Solo el docente del curso o el admin.
+         */
+        get: operations["downloadTaskSubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -793,11 +1055,20 @@ export interface components {
             answers: {
                 order: number;
                 question: string;
-                /** @description Texto de la alternativa elegida. */
+                /**
+                 * @description v1.10.
+                 * @enum {string}
+                 */
+                type?: "multiple_choice" | "text";
+                /** @description Texto de la alternativa elegida o, si la pregunta es de texto, lo que escribió. */
                 selected_option?: string | null;
                 correct: boolean;
+                /** @description v1.11. Por revisar del docente. */
+                pending_review?: boolean;
                 feedback?: string | null;
             }[];
+            /** @description v1.11. Si es mayor que 0, la nota es provisional. */
+            pending_review?: number;
         };
         EnrollmentList: {
             data: {
@@ -860,10 +1131,20 @@ export interface components {
             /** Format: date-time */
             enrolled_at: string;
         };
+        /**
+         * @description Pregunta de alternativas (`type: multiple_choice`, el valor por defecto: `options` de 2 a 6 y `correct_option`)
+         *     o de respuesta escrita (`type: text`, v1.10: sin `options` y con `accepted_answers`).
+         */
         QuestionInput: {
+            /**
+             * @default multiple_choice
+             * @enum {string}
+             */
+            type: "multiple_choice" | "text";
             /** @example ¿Cuánto es 3/4 + 1/4? */
             statement: string;
             /**
+             * @description De 2 a 6 en las preguntas de alternativas; vacío (o ausente) en las de texto.
              * @example [
              *       "1/2",
              *       "1",
@@ -871,12 +1152,22 @@ export interface components {
              *       "3/16"
              *     ]
              */
-            options: string[];
+            options?: string[];
             /**
-             * @description Índice de la alternativa correcta. Obligatorio para publicar.
+             * @description Índice de la alternativa correcta. Obligatorio para publicar (solo alternativas).
              * @example 1
              */
             correct_option?: number | null;
+            /**
+             * @description Solo preguntas de texto: respuestas que se dan por correctas (de 0 a 10). Sin ninguna, el docente revisa
+             *     cada respuesta a mano (v1.11). Solo las ve el docente o el admin.
+             * @example [
+             *       "1",
+             *       "uno",
+             *       "4/4"
+             *     ]
+             */
+            accepted_answers?: string[];
             /**
              * @description Retroalimentación que ve el estudiante tras responder.
              * @example Suma los numeradores con igual denominador: 4/4 = 1.
@@ -945,15 +1236,28 @@ export interface components {
             /** @description Cuántas se pidieron; pueden llegar menos si el modelo falló en alguna. */
             requested_questions?: number;
         };
+        /**
+         * @example {
+         *       "status": "published",
+         *       "closes_at": "2026-11-26T15:30:00-03:00"
+         *     }
+         */
         AssessmentStatusInput: {
             /** @enum {string} */
-            status: "published" | "closed";
+            status?: "published" | "closed";
+            /**
+             * Format: date-time
+             * @description v1.9. Hora de cierre (futura, con zona horaria, a menos de 366 días) o null = sin cierre automático.
+             */
+            closes_at?: string | null;
         };
         SubmissionInput: {
             answers: {
                 /** Format: uuid */
                 question_id: string;
-                selected_option: number;
+                selected_option?: number;
+                /** @description Respuesta escrita. En blanco cuenta como sin responder. */
+                text_answer?: string;
             }[];
         };
         SubmissionResult: {
@@ -979,10 +1283,51 @@ export interface components {
                 /** Format: uuid */
                 question_id: string;
                 correct: boolean;
+                /** @description v1.11. Respuesta escrita que el docente aún debe revisar (vale 0 por ahora). */
+                pending_review?: boolean;
                 feedback: string;
             }[];
+            /** @description v1.11. Respuestas por revisar: si es mayor que 0, la nota es provisional. */
+            pending_review?: number;
             /** Format: date-time */
             submitted_at: string;
+        };
+        TextAnswer: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            question_id: string;
+            question_order: number;
+            question: string;
+            /** @description Vacío si la pregunta es de revisión manual. */
+            accepted_answers?: string[];
+            /** Format: uuid */
+            student_id: string;
+            student_name: string;
+            text_answer: string;
+            correct: boolean;
+            pending_review: boolean;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+            /** Format: date-time */
+            submitted_at?: string;
+        };
+        TextAnswerList: {
+            pending: number;
+            data: components["schemas"]["TextAnswer"][];
+        };
+        TextAnswerReview: {
+            correct: boolean;
+        };
+        TextAnswerReviewResult: {
+            /** Format: uuid */
+            id: string;
+            correct: boolean;
+            pending_review: boolean;
+            /** Format: date-time */
+            reviewed_at: string;
+            student_percentage: number;
+            student_grade: number;
         };
         AssessmentResults: {
             /** Format: uuid */
@@ -1106,6 +1451,86 @@ export interface components {
         CourseDocumentList: {
             data: components["schemas"]["CourseDocument"][];
         };
+        CourseMaterial: {
+            /** @example guia-fracciones.pdf */
+            name: string;
+            /** @example application/pdf */
+            content_type: string;
+            size_bytes: number;
+            /** @description true = se descarga el archivo tal como se subió; false = su texto como .txt. */
+            original: boolean;
+            /** Format: date-time */
+            uploaded_at: string;
+        };
+        CourseMaterialList: {
+            data: components["schemas"]["CourseMaterial"][];
+        };
+        TaskInput: {
+            title: string;
+            instructions?: string | null;
+            /**
+             * Format: date-time
+             * @description Fecha y hora límite, con zona horaria. Futura y a menos de 366 días.
+             */
+            due_at: string;
+        };
+        TaskPatch: {
+            title?: string;
+            instructions?: string | null;
+            /**
+             * Format: date-time
+             * @description Al futuro reabre la tarea; al pasado la cierra.
+             */
+            due_at?: string;
+        };
+        TaskFile: {
+            name: string;
+            size_bytes: number;
+            content_type: string;
+        };
+        TaskSubmission: {
+            file_name: string;
+            size_bytes: number;
+            /**
+             * Format: date-time
+             * @description Hora de la última entrega, puesta por el servidor.
+             */
+            submitted_at: string;
+        };
+        Task: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            course_id: string;
+            title: string;
+            instructions: string | null;
+            /** Format: date-time */
+            due_at: string;
+            /** @description true mientras no pase la hora límite (calculado por el servidor). */
+            is_open: boolean;
+            attachment: components["schemas"]["TaskFile"] | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description Solo para el estudiante. Su entrega, o null si no ha entregado. */
+            my_submission?: components["schemas"]["TaskSubmission"] | null;
+            /** @description Solo para el docente y el admin. */
+            submissions_count?: number;
+            /** @description Solo para el docente y el admin: matrículas activas. */
+            students_count?: number;
+        };
+        TaskStudent: {
+            /** Format: uuid */
+            student_id: string;
+            name: string;
+            submission: components["schemas"]["TaskSubmission"] | null;
+        };
+        TaskDetail: components["schemas"]["Task"] & {
+            /** @description Solo para el docente y el admin. Todos los estudiantes con matrícula activa. */
+            students?: components["schemas"]["TaskStudent"][];
+        };
+        TaskList: {
+            data: components["schemas"]["Task"][];
+        };
     };
     responses: {
         /** @description Solicitud mal formada (por ejemplo, falta Idempotency-Key). */
@@ -1189,7 +1614,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description El cuerpo supera el tamaño permitido (40 MB para un apunte). */
+        /** @description El cuerpo supera el tamaño permitido (40 MB para un apunte, 10 MB para el archivo de una tarea o una entrega). */
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -1200,6 +1625,15 @@ export interface components {
         };
         /** @description Formato de archivo no soportado. */
         UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description La tarea ya cerró (pasó su hora límite); type `task-closed`. */
+        TaskClosed: {
             headers: {
                 [name: string]: unknown;
             };
@@ -1235,6 +1669,14 @@ export interface components {
         ConversationId: string;
         /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
         DocumentName: string;
+        /** @description Identificador de la tarea. */
+        TaskId: string;
+        /** @description Identificador del estudiante. */
+        StudentId: string;
+        /** @description Nombre del material en el curso (el mismo de `listCourseMaterials`). Codificado con encodeURIComponent. */
+        MaterialName: string;
+        /** @description Nombre del archivo con su extensión, codificado con encodeURIComponent. Sin `/ \ : * ? " < > |` ni saltos de línea. */
+        FileName: string;
         /** @description Identificador de la evaluación. */
         AssessmentId: string;
         /** @description Cursor opaco devuelto en `next_cursor`. */
@@ -1242,7 +1684,14 @@ export interface components {
         /** @description Tamaño de página. */
         Limit: number;
     };
-    requestBodies: never;
+    requestBodies: {
+        /** @description El archivo como cuerpo binario (no multipart). El Content-Type es informativo; manda la extensión. */
+        BinaryFile: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+    };
     headers: {
         /** @description Identificador de traza para correlacionar logs (CloudWatch). */
         "X-Trace-Id": string;
@@ -1739,6 +2188,73 @@ export interface operations {
             422: components["responses"]["ValidationError"];
         };
     };
+    listTextAnswers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Respuestas escritas. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextAnswerList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    reviewTextAnswer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+                /** @description Identificador de la respuesta (de `listTextAnswers`). */
+                answerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "correct": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["TextAnswerReview"];
+            };
+        };
+        responses: {
+            /** @description Respuesta revisada, con el nuevo puntaje y la nota del estudiante. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextAnswerReviewResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     submitAssessment: {
         parameters: {
             query?: never;
@@ -2226,6 +2742,430 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCourseMaterials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Material del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "data": [
+                     *         {
+                     *           "name": "guia-fracciones.pdf",
+                     *           "content_type": "application/pdf",
+                     *           "size_bytes": 482113,
+                     *           "original": true,
+                     *           "uploaded_at": "2026-11-20T14:02:11Z"
+                     *         }
+                     *       ]
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CourseMaterialList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadCourseMaterial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del material en el curso (el mismo de `listCourseMaterials`). Codificado con encodeURIComponent. */
+                materialName: components["parameters"]["MaterialName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listCourseTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tareas del curso. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createTask: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID generado por el cliente. Misma clave en 24 h = misma respuesta, sin duplicar. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "title": "Guía de fracciones",
+                 *       "instructions": "Resuelve los ejercicios 1 al 5 y sube una foto o un PDF.",
+                 *       "due_at": "2026-12-04T23:59:00-03:00"
+                 *     }
+                 */
+                "application/json": components["schemas"]["TaskInput"];
+            };
+        };
+        responses: {
+            /** @description Tarea creada. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La tarea. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tarea borrada. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "due_at": "2026-12-06T23:59:00-03:00"
+                 *     }
+                 */
+                "application/json": components["schemas"]["TaskPatch"];
+            };
+        };
+        responses: {
+            /** @description Tarea actualizada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    downloadTaskAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteTaskAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archivo quitado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putTaskAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+                /** @description Nombre del archivo con su extensión, codificado con encodeURIComponent. Sin `/ \ : * ? " < > |` ni saltos de línea. */
+                fileName: components["parameters"]["FileName"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["BinaryFile"];
+        responses: {
+            /** @description Archivo guardado; devuelve la tarea. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Task"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    downloadMyTaskSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putTaskSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+                /** @description Nombre del archivo con su extensión, codificado con encodeURIComponent. Sin `/ \ : * ? " < > |` ni saltos de línea. */
+                fileName: components["parameters"]["FileName"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["BinaryFile"];
+        responses: {
+            /** @description Entrega reemplazada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSubmission"];
+                };
+            };
+            /** @description Primera entrega. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "file_name": "guia-camila.pdf",
+                     *       "size_bytes": 230411,
+                     *       "submitted_at": "2026-12-03T21:14:05Z"
+                     *     }
+                     */
+                    "application/json": components["schemas"]["TaskSubmission"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["TaskClosed"];
+            413: components["responses"]["PayloadTooLarge"];
+            415: components["responses"]["UnsupportedMediaType"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    downloadTaskSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la tarea. */
+                taskId: components["parameters"]["TaskId"];
+                /** @description Identificador del estudiante. */
+                studentId: components["parameters"]["StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8). */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];

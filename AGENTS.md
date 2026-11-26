@@ -210,8 +210,8 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 
 | Rol | Ya puede | Le falta |
 |---|---|---|
-| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor; libro de notas con estudiantes en riesgo, notas de cada estudiante, exigencia y ponderación, «Mis estudiantes» y «Reportes» | Exportar el libro (CSV/PDF), umbral de riesgo configurable en pantalla |
-| **Estudiante** | Ver cursos y notas, rendir evaluaciones con nota y retroalimentación al instante, usar el tutor IA con historial | «Progreso», contenido del curso (`est-contenido`), columnas Examen/Final de «Mis notas» (no existen en la base) |
+| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor (que sus estudiantes ven y descargan); crear tareas con hora límite y descargar las entregas (v1.8); libro de notas con estudiantes en riesgo, notas de cada estudiante, exigencia y ponderación, «Mis estudiantes» y «Reportes» | Exportar el libro (CSV/PDF), umbral de riesgo configurable en pantalla |
+| **Estudiante** | Ver cursos y notas, rendir evaluaciones con nota y retroalimentación al instante, usar el tutor IA con historial; ver y descargar el material del curso y entregar tareas antes de su hora límite (v1.8) | «Progreso», contenido del curso (`est-contenido`), columnas Examen/Final de «Mis notas» (no existen en la base) |
 | **Administrador** | Entrar y leer cursos y notas de su colegio por la API | Todo en el portal: gestión de usuarios (crear, desactivar, restablecer clave), vista de cursos, evaluaciones y reportes del colegio |
 
 ### Fases
@@ -282,3 +282,31 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - Guardrails nuevos en `code/backend/src/modules/tutor/guardrails.js`: RUT/correo/teléfono fuera del prompt (`redactMessages`) y etiquetas internas fuera de la respuesta (`createOutputFilter`, también en streaming). Pruebas: `test/guardrails.test.js`.
 - El examen (`eval/`) suma métricas estilo RAGAS (`eval/metricas.js`). **Pendiente:** correr `npm run eval:live -- --guardar` y completar la tabla de la sección 4 de la model card.
 - Si cambia el modelo, el prompt o una ley citada (21.719 tiene postergación en trámite), actualizar la model card y el marco legal.
+
+## Material y tareas (v1.8, ADR 0016)
+
+- **Base:** `db/10_material_y_tareas.sql` (va después de 09; ya está en `crear_bdd.sql`, `scripts/db-setup.js` y `test/pg-fixture.js`). En una base existente: `npm run db:setup`, que la aplica si falta la tabla `tareas`.
+- **API:** `src/modules/contenido/` (contrato v1.8.0, etiqueta «Contenido»). Material: `GET /v1/courses/{id}/materials[/{nombre}/file]`. Tareas: `/v1/courses/{id}/tasks` y `/v1/tasks/{id}` (archivo del docente en `attachment`, entrega del estudiante en `submission`).
+- **Hora límite:** la hace cumplir el RLS (`tarea_abierta()`); la API responde `409 task-closed`. Archivos de hasta 10 MB, con lista cerrada de extensiones, revisión de los primeros bytes y descarga como adjunto.
+- **Portal:** el estudiante ve «Tareas» y «Material del curso» en `est-curso`; el docente crea las tareas en `doc-curso` y ve las entregas en `doc-tarea/<id>`.
+- **Pendiente:** purga anual de las entregas, antivirus y mover los archivos a almacenamiento de objetos si el volumen crece.
+- **Pruebas con base en local:** con pgvector menor a 0.8, `set_config('hnsw.iterative_scan', …)` de `db.js` falla en cuanto la sesión carga la extensión. Usa pgvector 0.8 (el del compose).
+
+## Hora de cierre de evaluaciones (v1.9)
+
+- `PATCH /v1/assessments/{id}` acepta `closes_at`. Sirve para fijar el cierre al publicar (por duración, «90 min», o por día y hora) y para cambiarlo después: una publicada que ya venció se reabre si se extiende el cierre. Un borrador cuyo cierre ya pasó responde `409` al publicarse (antes, `500` por `chk_evaluaciones_cierre`).
+- Portal: el docente elige el cierre en `pages/docente/CierreEvaluacion.jsx`. Las vistas muestran la hora con a. m. / p. m. en hora de Chile («hoy, 11:59 p. m.») usando `utils/fechas.js`. Al estudiante se le muestra la cuenta regresiva y el formulario se bloquea al llegar la hora.
+- Rendir evaluación (`pages/estudiante/EvaluacionPage`): tarjetas de pregunta con la leyenda dentro de la tarjeta, alternativas A–F y foco visible solo con teclado. Solo se tocó esa sección; el resto del diseño es del equipo.
+
+## Preguntas de respuesta escrita (v1.10)
+
+- Migración `db/11_preguntas_texto.sql` (después de 10; ya está en `crear_bdd.sql`, `db-setup.js` y el fixture de pruebas). Agrega `preguntas.tipo` (`alternativas` | `texto`), `preguntas.respuestas_aceptadas` y `respuestas_estudiante.respuesta_texto`.
+- La corrección la hace la base (`respuesta_texto_correcta()`, también desde el trigger de 09 en sesión de estudiante). No distingue mayúsculas, tildes, espacios de más, tipo de apóstrofo ni puntuación final, y compara los números por valor (7 = 7,0 = 7.0). La ñ se respeta.
+- API (contrato 1.10.0): en las preguntas, `type: text` + `accepted_answers`. Al rendir, `text_answer`. El estudiante nunca recibe las respuestas aceptadas.
+- Portal: el editor permite elegir el tipo de cada pregunta y el estudiante responde en un cuadro de texto. No hay corrección manual: si el docente quiere aceptar otra forma, la agrega como respuesta aceptada antes de publicar.
+
+## Revisión docente de respuestas escritas (v1.11)
+
+- Migración `db/12_revision_docente.sql` (después de 11). Agrega a `respuestas_estudiante` las columnas `revision_pendiente`, `revisada_por` y `revisada_at`. Una pregunta de texto **sin** respuestas aceptadas queda «por revisar», vale 0 y la nota es provisional. El estudiante no puede marcarse como revisado: el trigger lo limpia.
+- API (contrato 1.11.0): `GET /v1/assessments/{id}/text-answers` (bandeja del docente, primero las pendientes) y `PATCH /v1/assessments/{id}/text-answers/{answerId}` con `{ correct }`, que recalcula el puntaje al instante. El docente también puede cambiar una respuesta que se corrigió sola. `pending_review` aparece en el resultado del envío y en `GET /v1/me/grades/{id}`.
+- Portal: tarjeta «Respuestas escritas» en `doc-evaluacion` (`pages/docente/RevisionRespuestas.jsx`). El estudiante ve «Por revisar» y el aviso de nota provisional.

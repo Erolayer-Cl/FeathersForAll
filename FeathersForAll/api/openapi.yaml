@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: FeathersForAll API
-  version: 1.7.0
+  version: 1.11.0
   summary: API pública del monolito modular de FeathersForAll.
   description: |
     Contrato contract-first de FeathersForAll. Fuente de verdad para backend (Node.js + Express),
@@ -43,6 +43,28 @@ info:
     respuestas posibles: ningún cambio rompe a los clientes existentes.
     El tutor asíncrono (`tutor-questions`) queda **deprecado**: lo reemplazan las conversaciones guardadas.
 
+    **Material y tareas (v1.8):** los apuntes que sube el docente ahora también los ven y descargan sus estudiantes
+    (`listCourseMaterials`). El docente publica tareas con fecha y hora límite (`createTask`); cada estudiante sube un
+    archivo y lo puede reemplazar hasta esa hora. Después la API responde `409` (`task-closed`) y la base de datos
+    también lo rechaza. Los archivos se descargan siempre como adjunto. Solo se agregan operaciones nuevas.
+
+    **Hora de cierre de las evaluaciones (v1.9):** `updateAssessmentStatus` acepta `closes_at` para fijar la hora de
+    cierre al publicar (una duración, como «en 90 minutos», se manda ya convertida en fecha y hora) o para cambiarla
+    después, por ejemplo para extender el plazo de una evaluación publicada. Antes, publicar un borrador cuyo cierre ya
+    había pasado fallaba con `500`; ahora responde `409` con el motivo. Los clientes que solo mandan `status` siguen
+    igual.
+
+    **Preguntas de respuesta escrita (v1.10):** una pregunta puede ser `type: text`. El estudiante escribe su
+    respuesta (`text_answer`) y se corrige al instante contra las `accepted_answers` del docente. No importan las
+    mayúsculas, las tildes, los espacios de más, el tipo de apóstrofo ni la puntuación final, y los números se
+    comparan por su valor. La base de datos hace la corrección, igual que con las alternativas. Las respuestas
+    aceptadas nunca llegan al estudiante. Sin `type`, una pregunta sigue siendo de alternativas.
+
+    **Revisión docente de respuestas escritas (v1.11):** una pregunta de texto sin `accepted_answers` la corrige el
+    docente. La respuesta queda `pending_review`, vale 0 y la nota es provisional hasta la revisión. El docente ve
+    todas las respuestas escritas (`listTextAnswers`) y marca cada una como correcta o incorrecta
+    (`reviewTextAnswer`), también las que se corrigieron solas. El puntaje se recalcula al instante.
+
     **Multi-tenancy:** el tenant (colegio) NO viaja en la URL. Se obtiene del token JWT
     (claim `tenant_id`) y el backend lo fija por transacción en PostgreSQL (RLS, ADR 0002 D1).
     Un recurso de otro colegio responde `404` (no se revela su existencia).
@@ -81,6 +103,8 @@ tags:
     description: Creación, publicación y rendición de evaluaciones auto-corregidas (H2, H4).
   - name: Resultados
     description: Dashboard de resultados para el docente (H3).
+  - name: Contenido
+    description: Material del curso visible para el estudiante y tareas con hora límite (v1.8).
   - name: Tutor IA
     description: Consultas al tutor IA con RAG por curso/tenant (H5). Preguntas sueltas asíncronas vía SQS y conversaciones guardadas del estudiante con respuesta en streaming (ADR 0008).
 paths:
@@ -563,10 +587,18 @@ paths:
           $ref: '#/components/responses/Conflict'
     patch:
       tags: [Evaluaciones]
-      summary: Publicar o cerrar evaluación
+      summary: Publicar, cerrar o cambiar la hora de cierre
       description: |
         Cambia el estado de la evaluación (H2). No se puede publicar si alguna pregunta no tiene respuesta correcta: `422`
         con `errors` indicando cuáles. Solo se publica un borrador y solo se cierra una publicada (si no, `409`).
+
+        `closes_at` (v1.9) fija la hora de cierre: una fecha futura con zona horaria, a menos de 366 días, o `null`
+        para que no se cierre sola.
+        - Con `status: published`: se publica y se fija la hora en el mismo paso. Si no viene, se conserva la del
+          borrador. Si esa hora ya pasó, `409`.
+        - Sin `status`: solo cambia la hora de un borrador o de una publicada. Extender el plazo de una publicada que
+          ya venció la reabre. Una cerrada responde `409`.
+        - Con `status: closed` no se envía (`400`): se cierra en ese momento.
       operationId: updateAssessmentStatus
       parameters:
         - $ref: '#/components/parameters/AssessmentId'
@@ -598,6 +630,74 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/ValidationError'
+  /assessments/{assessmentId}/text-answers:
+    get:
+      tags: [Evaluaciones]
+      summary: Respuestas escritas para revisar
+      description: |
+        Todas las respuestas escritas de los estudiantes que ya entregaron, las por revisar primero. Solo el docente del
+        curso o el admin (`403` para el resto).
+      operationId: listTextAnswers
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Respuestas escritas.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextAnswerList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /assessments/{assessmentId}/text-answers/{answerId}:
+    patch:
+      tags: [Evaluaciones]
+      summary: Revisar una respuesta escrita
+      description: |
+        El docente decide si la respuesta es correcta. Se guarda quién y cuándo, y el puntaje del estudiante se recalcula
+        de inmediato. Se puede volver a cambiar. Solo el docente del curso o el admin.
+      operationId: reviewTextAnswer
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+        - name: answerId
+          in: path
+          required: true
+          description: Identificador de la respuesta (de `listTextAnswers`).
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextAnswerReview'
+            example: { correct: true }
+      responses:
+        '200':
+          description: Respuesta revisada, con el nuevo puntaje y la nota del estudiante.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TextAnswerReviewResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /assessments/{assessmentId}/submissions:
     post:
       tags: [Evaluaciones]
@@ -1114,6 +1214,394 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/materials:
+    get:
+      tags: [Contenido]
+      summary: Material del curso
+      description: |
+        Los apuntes que subió el docente al curso, del más reciente al más antiguo, para que sus estudiantes los vean y
+        los descarguen. No incluye las Bases Curriculares del Mineduc. `original = true` indica que se guardó el
+        archivo tal como se subió; si es `false` (apuntes anteriores a v1.8), la descarga entrega su texto como `.txt`.
+        Cualquiera que participe en el curso (estudiante matriculado, su docente o el admin); si no, `404`.
+      operationId: listCourseMaterials
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Material del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseMaterialList'
+              example:
+                data:
+                  - { name: "guia-fracciones.pdf", content_type: "application/pdf", size_bytes: 482113, original: true, uploaded_at: "2026-11-20T14:02:11Z" }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/materials/{materialName}/file:
+    get:
+      tags: [Contenido]
+      summary: Descargar un material del curso
+      description: |
+        Descarga el archivo como adjunto (`Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`,
+        `Content-Security-Policy: sandbox`): el navegador no lo interpreta. Mismo acceso que `listCourseMaterials`.
+      operationId: downloadCourseMaterial
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/MaterialName'
+      responses:
+        '200':
+          description: El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/tasks:
+    get:
+      tags: [Contenido]
+      summary: Tareas del curso
+      description: |
+        Tareas del curso, de la que cierra antes a la que cierra después. `is_open` dice si todavía se puede entregar.
+        El estudiante recibe `my_submission` (su entrega o `null`); el docente y el admin reciben
+        `submissions_count` y `students_count`.
+      operationId: listCourseTasks
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: Tareas del curso.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Contenido]
+      summary: Crear una tarea con hora límite
+      description: |
+        El docente del curso (o el admin) publica una tarea con fecha y hora límite. La hora va en ISO 8601 **con zona
+        horaria** (por ejemplo `-03:00` para Chile), debe ser futura y estar a menos de 366 días. Hasta esa hora cada
+        estudiante puede subir un archivo (y reemplazarlo); después, la API y la base rechazan las entregas.
+        El archivo del enunciado, si hay, se sube después con `putTaskAttachment`.
+      operationId: createTask
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskInput'
+            example: { title: "Guía de fracciones", instructions: "Resuelve los ejercicios 1 al 5 y sube una foto o un PDF.", due_at: "2026-12-04T23:59:00-03:00" }
+      responses:
+        '201':
+          description: Tarea creada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /tasks/{taskId}:
+    get:
+      tags: [Contenido]
+      summary: Una tarea
+      description: |
+        La tarea. Para el docente y el admin incluye `students`: todos los estudiantes con matrícula activa, con su
+        entrega o `null` (así se ve quién no entregó).
+      operationId: getTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: La tarea.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Contenido]
+      summary: Editar una tarea
+      description: |
+        Cambia el título, las instrucciones (`null` las quita) o la hora límite. Mover la hora al futuro reabre la tarea;
+        moverla al pasado la cierra de inmediato. Solo el docente del curso o el admin.
+      operationId: updateTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskPatch'
+            example: { due_at: "2026-12-06T23:59:00-03:00" }
+      responses:
+        '200':
+          description: Tarea actualizada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Contenido]
+      summary: Borrar una tarea
+      description: Borra la tarea, su archivo y **todas las entregas**. Solo el docente del curso o el admin.
+      operationId: deleteTask
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '204':
+          description: Tarea borrada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tasks/{taskId}/attachment:
+    get:
+      tags: [Contenido]
+      summary: Descargar el archivo de la tarea
+      description: El enunciado o guía que adjuntó el docente. Cualquiera que participe en el curso.
+      operationId: downloadTaskAttachment
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Contenido]
+      summary: Quitar el archivo de la tarea
+      description: Quita el enunciado adjunto; la tarea y las entregas siguen. Solo el docente del curso o el admin.
+      operationId: deleteTaskAttachment
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '204':
+          description: Archivo quitado.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tasks/{taskId}/attachment/{fileName}:
+    put:
+      tags: [Contenido]
+      summary: Adjuntar (o reemplazar) el archivo de la tarea
+      description: |
+        Cuerpo binario de hasta 10 MB. Formatos: `.pdf`, `.doc(x)`, `.ppt(x)`, `.xls(x)`, `.odt`, `.odp`, `.ods`, `.txt`,
+        `.md`, `.jpg`, `.jpeg`, `.png`, `.zip`. El tipo lo decide el servidor por la extensión y revisa que el contenido
+        calce (`422 invalid-file` si no). Solo el docente del curso o el admin.
+      operationId: putTaskAttachment
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/FileName'
+      requestBody:
+        $ref: '#/components/requestBodies/BinaryFile'
+      responses:
+        '200':
+          description: Archivo guardado; devuelve la tarea.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /tasks/{taskId}/submission:
+    get:
+      tags: [Contenido]
+      summary: Descargar mi entrega
+      description: El estudiante descarga lo que entregó. El docente usa `downloadTaskSubmission`.
+      operationId: downloadMyTaskSubmission
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tasks/{taskId}/submission/{fileName}:
+    put:
+      tags: [Contenido]
+      summary: Entregar (o reemplazar) mi archivo
+      description: |
+        El estudiante matriculado sube su archivo (mismos formatos y tope que el archivo de la tarea). Una entrega por
+        estudiante: subir otra vez la reemplaza (`200`) mientras la tarea siga abierta. Pasada la hora límite responde
+        `409` (`task-closed`) y no guarda nada; la base de datos aplica la misma regla (RLS), así que una subida que
+        termina después de la hora también se rechaza. La hora de la entrega la pone el servidor.
+      operationId: putTaskSubmission
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/FileName'
+      requestBody:
+        $ref: '#/components/requestBodies/BinaryFile'
+      responses:
+        '200':
+          description: Entrega reemplazada.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskSubmission'
+        '201':
+          description: Primera entrega.
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskSubmission'
+              example: { file_name: "guia-camila.pdf", size_bytes: 230411, submitted_at: "2026-12-03T21:14:05Z" }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/TaskClosed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /tasks/{taskId}/submissions/{studentId}/file:
+    get:
+      tags: [Contenido]
+      summary: Descargar la entrega de un estudiante
+      description: Solo el docente del curso o el admin.
+      operationId: downloadTaskSubmission
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/StudentId'
+      responses:
+        '200':
+          description: El archivo, como adjunto (`Content-Disposition` con `filename` y `filename*` en UTF-8).
+          headers:
+            X-Trace-Id:
+              $ref: '#/components/headers/X-Trace-Id'
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
@@ -1146,6 +1634,31 @@ components:
       required: true
       description: Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent.
       schema: { type: string, minLength: 1, maxLength: 120 }
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      description: Identificador de la tarea.
+      schema: { type: string, format: uuid }
+    StudentId:
+      name: studentId
+      in: path
+      required: true
+      description: Identificador del estudiante.
+      schema: { type: string, format: uuid }
+    MaterialName:
+      name: materialName
+      in: path
+      required: true
+      description: Nombre del material en el curso (el mismo de `listCourseMaterials`). Codificado con encodeURIComponent.
+      schema: { type: string, minLength: 1, maxLength: 150 }
+    FileName:
+      name: fileName
+      in: path
+      required: true
+      description: |
+        Nombre del archivo con su extensión, codificado con encodeURIComponent. Sin `/ \ : * ? " < > |` ni saltos de línea.
+      schema: { type: string, minLength: 1, maxLength: 150 }
     AssessmentId:
       name: assessmentId
       in: path
@@ -1399,9 +1912,12 @@ components:
                 properties:
                   order: { type: integer, minimum: 1 }
                   question: { type: string }
-                  selected_option: { type: [string, 'null'], description: "Texto de la alternativa elegida." }
+                  type: { type: string, enum: [multiple_choice, text], description: "v1.10." }
+                  selected_option: { type: [string, 'null'], description: "Texto de la alternativa elegida o, si la pregunta es de texto, lo que escribió." }
                   correct: { type: boolean }
+                  pending_review: { type: boolean, description: "v1.11. Por revisar del docente." }
                   feedback: { type: [string, 'null'] }
+            pending_review: { type: integer, minimum: 0, description: "v1.11. Si es mayor que 0, la nota es provisional." }
     EnrollmentList:
       type: object
       required: [data]
@@ -1453,20 +1969,32 @@ components:
         enrolled_at: { type: string, format: date-time }
     QuestionInput:
       type: object
-      required: [statement, options]
+      required: [statement]
+      description: |
+        Pregunta de alternativas (`type: multiple_choice`, el valor por defecto: `options` de 2 a 6 y `correct_option`)
+        o de respuesta escrita (`type: text`, v1.10: sin `options` y con `accepted_answers`).
       properties:
+        type: { type: string, enum: [multiple_choice, text], default: multiple_choice }
         statement: { type: string, minLength: 3, example: "¿Cuánto es 3/4 + 1/4?" }
         options:
           type: array
-          minItems: 2
           maxItems: 6
           items: { type: string }
+          description: De 2 a 6 en las preguntas de alternativas; vacío (o ausente) en las de texto.
           example: ["1/2", "1", "4/8", "3/16"]
         correct_option:
           type: [integer, 'null']
           minimum: 0
-          description: Índice de la alternativa correcta. Obligatorio para publicar.
+          description: Índice de la alternativa correcta. Obligatorio para publicar (solo alternativas).
           example: 1
+        accepted_answers:
+          type: array
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 300 }
+          description: |
+            Solo preguntas de texto: respuestas que se dan por correctas (de 0 a 10). Sin ninguna, el docente revisa
+            cada respuesta a mano (v1.11). Solo las ve el docente o el admin.
+          example: ["1", "uno", "4/4"]
         feedback:
           type: string
           description: Retroalimentación que ve el estudiante tras responder.
@@ -1523,9 +2051,15 @@ components:
         requested_questions: { type: integer, description: "Cuántas se pidieron; pueden llegar menos si el modelo falló en alguna." }
     AssessmentStatusInput:
       type: object
-      required: [status]
+      minProperties: 1
+      additionalProperties: false
       properties:
         status: { type: string, enum: [published, closed] }
+        closes_at:
+          type: [string, 'null']
+          format: date-time
+          description: "v1.9. Hora de cierre (futura, con zona horaria, a menos de 366 días) o null = sin cierre automático."
+      example: { status: published, closes_at: "2026-11-26T15:30:00-03:00" }
     SubmissionInput:
       type: object
       required: [answers]
@@ -1535,10 +2069,12 @@ components:
           minItems: 1
           items:
             type: object
-            required: [question_id, selected_option]
+            required: [question_id]
+            description: "`selected_option` para las preguntas de alternativas; `text_answer` para las de texto (v1.10)."
             properties:
               question_id: { type: string, format: uuid }
               selected_option: { type: integer, minimum: 0 }
+              text_answer: { type: string, maxLength: 1000, description: "Respuesta escrita. En blanco cuenta como sin responder." }
     SubmissionResult:
       type: object
       required: [id, assessment_id, score, max_score, answers, submitted_at]
@@ -1557,8 +2093,50 @@ components:
             properties:
               question_id: { type: string, format: uuid }
               correct: { type: boolean }
+              pending_review: { type: boolean, description: "v1.11. Respuesta escrita que el docente aún debe revisar (vale 0 por ahora)." }
               feedback: { type: string }
+        pending_review: { type: integer, minimum: 0, description: "v1.11. Respuestas por revisar: si es mayor que 0, la nota es provisional." }
         submitted_at: { type: string, format: date-time }
+    TextAnswer:
+      type: object
+      required: [id, question_id, question_order, question, student_id, student_name, text_answer, correct, pending_review]
+      properties:
+        id: { type: string, format: uuid }
+        question_id: { type: string, format: uuid }
+        question_order: { type: integer, minimum: 1 }
+        question: { type: string }
+        accepted_answers: { type: array, items: { type: string }, description: "Vacío si la pregunta es de revisión manual." }
+        student_id: { type: string, format: uuid }
+        student_name: { type: string }
+        text_answer: { type: string }
+        correct: { type: boolean }
+        pending_review: { type: boolean }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        submitted_at: { type: string, format: date-time }
+    TextAnswerList:
+      type: object
+      required: [pending, data]
+      properties:
+        pending: { type: integer, minimum: 0 }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TextAnswer' }
+    TextAnswerReview:
+      type: object
+      required: [correct]
+      additionalProperties: false
+      properties:
+        correct: { type: boolean }
+    TextAnswerReviewResult:
+      type: object
+      required: [id, correct, pending_review, reviewed_at, student_percentage, student_grade]
+      properties:
+        id: { type: string, format: uuid }
+        correct: { type: boolean }
+        pending_review: { type: boolean }
+        reviewed_at: { type: string, format: date-time }
+        student_percentage: { type: number, minimum: 0, maximum: 100 }
+        student_grade: { type: number, minimum: 1, maximum: 7 }
     AssessmentResults:
       type: object
       required: [assessment_id, submissions_count, average_score, questions]
@@ -1682,6 +2260,107 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/CourseDocument' }
+    CourseMaterial:
+      type: object
+      required: [name, content_type, size_bytes, original, uploaded_at]
+      properties:
+        name: { type: string, example: "guia-fracciones.pdf" }
+        content_type: { type: string, example: "application/pdf" }
+        size_bytes: { type: integer, minimum: 0 }
+        original: { type: boolean, description: "true = se descarga el archivo tal como se subió; false = su texto como .txt." }
+        uploaded_at: { type: string, format: date-time }
+    CourseMaterialList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CourseMaterial' }
+    TaskInput:
+      type: object
+      required: [title, due_at]
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 3, maxLength: 150 }
+        instructions: { type: [string, 'null'], maxLength: 4000 }
+        due_at: { type: string, format: date-time, description: "Fecha y hora límite, con zona horaria. Futura y a menos de 366 días." }
+    TaskPatch:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 3, maxLength: 150 }
+        instructions: { type: [string, 'null'], maxLength: 4000 }
+        due_at: { type: string, format: date-time, description: "Al futuro reabre la tarea; al pasado la cierra." }
+    TaskFile:
+      type: object
+      required: [name, size_bytes, content_type]
+      properties:
+        name: { type: string }
+        size_bytes: { type: integer, minimum: 1 }
+        content_type: { type: string }
+    TaskSubmission:
+      type: object
+      required: [file_name, size_bytes, submitted_at]
+      properties:
+        file_name: { type: string }
+        size_bytes: { type: integer, minimum: 1 }
+        submitted_at: { type: string, format: date-time, description: "Hora de la última entrega, puesta por el servidor." }
+    Task:
+      type: object
+      required: [id, course_id, title, instructions, due_at, is_open, attachment, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        course_id: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        due_at: { type: string, format: date-time }
+        is_open: { type: boolean, description: "true mientras no pase la hora límite (calculado por el servidor)." }
+        attachment:
+          oneOf:
+            - $ref: '#/components/schemas/TaskFile'
+            - type: 'null'
+        created_at: { type: string, format: date-time }
+        my_submission:
+          description: Solo para el estudiante. Su entrega, o null si no ha entregado.
+          oneOf:
+            - $ref: '#/components/schemas/TaskSubmission'
+            - type: 'null'
+        submissions_count: { type: integer, minimum: 0, description: "Solo para el docente y el admin." }
+        students_count: { type: integer, minimum: 0, description: "Solo para el docente y el admin: matrículas activas." }
+    TaskStudent:
+      type: object
+      required: [student_id, name, submission]
+      properties:
+        student_id: { type: string, format: uuid }
+        name: { type: string }
+        submission:
+          oneOf:
+            - $ref: '#/components/schemas/TaskSubmission'
+            - type: 'null'
+    TaskDetail:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            students:
+              type: array
+              description: Solo para el docente y el admin. Todos los estudiantes con matrícula activa.
+              items: { $ref: '#/components/schemas/TaskStudent' }
+    TaskList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+  requestBodies:
+    BinaryFile:
+      required: true
+      description: El archivo como cuerpo binario (no multipart). El Content-Type es informativo; manda la extensión.
+      content:
+        application/octet-stream:
+          schema: { type: string, format: binary }
   responses:
     BadRequest:
       description: Solicitud mal formada (por ejemplo, falta Idempotency-Key).
@@ -1734,12 +2413,17 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     PayloadTooLarge:
-      description: El cuerpo supera el tamaño permitido (40 MB para un apunte).
+      description: El cuerpo supera el tamaño permitido (40 MB para un apunte, 10 MB para el archivo de una tarea o una entrega).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     UnsupportedMediaType:
       description: Formato de archivo no soportado.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TaskClosed:
+      description: La tarea ya cerró (pasó su hora límite); type `task-closed`.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

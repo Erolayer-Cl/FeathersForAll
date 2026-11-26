@@ -1,9 +1,11 @@
 // Evaluaciones: etiquetas de estado, el borrador que arma el docente y las respuestas que envía el estudiante.
-// Todo puro (sin React): se prueba aparte. Las reglas espejan las del servidor (contrato v1.4) para avisar antes
+// Todo puro (sin React): se prueba aparte. Las reglas espejan las del servidor (contrato v1.10) para avisar antes
 // de enviar; el servidor las vuelve a validar.
 
 export const MAX_OPCIONES = 6;
 export const MIN_OPCIONES = 2;
+/** Respuestas aceptadas por pregunta de texto (v1.10). */
+export const MAX_ACEPTADAS = 10;
 
 const ESTADOS = {
   draft: { label: 'Borrador', tone: 'neutral' },
@@ -25,10 +27,26 @@ let contador = 0;
 /** Clave estable para la lista de preguntas del formulario (el índice cambia al borrar). */
 const nuevaClave = () => `q${(contador += 1)}`;
 
-export const preguntaVacia = () => ({ key: nuevaClave(), statement: '', options: ['', ''], correct: null, feedback: '' });
+/**
+ * Pregunta del formulario. `type`: 'multiple_choice' (alternativas, con `correct`) o 'text' (respuesta escrita, con
+ * `accepted`: las respuestas que se dan por correctas). Se guardan las dos listas para no perder lo escrito si el
+ * docente cambia de tipo y vuelve.
+ */
+export const preguntaVacia = (type = 'multiple_choice') => ({ key: nuevaClave(), type, statement: '', options: ['', ''], correct: null, accepted: [''], feedback: '' });
 export const borradorVacio = () => ({ title: '', closesAt: '', questions: [preguntaVacia()] });
 
-const preguntaDesdeApi = (q) => ({ key: nuevaClave(), statement: q.statement, options: [...q.options], correct: q.correct_option ?? null, feedback: q.feedback ?? '' });
+const preguntaDesdeApi = (q) => {
+  const texto = q.type === 'text';
+  return {
+    key: nuevaClave(),
+    type: texto ? 'text' : 'multiple_choice',
+    statement: q.statement,
+    options: texto ? ['', ''] : [...q.options],
+    correct: texto ? null : q.correct_option ?? null,
+    accepted: texto && q.accepted_answers?.length ? [...q.accepted_answers] : [''],
+    feedback: q.feedback ?? '',
+  };
+};
 
 /** ISO 8601 -> valor de <input type="datetime-local"> en hora local ("2026-11-20T18:30"). */
 export function isoALocal(iso) {
@@ -46,7 +64,10 @@ export const borradorDesdeApi = (ev) => ({ title: ev.title, closesAt: isoALocal(
 export const borradorDesdeIa = (gen) => ({ title: gen.title, closesAt: '', questions: gen.questions.map(preguntaDesdeApi) });
 
 /** ¿El borrador ya tiene algo escrito? (para avisar antes de que la IA lo reemplace) */
-export const borradorTieneTexto = (draft) => draft.title.trim() !== '' || draft.questions.some((q) => q.statement.trim() !== '' || q.options.some((o) => o.trim() !== ''));
+export const borradorTieneTexto = (draft) => draft.title.trim() !== '' || draft.questions.some((q) => q.statement.trim() !== '' || q.options.some((o) => o.trim() !== '') || q.accepted.some((a) => a.trim() !== ''));
+
+/** Respuestas aceptadas con texto (las vacías se ignoran: el último campo suele quedar en blanco). */
+const aceptadas = (q) => q.accepted.map((a) => a.trim()).filter(Boolean);
 
 /** Opciones con texto, conservando su posición (la alternativa correcta es un índice). */
 const conTexto = (q) => q.options.map((o) => o.trim());
@@ -64,6 +85,12 @@ export function revisarBorrador(draft) {
   draft.questions.forEach((q, i) => {
     const n = i + 1;
     if (q.statement.trim().length < 3) errores.push(`Pregunta ${n}: escribe el enunciado (mínimo 3 caracteres).`);
+    if (q.type === 'text') {
+      const lista = aceptadas(q);
+      if (new Set(lista.map((a) => a.toLowerCase())).size !== lista.length) errores.push(`Pregunta ${n}: hay respuestas aceptadas repetidas.`);
+      // Sin respuestas aceptadas no es un error: el docente revisa cada respuesta a mano (v1.11).
+      return;
+    }
     const opciones = conTexto(q);
     if (opciones.some((o) => o === '')) errores.push(`Pregunta ${n}: completa o quita las alternativas vacías.`);
     else if (new Set(opciones.map((o) => o.toLowerCase())).size !== opciones.length) errores.push(`Pregunta ${n}: hay alternativas repetidas.`);
@@ -79,8 +106,9 @@ export function borradorACuerpo(draft) {
     ...(draft.closesAt && { closes_at: new Date(draft.closesAt).toISOString() }),
     questions: draft.questions.map((q) => ({
       statement: q.statement.trim(),
-      options: conTexto(q),
-      correct_option: q.correct,
+      ...(q.type === 'text'
+        ? { type: 'text', accepted_answers: aceptadas(q) }
+        : { options: conTexto(q), correct_option: q.correct }),
       ...(q.feedback.trim() && { feedback: q.feedback.trim() }),
     })),
   };
@@ -95,12 +123,20 @@ export function quitarOpcion(question, index) {
   return { ...question, options, correct };
 }
 
-/** Respuestas elegidas ({ [question_id]: índice }) -> cuerpo de submissions. Solo las respondidas. */
+/**
+ * Respuestas ({ [question_id]: índice | texto }) -> cuerpo de submissions. Un número es la alternativa elegida; un
+ * texto, la respuesta escrita. Solo van las respondidas (un texto en blanco no cuenta).
+ */
 export const respuestasACuerpo = (elegidas) =>
-  Object.entries(elegidas).map(([question_id, selected_option]) => ({ question_id, selected_option }));
+  Object.entries(elegidas)
+    .filter(([, v]) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== ''))
+    .map(([question_id, v]) => (typeof v === 'number' ? { question_id, selected_option: v } : { question_id, text_answer: v.trim() }));
+
+/** ¿Esta pregunta ya tiene respuesta? (alternativa elegida o texto no vacío) */
+export const respondida = (valor) => typeof valor === 'number' || (typeof valor === 'string' && valor.trim() !== '');
 
 /** Preguntas todavía sin responder, para avisar antes de entregar. */
-export const sinResponder = (questions, elegidas) => questions.filter((q) => elegidas[q.id] === undefined).length;
+export const sinResponder = (questions, elegidas) => questions.filter((q) => !respondida(elegidas[q.id])).length;
 
 /** Años de período para el formulario de curso: el actual y los dos siguientes, con semestre. */
 export function periodosDisponibles(hoy = new Date()) {

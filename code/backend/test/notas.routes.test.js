@@ -122,7 +122,7 @@ describe('rutas de notas (unitarias, sin base)', () => {
       const body = await json(`/v1/me/grades/${FRACCIONES}`, { token: T.CAMILA });
       assert.equal(body.grade, 5.2);
       assert.equal(body.pass_threshold, 60);
-      assert.deepEqual(body.answers[1], { order: 2, question: '¿Qué indica el denominador?', selected_option: 'Las partes que se toman', correct: false, feedback: 'Indica en cuántas partes se divide el todo.' });
+      assert.deepEqual(body.answers[1], { order: 2, question: '¿Qué indica el denominador?', type: 'multiple_choice', selected_option: 'Las partes que se toman', correct: false, pending_review: false, feedback: 'Indica en cuántas partes se divide el todo.' });
       assert.deepEqual(db.callsOf(Q.NOTA_ESTUDIANTE_EVALUACION)[0].params, [CAMILA.id, FRACCIONES]);
     });
 

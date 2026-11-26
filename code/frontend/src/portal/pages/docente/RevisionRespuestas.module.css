@@ -1,0 +1,11 @@
+.contador{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:99px;background:var(--fp-warning-soft);color:var(--fp-warning-ink);font-size:11px;font-weight:700;vertical-align:middle}
+.filtros{display:flex;flex-wrap:wrap;gap:8px}
+.lista{display:flex;flex-direction:column;gap:12px;margin:16px 0 0;padding:0;list-style:none}
+.item{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--fp-line);border-left:3px solid var(--fp-line);border-radius:11px;background:var(--fp-surface)}
+.pendiente{border-left-color:var(--fp-warning-ink)}
+.cabeza{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.cabeza>:last-child{margin-left:auto}
+.quien{flex:1 1 220px;min-width:0}.quien b,.quien small{display:block;overflow-wrap:anywhere}.quien b{color:var(--fp-ink);font-size:13px}.quien small{margin-top:2px;color:var(--fp-muted);font-size:11px}
+.respuesta{margin:0;padding:10px 14px;border-radius:8px;background:var(--fp-field);color:var(--fp-ink);font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.aceptadas{color:var(--fp-muted);font-size:11px}
+.acciones{display:flex;flex-wrap:wrap;gap:8px}

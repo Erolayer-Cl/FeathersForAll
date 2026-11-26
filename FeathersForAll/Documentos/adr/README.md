@@ -19,3 +19,4 @@ Un archivo por decisión, con el formato de [`template.md`](template.md). Una de
 | [0013](0013-tutor-sincrono-en-el-monolito.md) | Tutor IA síncrono en el monolito, sin worker ni cola | Aceptado |
 | [0014](0014-despliegue-real.md) | Kubernetes (kind) con Argo CD; Vercel solo para el portal | Aceptado |
 | [0015](0015-login-por-correo-y-revocacion.md) | Login por correo, revocación de sesión y freno por IP | Aceptado |
+| [0016](0016-material-y-tareas.md) | Material visible para el estudiante y tareas con hora límite (archivos en PostgreSQL) | Propuesto |
