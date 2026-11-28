@@ -12,6 +12,8 @@
 
 ## Qué es esto
 
+> **¿Cómo funciona el programa?** Roles, flujos, seguridad y cómo levantarlo: [`COMO-FUNCIONA.md`](COMO-FUNCIONA.md).
+
 Un grupo de colegios necesita modernizar su experiencia de aprendizaje. FeathersForAll entrega a docentes y estudiantes una plataforma multi-tenant con gestión de cursos, evaluaciones auto-corregidas y un **tutor IA anclado al currículum vigente del MINEDUC** mediante RAG sobre los apuntes de cada curso.
 
 **Alcance mínimo comprometido (MVP):**
@@ -249,6 +251,8 @@ Toda decisión cara de revertir se registra como ADR con el formato **Título ·
 | [0009](FeathersForAll/Documentos/adr/0009-ci-cd-y-gitops.md) | CI/CD con GitHub Actions y GitOps pull-based con Argo CD (repo gitops separado) | Propuesta | 26-10-2026 |
 | [0010](FeathersForAll/Documentos/adr/0010-devsecops-shift-left.md) | DevSecOps shift-left: SAST, SCA, SBOM y secret scanning en cada PR (`security.yml`) | Propuesta | 06-11-2026 |
 | [0011](FeathersForAll/Documentos/adr/0011-supply-chain.md) | Cadena de suministro: imágenes firmadas con cosign, attestation SLSA, IaC scan, DAST y control en runtime | Propuesta | 11-11-2026 |
+| [0017](FeathersForAll/Documentos/adr/0017-ciclo-de-vida-de-la-cuenta-y-pruebas-con-tiempo.md) | Gestión de usuarios del admin, revocación al cambiar la clave, auditoría y pruebas con tiempo por intento | Propuesta | 27-11-2026 |
+| [0018](FeathersForAll/Documentos/adr/0018-panel-del-apoderado.md) | Panel del apoderado (MVP 5) y respuesta correcta secreta en la base | Propuesta | 27-11-2026 |
 
 Para crear una nueva: copiar `FeathersForAll/Documentos/adr/template.md` con el número correlativo y enlazarla en esta tabla.
 

@@ -20,3 +20,5 @@ Un archivo por decisión, con el formato de [`template.md`](template.md). Una de
 | [0014](0014-despliegue-real.md) | Kubernetes (kind) con Argo CD; Vercel solo para el portal | Aceptado |
 | [0015](0015-login-por-correo-y-revocacion.md) | Login por correo, revocación de sesión y freno por IP | Aceptado |
 | [0016](0016-material-y-tareas.md) | Material visible para el estudiante y tareas con hora límite (archivos en PostgreSQL) | Propuesto |
+| [0017](0017-ciclo-de-vida-de-la-cuenta-y-pruebas-con-tiempo.md) | Gestión de usuarios, revocación al cambiar la clave, auditoría y pruebas con tiempo por intento | Propuesto |
+| [0018](0018-panel-del-apoderado.md) | Panel del apoderado (MVP 5) y respuesta correcta secreta en la base | Propuesto |
