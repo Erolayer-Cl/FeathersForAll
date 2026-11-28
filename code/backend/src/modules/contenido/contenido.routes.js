@@ -126,11 +126,11 @@ export function createContenidoRouter({ db }) {
   router.get('/v1/courses/:courseId/materials', async (req, res) => {
     const courseId = uuidParam(req.params.courseId, 'courseId');
     const rows = await leer(req, async (c) => {
-      await participacion(c, req.user, courseId);
-      return (await c.query(Q.MATERIALES_CURSO, [courseId])).rows;
+      const { staff } = await participacion(c, req.user, courseId);
+      return (await c.query(Q.MATERIALES_CURSO, [courseId, !staff])).rows;
     });
     res.json({
-      data: rows.map((r) => ({ name: r.name, content_type: r.content_type, size_bytes: r.size_bytes, original: r.original, uploaded_at: iso(r.uploaded_at) })),
+      data: rows.map((r) => ({ name: r.name, content_type: r.content_type, size_bytes: r.size_bytes, original: r.original, visible_to_students: r.visible, uploaded_at: iso(r.uploaded_at) })),
     });
   });
 
@@ -138,8 +138,8 @@ export function createContenidoRouter({ db }) {
     const courseId = uuidParam(req.params.courseId, 'courseId');
     const name = (req.params.name ?? '').trim();
     const row = await leer(req, async (c) => {
-      await participacion(c, req.user, courseId);
-      return (await c.query(Q.MATERIAL_ARCHIVO, [courseId, name])).rows[0];
+      const { staff } = await participacion(c, req.user, courseId);
+      return (await c.query(Q.MATERIAL_ARCHIVO, [courseId, name, !staff])).rows[0];
     });
     if (!row) throw notFound('El material');
     if (row.contenido) enviarArchivo(res, { nombre: row.nombre, tipo: row.tipo, contenido: row.contenido });

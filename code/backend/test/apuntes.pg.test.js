@@ -145,7 +145,9 @@ describe('apuntes del tutor por curso (contrato v1.3)', { skip: SKIP }, () => {
       const res = await list(ANA);
       assert.equal(res.status, 200);
       const { data } = await res.json();
-      assert.deepEqual(data.find((d) => d.name === 'fracciones.md'), { name: 'fracciones.md', chunks: data.find((d) => d.name === 'fracciones.md').chunks, official: false });
+      assert.deepEqual(data.find((d) => d.name === 'fracciones.md'), { name: 'fracciones.md', chunks: data.find((d) => d.name === 'fracciones.md').chunks, official: false, visible_to_students: true });
+      // Las Bases no son material del estudiante: no llevan visibilidad.
+      assert.equal('visible_to_students' in data.find((d) => d.name.startsWith('MINEDUC')), false);
       assert.equal(data.find((d) => d.name.startsWith('MINEDUC')).official, true);
     });
 

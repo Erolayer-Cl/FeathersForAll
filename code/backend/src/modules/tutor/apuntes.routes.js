@@ -47,13 +47,22 @@ function binaryBody(req, _res, next) {
   next();
 }
 
-/** Fila del RAG -> schema CourseDocument del contrato. */
-const toDocument = ({ doc_id, chunks }, pages) => ({
+/** Fila del RAG -> schema CourseDocument del contrato. `visible`: si los estudiantes lo descargan como material (14). */
+const toDocument = ({ doc_id, chunks }, pages, visible) => ({
   name: doc_id,
   chunks,
   official: isReferenceDoc(doc_id),
+  ...(visible !== undefined && !isReferenceDoc(doc_id) && { visible_to_students: visible }),
   ...(pages !== undefined && { pages }),
 });
+
+/** ?visible_to_students=true|false del PUT (v1.12). Ausente = undefined (nuevo: visible; reemplazo: no cambia). */
+function leerVisible(valor) {
+  if (valor === undefined) return undefined;
+  if (valor === 'true') return true;
+  if (valor === 'false') return false;
+  throw invalid('"visible_to_students" debe ser true o false');
+}
 
 /**
  * Nombre del documento que se sube. Debe terminar en .pdf, .txt o .md; el prefijo "MINEDUC" queda
@@ -96,6 +105,9 @@ export function createApuntesRouter({ db, rag }) {
       await db.withUser(req.user, (c) => c.query(Q.GUARDAR_ARCHIVO_APUNTE, [courseId, name, tipo, body.length, body]));
     } catch (err) {
       req.log?.warn({ err: err.message, code: err.code }, 'no se pudo guardar el archivo original del apunte');
+      // Si era un reemplazo, el original ANTERIOR ya no corresponde al texto nuevo: se quita para que el estudiante
+      // descargue el texto vigente (.txt) y no una versión vieja.
+      await db.withUser(req.user, (c) => c.query(Q.QUITAR_ARCHIVO_APUNTE, [courseId, name])).catch(() => {});
     }
   }
   const base = '/v1/courses/:courseId/documents';
@@ -117,11 +129,22 @@ export function createApuntesRouter({ db, rag }) {
     next();
   }
 
-  const actorOf = (req) => ({ id: req.user.id, rol: req.user.rol });
+  const actorOf = (req) => ({ id: req.user.id, rol: req.user.rol, iat: req.user.iat });
 
   router.get(base, staffOnly, async (req, res) => {
     const documents = await rag.listDocuments(req.courseRef);
-    res.json({ data: documents.map((d) => toDocument(d)) });
+    const visibles = new Map((await db.withUser(req.user, (c) => c.query(Q.VISIBILIDAD_APUNTES_CURSO, [req.courseRef.courseId]), { readOnly: true }))
+      .rows.map((r) => [r.titulo, r.visible_estudiante]));
+    res.json({ data: documents.map((d) => toDocument(d, undefined, visibles.get(d.doc_id))) });
+  });
+
+  // v1.12 · Mostrar u ocultar un apunte como material descargable (p. ej. una pauta con respuestas que solo usa el tutor).
+  router.patch(`${base}/:documentName`, staffOnly, async (req, res) => {
+    const name = (req.params.documentName ?? '').trim();
+    if (typeof req.body?.visible_to_students !== 'boolean') throw invalid('"visible_to_students" debe ser true o false');
+    const row = (await db.withUser(req.user, (c) => c.query(Q.VISIBILIDAD_APUNTE, [req.courseRef.courseId, name, req.body.visible_to_students]))).rows[0];
+    if (!row) throw new HttpProblem(404, 'No encontrado', 'El documento no existe en este curso', 'not-found');
+    res.json({ name: row.titulo, visible_to_students: row.visible_estudiante });
   });
 
   router.put(
@@ -131,6 +154,7 @@ export function createApuntesRouter({ db, rag }) {
     express.raw({ type: () => true, limit: MAX_DOCUMENT_BYTES }),
     async (req, res) => {
       const name = uploadName(req.params.documentName);
+      const visible = leerVisible(req.query.visible_to_students);
       const body = req.body;
       if (!Buffer.isBuffer(body)) {
         throw new HttpProblem(415, 'Formato no soportado', 'Envía el archivo como cuerpo binario (no JSON)', 'unsupported-media-type');
@@ -150,8 +174,12 @@ export function createApuntesRouter({ db, rag }) {
         assertCleanDocument(input, req);
         const result = await rag.ingest({ ...ref, docId: name, title: name.replace(/\.[^.]+$/, ''), ...input, actor: actorOf(req) });
         await guardarOriginal(req, ref.courseId, name, isPdf ? 'application/pdf' : /\.md$|\.markdown$/i.test(name) ? 'text/markdown' : 'text/plain', body);
+        // Visibilidad como material: la pedida; si no viene, un apunte nuevo queda visible y un reemplazo conserva la suya.
+        const fila = (await db.withUser(req.user, (c) => (visible === undefined
+          ? c.query(Q.VISIBILIDAD_APUNTES_CURSO + ' AND titulo = $2', [ref.courseId, name])
+          : c.query(Q.VISIBILIDAD_APUNTE, [ref.courseId, name, visible])))).rows[0];
         // 200 = reemplazó a uno con ese nombre; 201 = nuevo (lo decide la misma transacción que guarda).
-        res.status(result.created === false ? 200 : 201).json(toDocument(result, input.pages?.length));
+        res.status(result.created === false ? 200 : 201).json(toDocument(result, input.pages?.length, fila?.visible_estudiante));
       } catch (err) {
         throw toRagProblem(err);
       }

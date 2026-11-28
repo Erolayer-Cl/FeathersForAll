@@ -39,6 +39,8 @@ function toProblem(err) {
   // Errores de PostgreSQL que son del cliente y no un fallo del servidor. El mensaje de la base nunca sale.
   if (err.code === '42501') return new HttpProblem(403, 'Prohibido', 'Tu rol no puede hacer esta operación', 'forbidden');
   if (err.code === '23505') return new HttpProblem(409, 'Conflicto', 'Ya existe un registro con esos datos', 'conflict');
+  // 55000: la base rechazó la operación por el estado del recurso (p. ej. una respuesta fuera del plazo del intento, 14).
+  if (err.code === '55000') return new HttpProblem(409, 'Conflicto', 'La operación ya no es posible en el estado actual', 'conflict');
   if (['23503', '23514', '22001', '22P02', '22021', '22023'].includes(err.code)) {
     return new HttpProblem(422, 'Datos inválidos', 'Los datos enviados no cumplen las reglas del sistema', 'validation-error');
   }

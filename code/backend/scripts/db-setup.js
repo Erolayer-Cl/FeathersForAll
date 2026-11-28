@@ -77,6 +77,25 @@ try {
   const { rows: v12 } = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'respuestas_estudiante' AND column_name = 'revision_pendiente') AS hay");
   if (v12[0].hay) console.log('· 12_revision_docente.sql ya estaba aplicado');
   else await apply('12_revision_docente.sql');
+  // 13 (gestión de usuarios, revocación al cambiar la clave y auditoría): si su tabla todavía no existe.
+  const { rows: v13 } = await client.query("SELECT to_regclass('public.auditoria') IS NOT NULL AS hay");
+  if (v13[0].hay) console.log('· 13_gestion_usuarios.sql ya estaba aplicado');
+  else await apply('13_gestion_usuarios.sql');
+  // 14 (correcciones de la revisión: borradores, material visible, números chilenos): si falta su función.
+  const { rows: v14 } = await client.query("SELECT to_regproc('numero_chileno') IS NOT NULL AS hay");
+  if (v14[0].hay) console.log('· 14_correcciones_revision.sql ya estaba aplicado');
+  else await apply('14_correcciones_revision.sql');
+  // 15 + 16 (panel del apoderado, MVP 5): el valor del enum va solo en 15 (no se usa en la misma transacción).
+  const { rows: v15 } = await client.query("SELECT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = 'rol_usuario' AND e.enumlabel = 'apoderado') AS hay");
+  if (v15[0].hay) console.log('· 15_rol_apoderado.sql ya estaba aplicado');
+  else await apply('15_rol_apoderado.sql');
+  const { rows: v16 } = await client.query("SELECT to_regclass('public.apoderados_estudiantes') IS NOT NULL AS hay");
+  if (v16[0].hay) console.log('· 16_apoderado.sql ya estaba aplicado');
+  else await apply('16_apoderado.sql');
+  // 17 (la respuesta correcta es secreta también en la base): si su función todavía no existe.
+  const { rows: v17 } = await client.query("SELECT to_regproc('alternativas_staff') IS NOT NULL AS hay");
+  if (v17[0].hay) console.log('· 17_secreto_respuestas.sql ya estaba aplicado');
+  else await apply('17_secreto_respuestas.sql');
 
   // Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
   await client.query(`DO $$ BEGIN

@@ -22,6 +22,8 @@ const gradeRow = (r) => ({
   grade: r.nota,
   weight: r.ponderacion,
   submitted_at: r.fecha_envio,
+  // v1.12: respuestas escritas por revisar; mientras sea > 0 la nota es provisional.
+  pending_review: r.por_revisar ?? 0,
 });
 
 /**
@@ -32,6 +34,15 @@ const gradeRow = (r) => ({
 export function createNotasRouter({ db }) {
   const router = Router();
   const read = (user, fn) => db.withUser(user, fn, { readOnly: true });
+  /**
+   * Como read, pero antes cierra los intentos con tiempo que vencieron sin entregar (v1.12): así quien no alcanzó a
+   * entregar ya tiene nota con lo que respondió. Es una transacción de escritura; el RLS limita qué intentos cierra
+   * cada rol (el estudiante, los suyos; el docente, los de sus cursos).
+   */
+  const leerCerrando = (user, { assessmentId = null, courseId = null }, fn) => db.withUser(user, async (c) => {
+    await c.query(Q.CERRAR_INTENTOS_VENCIDOS, [assessmentId, courseId]);
+    return fn(c);
+  });
 
   // Mis ramos y mis notas (solo lectura): TODAS las asignaturas con matrícula activa, tengan o no
   // notas todavía, con el promedio ponderado de cada una y si el tutor tiene apuntes del curso.
@@ -39,7 +50,7 @@ export function createNotasRouter({ db }) {
     if (req.user.rol !== 'estudiante') throw forbidden();
     const courseId = uuidParam(req.query.course_id, 'course_id', { optional: true });
 
-    const { ramos, notas } = await read(req.user, async (c) => ({
+    const { ramos, notas } = await leerCerrando(req.user, { courseId }, async (c) => ({
       ramos: (await c.query(Q.RAMOS_ESTUDIANTE, [req.user.id, courseId])).rows,
       notas: (await c.query(Q.NOTAS_ESTUDIANTE, [req.user.id, courseId])).rows,
     }));
@@ -94,7 +105,7 @@ export function createNotasRouter({ db }) {
   router.get('/v1/courses/:courseId/gradebook', async (req, res) => {
     const courseId = uuidParam(req.params.courseId, 'courseId');
 
-    const body = await read(req.user, async (c) => {
+    const body = await leerCerrando(req.user, { courseId }, async (c) => {
       const curso = await cursoVisible(c, req.user, courseId);
       if (!esStaffDelCurso(req.user, curso)) throw forbidden();
 
@@ -104,9 +115,13 @@ export function createNotasRouter({ db }) {
       const students = new Map();
       for (const f of filas) {
         if (!students.has(f.estudiante_id)) {
-          students.set(f.estudiante_id, { student_id: f.estudiante_id, name: f.nombre, average: f.promedio, grades: {} });
+          // provisional: ids de las evaluaciones cuya nota espera revisión de respuestas escritas (v1.12).
+          students.set(f.estudiante_id, { student_id: f.estudiante_id, name: f.nombre, average: f.promedio, grades: {}, provisional: [] });
         }
-        if (f.evaluacion_id) students.get(f.estudiante_id).grades[f.evaluacion_id] = f.nota;
+        if (f.evaluacion_id) {
+          students.get(f.estudiante_id).grades[f.evaluacion_id] = f.nota;
+          if (f.por_revisar > 0) students.get(f.estudiante_id).provisional.push(f.evaluacion_id);
+        }
       }
       const promedios = [...students.values()].map((s) => s.average).filter((a) => a !== null);
 
@@ -137,7 +152,7 @@ export function createNotasRouter({ db }) {
     const threshold = req.query.threshold === undefined ? NOTA_APROBACION : Number(req.query.threshold);
     if (!(threshold >= 1 && threshold <= 7)) throw invalid('"threshold" debe ser una nota entre 1.0 y 7.0');
 
-    const body = await read(req.user, async (c) => {
+    const body = await leerCerrando(req.user, { courseId }, async (c) => {
       const curso = await cursoVisible(c, req.user, courseId);
       if (!esStaffDelCurso(req.user, curso)) throw forbidden();
 
@@ -166,6 +181,7 @@ export function createNotasRouter({ db }) {
           name: r.nombre,
           average: r.promedio,
           assessments_taken: r.evaluaciones_rendidas,
+          provisional_grades: r.notas_provisionales,
         })),
       };
     });
@@ -199,7 +215,7 @@ export function createNotasRouter({ db }) {
     const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
     const studentId = uuidParam(req.query.student_id, 'student_id', { optional: true });
 
-    const body = await read(req.user, async (c) => {
+    const body = await leerCerrando(req.user, { assessmentId }, async (c) => {
       const ev = await evaluacionVisible(c, assessmentId);
       if (!esStaffDelCurso(req.user, ev)) throw forbidden();
 
@@ -224,6 +240,7 @@ export function createNotasRouter({ db }) {
           score: e.puntaje,
           grade: e.nota,
           submitted_at: e.fecha_envio,
+          pending_review: e.por_revisar ?? 0,
         })),
       };
     });

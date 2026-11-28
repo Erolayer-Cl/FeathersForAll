@@ -7,7 +7,7 @@ pg.types.setTypeParser(pg.types.builtins.INT8, (v) => (v === null ? null : Numbe
 
 export class DbUnavailableError extends Error {}
 
-/** El token es válido, pero la cuenta se desactivó, cambió de rol o su colegio se dio de baja. */
+/** El token es válido, pero la cuenta se desactivó, cambió de rol, cambió su clave o su colegio se dio de baja. */
 export class SessionRevokedError extends Error {}
 
 // La cuenta del token sigue activa, con el mismo rol y en un colegio activo. Se revisa al abrir cada
@@ -18,6 +18,9 @@ SELECT EXISTS (
     SELECT 1 FROM usuarios u
     JOIN colegios c ON c.id = u.colegio_id
     WHERE u.id = $1 AND u.rol::text = $2 AND u.activo AND c.activo
+      -- Un cambio o restablecimiento de contraseña (13) invalida los tokens emitidos antes.
+      AND (u.sesiones_desde IS NULL
+           OR ($3::float8 IS NOT NULL AND $3::float8 >= extract(epoch FROM u.sesiones_desde)))
 ) AS ok`;
 
 /**
@@ -89,11 +92,11 @@ export function createDb({ connectionString, max = 10, logger }) {
     },
 
     /**
-     * Sesión de un usuario autenticado: req.user = { id, colegioId, rol } (ver auth.js).
+     * Sesión de un usuario autenticado: req.user = { id, colegioId, rol, iat } (ver auth.js).
      * Antes de fn() confirma que la cuenta sigue vigente (SESION_VIGENTE); si no, SessionRevokedError -> 401.
      */
     withUser: (user, fn, opts) => withSession({ colegioId: user.colegioId, usuarioId: user.id, rol: user.rol }, async (client) => {
-      const { rows } = await client.query(SESION_VIGENTE, [user.id, user.rol]);
+      const { rows } = await client.query(SESION_VIGENTE, [user.id, user.rol, Number.isFinite(user.iat) ? user.iat : null]);
       if (!rows[0]?.ok) throw new SessionRevokedError('La cuenta ya no está activa');
       return fn(client);
     }, opts),

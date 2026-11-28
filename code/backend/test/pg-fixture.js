@@ -19,7 +19,7 @@ export const SKIP = !ADMIN_URL && 'sin TEST_DATABASE_URL';
 
 const TEST_ROLE = 'feathersforall_app_test';
 const TEST_PASSWORD = 'test';
-const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', '05_conversaciones_tutor.sql', '06_alternativas_orden.sql', '07_rag_indices.sql', '08_login_por_correo.sql', '09_integridad_evaluaciones.sql', '10_material_y_tareas.sql', '11_preguntas_texto.sql', '12_revision_docente.sql', 'permisos_app.sql', '90_seed_demo.sql'];
+const FILES = ['01_schema.sql', '02_s06_ajustes.sql', '03_notas.sql', '04_privacidad_login.sql', '05_conversaciones_tutor.sql', '06_alternativas_orden.sql', '07_rag_indices.sql', '08_login_por_correo.sql', '09_integridad_evaluaciones.sql', '10_material_y_tareas.sql', '11_preguntas_texto.sql', '12_revision_docente.sql', '13_gestion_usuarios.sql', '14_correcciones_revision.sql', '15_rol_apoderado.sql', '16_apoderado.sql', '17_secreto_respuestas.sql', 'permisos_app.sql', '90_seed_demo.sql'];
 
 const readSql = (file) => readFile(new URL(`../db/${file}`, import.meta.url), 'utf8');
 
@@ -85,6 +85,7 @@ export const DEMO = {
   tomas: 'e0000000-0000-0000-0000-000000000004',
   pedro: 'b0000000-0000-0000-0000-000000000001',    // docente colegio B
   javiera: 'b0000000-0000-0000-0000-000000000002',  // estudiante colegio B
+  carolina: 'f0000000-0000-0000-0000-000000000001', // apoderada de Camila (A)
   mate: 'c0000000-0000-0000-0000-000000000001',
   historia: 'c0000000-0000-0000-0000-000000000002',
   mateB: 'c0000000-0000-0000-0000-0000000000b1',

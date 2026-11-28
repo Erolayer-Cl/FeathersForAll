@@ -109,7 +109,7 @@ export function createPgVectorStore({ db, contextTtlMs = 30_000 }) {
   const session = ({ tenantId }, actor) => ({ colegioId: tenantId, usuarioId: actor?.id ?? '', rol: actor?.rol ?? '' });
   // Con un usuario detrás se usa withUser, que además revisa que la cuenta siga vigente (ver db.js).
   const open = (ref, actor, fn, opts) => (actor?.id && db.withUser
-    ? db.withUser({ id: actor.id, colegioId: ref.tenantId, rol: actor.rol }, fn, opts)
+    ? db.withUser({ id: actor.id, colegioId: ref.tenantId, rol: actor.rol, iat: actor.iat }, fn, opts)
     : db.withSession(session(ref, actor), fn, opts));
   const read = (ref, actor, fn, opts) => open(ref, actor, fn, { readOnly: true, ...opts });
 

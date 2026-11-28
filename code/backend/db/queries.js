@@ -62,6 +62,110 @@ export const DESACTIVAR_USUARIO = `
 UPDATE usuarios SET activo = false WHERE id = $1
 RETURNING id`;
 
+// --- Gestión de usuarios del colegio (v1.12, 13_gestion_usuarios.sql) ----------------
+// Solo el admin (la API responde 403 antes; el RLS de 02 §9 tampoco deja escribir a otros).
+// El master nunca aparece: es de plataforma.
+
+// Lista con filtros opcionales y keyset por (nombre, id). $3 llega ya escapado para LIKE.
+export const USUARIOS_LISTA = `
+SELECT id, nombre, email, rol, activo, created_at, updated_at
+FROM usuarios
+WHERE rol <> 'master'
+  AND ($1::text IS NULL OR rol::text = $1)
+  AND ($2::boolean IS NULL OR activo = $2)
+  AND ($3::text IS NULL OR nombre ILIKE '%' || $3 || '%' OR email::text ILIKE '%' || $3 || '%')
+  AND ($5::text IS NULL OR (nombre, id) > ($5::text, $6::uuid))
+ORDER BY nombre, id
+LIMIT $4`;
+
+export const USUARIO_DETALLE = `
+SELECT id, nombre, email, rol, activo, created_at, updated_at
+FROM usuarios
+WHERE id = $1 AND rol <> 'master'`;
+
+// Cursos de la cuenta: los que dicta (docente) y en los que está matriculado (estudiante).
+export const USUARIO_CURSOS = `
+SELECT c.id, c.nombre, c.periodo, c.asignatura, 'teacher' AS relacion
+FROM cursos c
+WHERE c.docente_id = $1
+UNION ALL
+SELECT c.id, c.nombre, c.periodo, c.asignatura, 'student' AS relacion
+FROM matriculas m
+JOIN cursos c ON c.id = m.curso_id
+WHERE m.estudiante_id = $1 AND m.activo
+ORDER BY periodo DESC, nombre, id`;
+
+// Alta de cuenta: el colegio lo pone app_colegio_id() (DEFAULT de la sesión del admin).
+export const USUARIO_CREAR = `
+INSERT INTO usuarios (colegio_id, nombre, email, password_hash, rol)
+VALUES (app_colegio_id(), $1, $2, $3, $4::rol_usuario)
+RETURNING id, nombre, email, rol, activo, created_at, updated_at`;
+
+// Cambios parciales: NULL = no tocar. El rol y el colegio no se cambian (trigger de 13).
+export const USUARIO_ACTUALIZAR = `
+UPDATE usuarios
+SET nombre = COALESCE($2, nombre),
+    email  = COALESCE($3::citext, email),
+    activo = COALESCE($4, activo)
+WHERE id = $1 AND rol <> 'master'
+RETURNING id, nombre, email, rol, activo, created_at, updated_at`;
+
+// Restablecer la clave de otra cuenta: el trigger de 13 fija sesiones_desde y corta sus sesiones.
+export const USUARIO_RESTABLECER_CLAVE = `
+UPDATE usuarios SET password_hash = $2
+WHERE id = $1 AND rol <> 'master'
+RETURNING id`;
+
+// Cambiar la propia clave (cualquier rol): única vía para docentes y estudiantes (13).
+export const CAMBIAR_MI_CLAVE = `
+SELECT cambiar_mi_clave($1) AS sesiones_desde`;
+
+// --- Apoderados (16, MVP 5) ------------------------------------------------------------
+// Vínculos que gestiona el admin (RLS: solo él escribe). $1 = apoderado.
+export const PUPILOS_DE_APODERADO = `
+SELECT e.id AS estudiante_id, e.nombre, e.email, e.activo, v.created_at
+FROM apoderados_estudiantes v
+JOIN usuarios e ON e.id = v.estudiante_id
+WHERE v.apoderado_id = $1
+ORDER BY e.nombre, e.id`;
+
+// Vincular por correo: el estudiante debe ser del colegio (FK compuesta + RLS de usuarios). 0 filas = no existe.
+export const VINCULAR_PUPILO = `
+INSERT INTO apoderados_estudiantes (apoderado_id, estudiante_id)
+SELECT a.id, e.id
+FROM usuarios a, usuarios e
+WHERE a.id = $1 AND a.rol = 'apoderado'
+  AND e.email = $2::citext AND e.rol = 'estudiante' AND e.activo
+RETURNING estudiante_id`;
+
+export const DESVINCULAR_PUPILO = `
+DELETE FROM apoderados_estudiantes WHERE apoderado_id = $1 AND estudiante_id = $2
+RETURNING estudiante_id`;
+
+// Lo que lee el apoderado: SOLO por las funciones de 16, limitadas a sus pupilos vinculados.
+export const MIS_PUPILOS = `SELECT estudiante_id, nombre FROM mis_pupilos()`;
+export const RAMOS_PUPILO = `SELECT curso_id, curso, asignatura, periodo, docente, promedio FROM ramos_pupilo($1)`;
+export const NOTAS_PUPILO = `
+SELECT curso_id, evaluacion_id, evaluacion, puntaje, nota, ponderacion, fecha_envio, por_revisar FROM notas_pupilo($1)`;
+export const PENDIENTES_PUPILO = `SELECT curso_id, evaluacion_id, titulo, fecha_cierre, duracion_min FROM pendientes_pupilo($1)`;
+
+// --- Auditoría (13) ------------------------------------------------------------------
+// actor_id y colegio_id los pone la base desde la sesión. `detalle` nunca lleva claves ni contenido.
+export const AUDITAR = `
+INSERT INTO auditoria (accion, recurso, recurso_id, detalle)
+VALUES ($1, $2, $3, $4::jsonb)`;
+
+// Bitácora del colegio (solo admin, RLS), de la más reciente a la más antigua, keyset por (fecha, id).
+export const AUDITORIA_LISTA = `
+SELECT a.id, a.accion, a.recurso, a.recurso_id, a.detalle, a.created_at,
+       a.created_at::text AS cursor_at,  -- con microsegundos: el Date de JS los perdería
+       a.actor_id, u.nombre AS actor, u.rol AS actor_rol
+FROM auditoria a
+JOIN usuarios u ON u.id = a.actor_id
+WHERE ($2::timestamptz IS NULL OR (a.created_at, a.id) < ($2::timestamptz, $3::uuid))
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $1`;
+
 // --- Gestión académica (H1) -------------------------------------------------------
 
 export const CREAR_CURSO = `
@@ -132,7 +236,7 @@ ORDER BY u.nombre, u.id`;
 
 // Lista para el docente/admin: todas, borradores incluidos.
 export const EVALUACIONES_DEL_CURSO = `
-SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre, e.duracion_min,
        (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
        (SELECT count(*) FROM intentos_evaluacion i WHERE i.evaluacion_id = e.id AND i.fecha_envio IS NOT NULL)::int AS entregas
 FROM evaluaciones e
@@ -141,35 +245,77 @@ ORDER BY e.created_at DESC, e.id`;
 
 // Lista para el estudiante ($2 = su id): solo publicadas y cerradas (nunca borradores), con su nota si ya la rindió.
 export const EVALUACIONES_PARA_ESTUDIANTE = `
-SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre,
+SELECT e.id, e.titulo, e.estado, e.fecha_publicacion, e.fecha_cierre, e.duracion_min,
        (SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = e.id)::int AS preguntas,
-       n.nota, n.puntaje, n.fecha_envio AS entregada_at
+       n.nota, n.puntaje, n.fecha_envio AS entregada_at,
+       i.fecha_inicio AS iniciada_at,
+       (SELECT count(*) FROM respuestas_estudiante r WHERE r.intento_id = i.id AND r.revision_pendiente)::int AS por_revisar
 FROM evaluaciones e
 LEFT JOIN notas n ON n.evaluacion_id = e.id AND n.estudiante_id = $2
+LEFT JOIN intentos_evaluacion i ON i.evaluacion_id = e.id AND i.estudiante_id = $2
 WHERE e.curso_id = $1 AND e.estado IN ('publicada', 'cerrada')
 ORDER BY e.fecha_publicacion DESC, e.id`;
 
 // Evaluación completa, CON las alternativas correctas: solo para el docente del curso y el admin.
 // LEFT JOIN: las preguntas de texto (11) no tienen alternativas; traen sus respuestas aceptadas.
 export const PREGUNTAS_PARA_DOCENTE = `
-SELECT p.id, p.orden, p.enunciado, p.retroalimentacion, p.tipo, p.respuestas_aceptadas,
+-- 17: la alternativa correcta y las respuestas aceptadas salen de funciones solo para el personal del curso.
+SELECT p.id, p.orden, p.enunciado, p.retroalimentacion, p.tipo, ac.respuestas_aceptadas,
        COALESCE(json_agg(json_build_object('texto', a.texto, 'es_correcta', a.es_correcta) ORDER BY a.orden, a.id)
                 FILTER (WHERE a.id IS NOT NULL), '[]') AS alternativas
 FROM preguntas p
-LEFT JOIN alternativas a ON a.pregunta_id = p.id
+LEFT JOIN alternativas_staff($1) a ON a.pregunta_id = p.id
+LEFT JOIN aceptadas_staff($1) ac ON ac.pregunta_id = p.id
 WHERE p.evaluacion_id = $1
-GROUP BY p.id
+GROUP BY p.id, ac.respuestas_aceptadas
 ORDER BY p.orden`;
 
 // Un intento (enviado o no) del estudiante en la evaluación: para responder 409 si ya la rindió.
+// plazo: inicio + duración o el cierre, lo que llegue primero (14); vencido = pasó el plazo + el margen de red.
 export const INTENTO_DEL_ESTUDIANTE = `
-SELECT id, fecha_envio
-FROM intentos_evaluacion
-WHERE evaluacion_id = $1 AND estudiante_id = $2`;
+SELECT i.id, i.fecha_envio, i.fecha_inicio,
+       plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) AS plazo,
+       COALESCE(now() > plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) + margen_plazo(), false) AS vencido
+FROM intentos_evaluacion i
+JOIN evaluaciones e ON e.id = i.evaluacion_id
+WHERE i.evaluacion_id = $1 AND i.estudiante_id = $2`;
+
+// v1.12 · Empezar (o retomar) una evaluación con tiempo: crea el intento abierto si no existe. Mismas condiciones
+// que CREAR_INTENTO. 0 filas = ya existía (se lee con INTENTO_DEL_ESTUDIANTE) o no se puede empezar.
+export const INICIAR_INTENTO = `
+INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id)
+SELECT e.curso_id, e.id, m.estudiante_id
+FROM evaluaciones e
+JOIN matriculas m ON m.curso_id = e.curso_id AND m.estudiante_id = $2 AND m.activo
+WHERE e.id = $1
+  AND e.estado = 'publicada'
+  AND (e.fecha_cierre IS NULL OR now() < e.fecha_cierre)
+ON CONFLICT (evaluacion_id, estudiante_id) DO NOTHING
+RETURNING id`;
+
+// Intentos abiertos cuyo plazo (más el margen) ya pasó: se cierran con lo que alcanzaron a responder (nada, si
+// el portal no alcanzó a entregar) y así tienen nota. RLS: el estudiante solo cierra el suyo; el docente, los de
+// sus cursos. $1 = evaluación o NULL; $2 = curso o NULL.
+export const CERRAR_INTENTOS_VENCIDOS = `
+UPDATE intentos_evaluacion i
+SET fecha_envio = least(now(), plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre)),
+    puntaje = (
+        SELECT round(100.0 * count(*) FILTER (WHERE r.es_correcta)
+                     / NULLIF((SELECT count(*) FROM preguntas p WHERE p.evaluacion_id = i.evaluacion_id), 0), 2)
+        FROM respuestas_estudiante r
+        WHERE r.intento_id = i.id)
+FROM evaluaciones e
+WHERE e.id = i.evaluacion_id
+  AND i.fecha_envio IS NULL
+  AND ($1::uuid IS NULL OR i.evaluacion_id = $1)
+  AND ($2::uuid IS NULL OR i.curso_id = $2)
+  AND plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) IS NOT NULL
+  AND now() > plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) + margen_plazo()
+RETURNING i.id`;
 
 export const CREAR_EVALUACION = `
-INSERT INTO evaluaciones (curso_id, titulo, fecha_cierre)
-VALUES ($1, $2, $3)
+INSERT INTO evaluaciones (curso_id, titulo, fecha_cierre, duracion_min)
+VALUES ($1, $2, $3, $4)
 RETURNING id, estado, created_at`;
 
 // $5 = 'alternativas' | 'texto'; $6 = respuestas aceptadas (solo texto; NULL si el borrador aún no las tiene).
@@ -188,7 +334,7 @@ RETURNING id`;
 // antes de publicar: si esto devuelve filas -> 422.
 // Editar un borrador: cambia el título y el cierre, y se vuelven a crear las preguntas (las alternativas caen en cascada).
 export const ACTUALIZAR_BORRADOR = `
-UPDATE evaluaciones SET titulo = $2, fecha_cierre = $3
+UPDATE evaluaciones SET titulo = $2, fecha_cierre = $3, duracion_min = $4
 WHERE id = $1 AND estado = 'borrador'
 RETURNING id`;
 
@@ -199,13 +345,16 @@ export const BORRAR_BORRADOR = `
 DELETE FROM evaluaciones WHERE id = $1 AND estado = 'borrador'
 RETURNING id`;
 
+export const CONTAR_PREGUNTAS = `
+SELECT count(*)::int AS n FROM preguntas WHERE evaluacion_id = $1`;
+
 export const PREGUNTAS_SIN_CORRECTA = `
 SELECT p.id, p.orden, p.tipo
 FROM preguntas p
 WHERE p.evaluacion_id = $1
   -- Las de texto no se exigen: sin respuestas aceptadas, el docente las revisa a mano (12).
   AND p.tipo = 'alternativas'
-  AND NOT EXISTS (SELECT 1 FROM alternativas a WHERE a.pregunta_id = p.id AND a.es_correcta)
+  AND NOT EXISTS (SELECT 1 FROM alternativas_staff($1) a WHERE a.pregunta_id = p.id AND a.es_correcta)
 ORDER BY p.orden`;
 
 // $2 = true para fijar el cierre en el mismo paso ($3: fecha futura o NULL = sin cierre automático); false = deja el del borrador.
@@ -269,7 +418,8 @@ INSERT INTO respuestas_estudiante
     (evaluacion_id, intento_id, pregunta_id, alternativa_elegida_id, respuesta_texto, es_correcta, retroalimentacion)
 SELECT i.evaluacion_id, i.id, p.id, a.id,
        CASE WHEN p.tipo = 'texto' THEN $4::text END,
-       CASE WHEN p.tipo = 'texto' THEN respuesta_texto_correcta(p.id, $4::text) ELSE COALESCE(a.es_correcta, false) END,
+       -- La corrección la pone el trigger de la base (17: el estudiante no puede leer la respuesta correcta).
+       false,
        p.retroalimentacion
 FROM intentos_evaluacion i
 JOIN evaluaciones e ON e.id = i.evaluacion_id
@@ -277,7 +427,9 @@ JOIN preguntas p ON p.id = $2 AND p.evaluacion_id = i.evaluacion_id
 LEFT JOIN alternativas a ON a.id = $3 AND a.pregunta_id = p.id
 WHERE i.id = $1 AND i.fecha_envio IS NULL
   AND e.estado = 'publicada'
-  AND (e.fecha_cierre IS NULL OR now() < e.fecha_cierre)
+  -- Plazo del intento (14): inicio + duración o el cierre, con el margen de red.
+  AND (plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) IS NULL
+       OR now() <= plazo_intento(i.fecha_inicio, e.duracion_min, e.fecha_cierre) + margen_plazo())
 RETURNING id, es_correcta, retroalimentacion, revision_pendiente`;
 
 // Cierra el intento y guarda el puntaje (0–100) a partir de las respuestas congeladas.
@@ -350,7 +502,8 @@ FROM cursos c
 WHERE c.id = $1 AND c.activo`;
 
 export const EVALUACION_ACCESO = `
-SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, e.fecha_publicacion, e.fecha_cierre, c.docente_id
+SELECT e.id, e.curso_id, e.titulo, e.estado, e.exigencia, e.ponderacion, e.fecha_publicacion, e.fecha_cierre,
+       e.duracion_min, c.docente_id
 FROM evaluaciones e
 JOIN cursos c ON c.id = e.curso_id
 WHERE e.id = $1`;
@@ -372,6 +525,8 @@ ORDER BY c.nombre`;
 export const NOTAS_ESTUDIANTE = `
 SELECT n.curso_id, c.nombre AS curso, n.evaluacion_id, n.evaluacion,
        n.puntaje, n.nota, n.ponderacion, n.fecha_envio,
+       -- v1.12: respuestas escritas por revisar (la nota es provisional mientras sea > 0).
+       (SELECT count(*) FROM respuestas_estudiante r WHERE r.intento_id = n.intento_id AND r.revision_pendiente)::int AS por_revisar,
        round(sum(n.nota * n.ponderacion) OVER w / sum(n.ponderacion) OVER w, 1) AS promedio_curso
 FROM notas n
 JOIN cursos c ON c.id = n.curso_id
@@ -390,6 +545,7 @@ ORDER BY fecha_publicacion, titulo`;
 // aparezca también quien todavía no tiene notas.
 export const LIBRO_NOTAS_ESTUDIANTES = `
 SELECT u.id AS estudiante_id, u.nombre, n.evaluacion_id, n.puntaje, n.nota,
+       (SELECT count(*) FROM respuestas_estudiante r WHERE r.intento_id = n.intento_id AND r.revision_pendiente)::int AS por_revisar,
        round(sum(n.nota * n.ponderacion) OVER w / NULLIF(sum(n.ponderacion) OVER w, 0), 1) AS promedio
 FROM matriculas m
 JOIN usuarios u ON u.id = m.estudiante_id
@@ -420,7 +576,10 @@ SELECT count(*) AS total FROM matriculas WHERE curso_id = $1 AND activo`;
 export const ESTUDIANTES_EN_RIESGO = `
 SELECT u.id AS estudiante_id, u.nombre,
        round(sum(n.nota * n.ponderacion) / sum(n.ponderacion), 1) AS promedio,
-       count(*) AS evaluaciones_rendidas
+       count(*) AS evaluaciones_rendidas,
+       -- Notas provisionales (con respuestas escritas por revisar): el riesgo puede cambiar al revisar.
+       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM respuestas_estudiante r
+                                      WHERE r.intento_id = n.intento_id AND r.revision_pendiente)) AS notas_provisionales
 FROM notas n
 JOIN matriculas m ON m.curso_id = n.curso_id AND m.estudiante_id = n.estudiante_id AND m.activo
 JOIN usuarios u ON u.id = n.estudiante_id
@@ -437,7 +596,8 @@ WHERE evaluacion_id = $1`;
 
 // $2 NULL = todos los estudiantes; si no, solo ese.
 export const RESULTADOS_EVALUACION_ESTUDIANTES = `
-SELECT n.estudiante_id, u.nombre, n.puntaje, n.nota, n.fecha_envio
+SELECT n.estudiante_id, u.nombre, n.puntaje, n.nota, n.fecha_envio,
+       (SELECT count(*) FROM respuestas_estudiante r WHERE r.intento_id = n.intento_id AND r.revision_pendiente)::int AS por_revisar
 FROM notas n
 JOIN usuarios u ON u.id = n.estudiante_id
 WHERE n.evaluacion_id = $1 AND ($2::uuid IS NULL OR n.estudiante_id = $2)
@@ -628,17 +788,29 @@ SELECT a.titulo AS name,
        COALESCE(f.tipo, 'text/plain') AS content_type,
        COALESCE(f.bytes, octet_length(a.contenido))::int AS size_bytes,
        (f.apunte_id IS NOT NULL) AS original,
+       a.visible_estudiante AS visible,
        a.created_at AS uploaded_at
 FROM apuntes_curso a
 LEFT JOIN apuntes_archivos f ON f.apunte_id = a.id
-WHERE a.curso_id = $1 AND a.titulo !~* '^MINEDUC'
+-- $2 = true para el estudiante: solo lo que el docente marcó como visible (14). El personal ve todo.
+WHERE a.curso_id = $1 AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)' AND (NOT $2::boolean OR a.visible_estudiante)
 ORDER BY a.created_at DESC, a.titulo`;
 
 export const MATERIAL_ARCHIVO = `
 SELECT a.titulo, a.contenido AS texto, f.nombre, f.tipo, f.contenido
 FROM apuntes_curso a
 LEFT JOIN apuntes_archivos f ON f.apunte_id = a.id
-WHERE a.curso_id = $1 AND a.titulo = $2 AND a.titulo !~* '^MINEDUC'`;
+WHERE a.curso_id = $1 AND a.titulo = $2 AND a.titulo !~* '^MINEDUC([^[:alnum:]_]|$)' AND (NOT $3::boolean OR a.visible_estudiante)`;
+
+// Mostrar u ocultar un apunte como material para los estudiantes (14). El tutor lo usa igual.
+export const VISIBILIDAD_APUNTE = `
+UPDATE apuntes_curso SET visible_estudiante = $3
+WHERE curso_id = $1 AND titulo = $2 AND titulo !~* '^MINEDUC([^[:alnum:]_]|$)'
+RETURNING titulo, visible_estudiante`;
+
+// Visibilidad de cada apunte del curso, para la lista del docente.
+export const VISIBILIDAD_APUNTES_CURSO = `
+SELECT titulo, visible_estudiante FROM apuntes_curso WHERE curso_id = $1`;
 
 // Guarda (o reemplaza) el archivo original del apunte recién indexado. 0 filas si el apunte no existe.
 export const GUARDAR_ARCHIVO_APUNTE = `
@@ -649,6 +821,12 @@ WHERE a.curso_id = $1 AND a.titulo = $2
 ON CONFLICT (apunte_id) DO UPDATE
    SET nombre = EXCLUDED.nombre, tipo = EXCLUDED.tipo, bytes = EXCLUDED.bytes, contenido = EXCLUDED.contenido`;
 
+// Quita el original guardado de un apunte (si no se pudo guardar el nuevo al reemplazarlo).
+export const QUITAR_ARCHIVO_APUNTE = `
+DELETE FROM apuntes_archivos f
+USING apuntes_curso a
+WHERE f.apunte_id = a.id AND a.curso_id = $1 AND a.titulo = $2`;
+
 // Columnas comunes de una tarea (sin el archivo: los bytes solo se leen al descargar).
 const TAREA_COLUMNAS = `
        t.id, t.curso_id, t.titulo, t.instrucciones, t.fecha_limite, (now() <= t.fecha_limite) AS abierta,
@@ -658,7 +836,8 @@ const TAREA_COLUMNAS = `
 export const TAREAS_CURSO = `
 SELECT ${TAREA_COLUMNAS},
        e.archivo_nombre AS entrega_nombre, e.archivo_bytes AS entrega_bytes, e.entregada_at,
-       (SELECT count(*) FROM entregas_tarea x WHERE x.tarea_id = t.id)::int AS entregas,
+       (SELECT count(*) FROM entregas_tarea x JOIN matriculas mx ON mx.curso_id = x.curso_id AND mx.estudiante_id = x.estudiante_id AND mx.activo
+        WHERE x.tarea_id = t.id)::int AS entregas,  -- solo matrículas activas: igual que «estudiantes»
        (SELECT count(*) FROM matriculas m WHERE m.curso_id = t.curso_id AND m.activo)::int AS estudiantes
 FROM tareas t
 LEFT JOIN entregas_tarea e ON e.tarea_id = t.id AND e.estudiante_id = $2
@@ -668,7 +847,8 @@ ORDER BY t.fecha_limite, t.created_at`;
 export const TAREA_ACCESO = `
 SELECT ${TAREA_COLUMNAS}, c.docente_id,
        e.archivo_nombre AS entrega_nombre, e.archivo_bytes AS entrega_bytes, e.entregada_at,
-       (SELECT count(*) FROM entregas_tarea x WHERE x.tarea_id = t.id)::int AS entregas,
+       (SELECT count(*) FROM entregas_tarea x JOIN matriculas mx ON mx.curso_id = x.curso_id AND mx.estudiante_id = x.estudiante_id AND mx.activo
+        WHERE x.tarea_id = t.id)::int AS entregas,  -- solo matrículas activas: igual que «estudiantes»
        (SELECT count(*) FROM matriculas m WHERE m.curso_id = t.curso_id AND m.activo)::int AS estudiantes
 FROM tareas t
 JOIN cursos c ON c.id = t.curso_id AND c.activo
@@ -730,17 +910,28 @@ ORDER BY u.nombre`;
 // Todas las respuestas escritas de una evaluación, las por revisar primero. El RLS (04) ya limita al personal
 // del curso; la API además exige ser staff.
 export const RESPUESTAS_ESCRITAS = `
-SELECT r.id, r.pregunta_id, p.orden, p.enunciado, p.respuestas_aceptadas, i.estudiante_id, u.nombre,
+SELECT r.id, r.pregunta_id, p.orden, p.enunciado, ac.respuestas_aceptadas, i.estudiante_id, u.nombre,
        r.respuesta_texto, r.es_correcta, r.revision_pendiente, r.revisada_at, i.fecha_envio
 FROM respuestas_estudiante r
 JOIN preguntas p ON p.id = r.pregunta_id AND p.tipo = 'texto'
 JOIN intentos_evaluacion i ON i.id = r.intento_id AND i.fecha_envio IS NOT NULL
 JOIN usuarios u ON u.id = i.estudiante_id
+LEFT JOIN aceptadas_staff($1) ac ON ac.pregunta_id = p.id
 WHERE r.evaluacion_id = $1 AND r.respuesta_texto IS NOT NULL
 ORDER BY r.revision_pendiente DESC, p.orden, u.nombre`;
 
 // El docente decide: marca la respuesta escrita ($2) como correcta o no ($3) y se recalcula el puntaje del intento
 // con la misma fórmula de ENVIAR_INTENTO. Solo respuestas de texto de esa evaluación ($1) y de intentos enviados.
+// Antes de REVISAR_RESPUESTA, en la misma transacción: bloquea el intento de esa respuesta. Dos revisiones
+// simultáneas de respuestas del MISMO intento quedan en fila, y como REVISAR_RESPUESTA es otra sentencia, su
+// foto de la base ya incluye lo que confirmó la primera: el puntaje no pierde ninguna de las dos.
+export const BLOQUEAR_INTENTO_DE_RESPUESTA = `
+SELECT i.id
+FROM respuestas_estudiante r
+JOIN intentos_evaluacion i ON i.id = r.intento_id
+WHERE r.id = $2 AND r.evaluacion_id = $1
+FOR UPDATE OF i`;
+
 export const REVISAR_RESPUESTA = `
 WITH revisada AS (
     UPDATE respuestas_estudiante r

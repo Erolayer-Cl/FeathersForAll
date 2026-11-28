@@ -219,8 +219,9 @@ describe('ciclo mínimo H1 → H2 → H4 (PostgreSQL)', { skip: SKIP }, () => {
       assert.equal(estado.rows[0].estado, 'borrador');
     });
 
-    test('el estudiante NO puede publicar (403) y un borrador no existe para él (404)', async () => {
-      assert.equal((await call('PATCH', `/v1/assessments/${evaluacionId}`, { user: CAMILA, body: { status: 'published' } })).status, 403);
+    test('el estudiante NO puede publicar y un borrador no existe para él (404)', async () => {
+      // 14: el RLS ya no le muestra borradores al estudiante, así que ni siquiera sabe que existe (antes, 403).
+      assert.equal((await call('PATCH', `/v1/assessments/${evaluacionId}`, { user: CAMILA, body: { status: 'published' } })).status, 404);
       assert.equal((await call('GET', `/v1/assessments/${evaluacionId}`, { user: CAMILA })).status, 404);
       const lista = await ok(await call('GET', `/v1/courses/${cursoId}/assessments`, { user: CAMILA }), 200);
       assert.ok(lista.data.every((e) => e.status !== 'draft'), 'los borradores no aparecen en la lista del estudiante');
@@ -274,7 +275,7 @@ describe('ciclo mínimo H1 → H2 → H4 (PostgreSQL)', { skip: SKIP }, () => {
       const ev = await ok(await call('GET', `/v1/assessments/${evaluacionId}`, { user: CAMILA }), 200);
       const [q1, q2] = ev.questions;
       assert.equal((await call('POST', `/v1/assessments/${evaluacionId}/submissions`, { user: ANA, body: { answers: [{ question_id: q1.id, selected_option: 1 }] } })).status, 403);
-      for (const answers of [[], [{ question_id: 'x', selected_option: 0 }], [{ question_id: q1.id, selected_option: -1 }], [{ question_id: q1.id, selected_option: 'A' }],
+      for (const answers of ['no-es-lista', [{ question_id: 'x', selected_option: 0 }], [{ question_id: q1.id, selected_option: -1 }], [{ question_id: q1.id, selected_option: 'A' }],
         [{ question_id: q1.id, selected_option: 0 }, { question_id: q1.id, selected_option: 1 }]]) {
         assert.equal((await call('POST', `/v1/assessments/${evaluacionId}/submissions`, { user: CAMILA, body: { answers } })).status, 400, JSON.stringify(answers));
       }

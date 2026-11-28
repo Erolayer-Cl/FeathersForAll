@@ -26,6 +26,16 @@ const STATUS = { borrador: 'draft', publicada: 'published', cerrada: 'closed' };
 // ---------------------------------------------------------------- validación (H2)
 
 const MAX_DIAS_CIERRE = 366;
+const MAX_DURACION_MIN = 600;
+
+/** "duration_minutes": minutos que tiene cada estudiante desde que empieza (v1.12). null/ausente = sin límite propio. */
+export function leerDuracion(valor) {
+  if (valor === undefined || valor === null) return null;
+  if (!Number.isInteger(valor) || valor < 1 || valor > MAX_DURACION_MIN) {
+    throw invalid(`"duration_minutes" debe ser un entero de 1 a ${MAX_DURACION_MIN}, o null`);
+  }
+  return valor;
+}
 
 /**
  * "closes_at" de PATCH: undefined (no viene), null (sin cierre automático) o una fecha futura ISO 8601 con zona
@@ -47,12 +57,8 @@ export function leerEvaluacion(body) {
   if (title.length < 3 || title.length > 150) throw invalid('"title" debe ser un texto de 3 a 150 caracteres');
   if (body.max_attempts !== undefined && body.max_attempts !== 1) throw invalid('"max_attempts" solo puede ser 1 (un intento por evaluación)');
 
-  let closesAt = null;
-  if (body.closes_at !== undefined && body.closes_at !== null) {
-    const fecha = typeof body.closes_at === 'string' ? new Date(body.closes_at) : null;
-    if (!fecha || Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) throw invalid('"closes_at" debe ser una fecha y hora futuras (ISO 8601)');
-    closesAt = fecha.toISOString();
-  }
+  // Misma validación que PATCH (con zona horaria, futura y a menos de un año).
+  const closesAt = leerCierre(body.closes_at) ?? null;
 
   const preguntas = body.questions;
   if (!Array.isArray(preguntas) || preguntas.length < 1 || preguntas.length > MAX_PREGUNTAS) {
@@ -84,7 +90,7 @@ export function leerEvaluacion(body) {
     }
     return { type, statement, options, correct, accepted: null, feedback: q.feedback?.trim() || null };
   });
-  return { title, closesAt, questions };
+  return { title, closesAt, durationMin: leerDuracion(body.duration_minutes), questions };
 }
 
 /**
@@ -119,6 +125,7 @@ async function evaluacionParaDocente(c, ev) {
     max_attempts: 1,
     published_at: ev.fecha_publicacion ?? null,
     closes_at: ev.fecha_cierre ?? null,
+    duration_minutes: ev.duracion_min ?? null,
     questions: preguntas.map((p) => {
       const correct = p.alternativas.findIndex((a) => a.es_correcta);
       return {
@@ -134,9 +141,19 @@ async function evaluacionParaDocente(c, ev) {
   };
 }
 
-/** Evaluación para el estudiante: SIN las alternativas correctas ni la retroalimentación (vista alternativas_publicas). */
-async function evaluacionParaEstudiante(c, ev) {
-  const preguntas = (await c.query(Q.PREGUNTAS_PARA_RENDIR, [ev.id])).rows;
+/** Intento del estudiante -> schema AttemptInfo (v1.12). deadline: inicio + duración o el cierre, lo que llegue primero. */
+const toAttempt = (i) => (i ? { id: i.id, started_at: i.fecha_inicio, deadline: i.plazo ?? null, submitted: i.fecha_envio !== null } : null);
+
+/**
+ * Evaluación para el estudiante: SIN las alternativas correctas ni la retroalimentación (vista alternativas_publicas).
+ * Con duración por intento (v1.12), las preguntas solo llegan después de empezar: si no, el estudiante podría
+ * leerlas con calma y empezar el reloj recién al saber las respuestas.
+ */
+async function evaluacionParaEstudiante(c, ev, user) {
+  const intento = (await c.query(Q.INTENTO_DEL_ESTUDIANTE, [ev.id, user.id])).rows[0] ?? null;
+  const ocultas = ev.duracion_min !== null && ev.duracion_min !== undefined && !intento;
+  const preguntas = ocultas ? [] : (await c.query(Q.PREGUNTAS_PARA_RENDIR, [ev.id])).rows;
+  const { now } = (await c.query('SELECT now() AS now')).rows[0];
   return {
     id: ev.id,
     course_id: ev.curso_id,
@@ -145,7 +162,12 @@ async function evaluacionParaEstudiante(c, ev) {
     max_attempts: 1,
     published_at: ev.fecha_publicacion ?? null,
     closes_at: ev.fecha_cierre ?? null,
+    duration_minutes: ev.duracion_min ?? null,
+    questions_count: ocultas ? Number((await c.query(Q.CONTAR_PREGUNTAS, [ev.id])).rows[0].n) : preguntas.length,
     questions: preguntas.map((p) => ({ id: p.id, type: TIPO_API[p.tipo] ?? 'multiple_choice', statement: p.enunciado, options: p.alternativas.map((a) => a.texto) })),
+    attempt: toAttempt(intento),
+    // Hora del servidor: el portal corrige con ella el reloj del equipo para la cuenta regresiva.
+    server_time: now,
   };
 }
 
@@ -176,7 +198,7 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
       run: async (c) => {
         const curso = await cursoVisible(c, req.user, courseId);
         if (!esStaffDelCurso(req.user, curso)) throw forbidden('Solo el docente del curso o el administrador crean evaluaciones');
-        const { id } = (await c.query(Q.CREAR_EVALUACION, [courseId, input.title, input.closesAt])).rows[0];
+        const { id } = (await c.query(Q.CREAR_EVALUACION, [courseId, input.title, input.closesAt, input.durationMin])).rows[0];
         await escribirPreguntas(c, id, input.questions);
         const ev = await cargarEvaluacion(c, id);
         return { status: 201, body: await evaluacionParaDocente(c, ev) };
@@ -238,26 +260,30 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
   // solo las publicadas y cerradas, con su nota si ya la rindió.
   router.get('/v1/courses/:courseId/assessments', async (req, res) => {
     const courseId = uuidParam(req.params.courseId, 'courseId');
-    const body = await read(req.user, async (c) => {
+    // Transacción de escritura: al estudiante se le cierran aquí sus intentos vencidos (CERRAR_INTENTOS_VENCIDOS).
+    const body = await db.withUser(req.user, async (c) => {
       const curso = await cursoVisible(c, req.user, courseId);
       if (esStaffDelCurso(req.user, curso)) {
         const rows = (await c.query(Q.EVALUACIONES_DEL_CURSO, [courseId])).rows;
         return {
           data: rows.map((e) => ({
             id: e.id, title: e.titulo, status: STATUS[e.estado], questions_count: e.preguntas, submissions_count: e.entregas,
-            published_at: e.fecha_publicacion, closes_at: e.fecha_cierre,
+            published_at: e.fecha_publicacion, closes_at: e.fecha_cierre, duration_minutes: e.duracion_min ?? null,
           })),
         };
       }
       // Otro docente o admin sin permiso: 403 (participa del colegio). Estudiante sin matrícula: 404.
       if (req.user.rol !== 'estudiante') throw forbidden('Solo el docente del curso, el administrador o sus estudiantes ven las evaluaciones');
       if (!curso.matriculado) throw notFound('El curso');
+      // Sus intentos con tiempo que vencieron sin entregar se cierran aquí: así ya aparecen con nota.
+      await c.query(Q.CERRAR_INTENTOS_VENCIDOS, [null, courseId]);
       const rows = (await c.query(Q.EVALUACIONES_PARA_ESTUDIANTE, [courseId, req.user.id])).rows;
       return {
         data: rows.map((e) => ({
           id: e.id, title: e.titulo, status: STATUS[e.estado], questions_count: e.preguntas,
-          published_at: e.fecha_publicacion, closes_at: e.fecha_cierre,
+          published_at: e.fecha_publicacion, closes_at: e.fecha_cierre, duration_minutes: e.duracion_min ?? null,
           submitted: e.entregada_at !== null, grade: e.nota ?? null, score: e.puntaje ?? null, submitted_at: e.entregada_at ?? null,
+          started_at: e.iniciada_at ?? null, pending_review: e.por_revisar ?? 0,
         })),
       };
     });
@@ -268,13 +294,14 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
   // publicada, sin la alternativa correcta ni la retroalimentación (eso llega al enviar).
   router.get('/v1/assessments/:assessmentId', async (req, res) => {
     const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
-    const body = await read(req.user, async (c) => {
+    const body = await db.withUser(req.user, async (c) => {
       const ev = await cargarEvaluacion(c, assessmentId);
       const curso = await cursoVisible(c, req.user, ev.curso_id);
       if (esStaffDelCurso(req.user, ev)) return evaluacionParaDocente(c, ev);
       if (req.user.rol !== 'estudiante') throw forbidden('Solo el docente del curso, el administrador o sus estudiantes ven esta evaluación');
       if (!curso.matriculado || ev.estado === 'borrador') throw notFound('La evaluación');
-      return evaluacionParaEstudiante(c, ev);
+      await c.query(Q.CERRAR_INTENTOS_VENCIDOS, [assessmentId, null]);
+      return evaluacionParaEstudiante(c, ev, req.user);
     });
     res.json(body);
   });
@@ -287,7 +314,7 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
       const ev = await cargarEvaluacion(c, assessmentId);
       if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador editan evaluaciones');
       if (ev.estado !== 'borrador') throw conflict('Solo se puede editar una evaluación en borrador: esta ya fue publicada');
-      const ok = (await c.query(Q.ACTUALIZAR_BORRADOR, [assessmentId, input.title, input.closesAt])).rows[0];
+      const ok = (await c.query(Q.ACTUALIZAR_BORRADOR, [assessmentId, input.title, input.closesAt, input.durationMin])).rows[0];
       if (!ok) throw conflict('La evaluación ya no está en borrador');
       await c.query(Q.BORRAR_PREGUNTAS, [assessmentId]);
       await escribirPreguntas(c, assessmentId, input.questions);
@@ -348,6 +375,33 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
     res.json(body);
   });
 
+  // v1.12 · Empezar (o retomar) una evaluación con tiempo. Corre el reloj de ESTE estudiante: su plazo es inicio +
+  // duración o el cierre de la evaluación, lo que llegue primero. Repetirlo devuelve el mismo intento (200), así que
+  // no lleva Idempotency-Key: recargar la página no reinicia el tiempo.
+  router.post('/v1/assessments/:assessmentId/attempts', async (req, res) => {
+    const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
+    if (req.user.rol !== 'estudiante') throw forbidden('Solo los estudiantes rinden evaluaciones');
+    const out = await db.withUser(req.user, async (c) => {
+      const ev = await cargarEvaluacion(c, assessmentId);
+      const curso = await cursoVisible(c, req.user, ev.curso_id);
+      if (!curso.matriculado || ev.estado === 'borrador') throw notFound('La evaluación');
+      if (ev.estado === 'cerrada') throw conflict('La evaluación ya está cerrada');
+      const creado = (await c.query(Q.INICIAR_INTENTO, [assessmentId, req.user.id])).rows[0];
+      const intento = (await c.query(Q.INTENTO_DEL_ESTUDIANTE, [assessmentId, req.user.id])).rows[0];
+      if (!intento) throw conflict('El plazo de esta evaluación ya terminó');
+      if (intento.fecha_envio) throw await yaRendida(c, req.user, assessmentId);
+      if (intento.vencido) {
+        await c.query(Q.CERRAR_INTENTOS_VENCIDOS, [assessmentId, null]);
+        return { status: 409, vencido: true };
+      }
+      const { now } = (await c.query('SELECT now() AS now')).rows[0];
+      return { status: creado ? 201 : 200, body: { ...toAttempt(intento), server_time: now } };
+    });
+    // Fuera de la transacción: el cierre del intento vencido queda guardado aunque se responda 409.
+    if (out.vencido) throw new HttpProblem(409, 'Conflicto', 'Se acabó el tiempo de tu intento', 'attempt-expired');
+    res.status(out.status).json(out.body);
+  });
+
   // H4 · El estudiante envía sus respuestas y recibe puntaje, nota y retroalimentación al instante.
   router.post('/v1/assessments/:assessmentId/submissions', async (req, res) => {
     const assessmentId = uuidParam(req.params.assessmentId, 'assessmentId');
@@ -364,12 +418,21 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
         if (ev.estado === 'cerrada') throw conflict('La evaluación ya está cerrada');
 
         const previo = (await c.query(Q.INTENTO_DEL_ESTUDIANTE, [assessmentId, req.user.id])).rows[0];
-        if (previo) throw await yaRendida(c, req.user, assessmentId);
+        if (previo?.fecha_envio) throw await yaRendida(c, req.user, assessmentId);
+        // v1.12: con duración por intento hay que empezar antes (POST .../attempts): ahí corre el reloj.
+        if (!previo && ev.duracion_min) {
+          throw new HttpProblem(409, 'Conflicto', 'Esta evaluación tiene tiempo: empiézala antes de entregar', 'attempt-not-started');
+        }
 
         const preguntas = (await c.query(Q.PREGUNTAS_PARA_RENDIR, [assessmentId])).rows;
         const elegidas = resolverRespuestas(preguntas, respuestas);
 
-        const intento = (await c.query(Q.CREAR_INTENTO, [assessmentId, req.user.id])).rows[0];
+        let intento = previo;
+        if (previo?.vencido) {
+          // Llegó tarde (plazo + margen): el intento se cierra con lo que ya tenía guardado (nada) y no se aceptan estas.
+          throw new HttpProblem(409, 'Conflicto', 'Se acabó el tiempo de tu intento: ya no se reciben respuestas', 'attempt-expired');
+        }
+        if (!intento) intento = (await c.query(Q.CREAR_INTENTO, [assessmentId, req.user.id])).rows[0];
         // Publicada pero vencida (fecha_cierre pasó): la base no abre el intento.
         if (!intento) throw conflict('El plazo de esta evaluación ya terminó');
 
@@ -435,6 +498,7 @@ export function createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter = c
     const fila = await db.withUser(req.user, async (c) => {
       const ev = await cargarEvaluacion(c, assessmentId);
       if (!esStaffDelCurso(req.user, ev)) throw forbidden('Solo el docente del curso o el administrador revisan respuestas');
+      await c.query(Q.BLOQUEAR_INTENTO_DE_RESPUESTA, [assessmentId, answerId]);
       const r = (await c.query(Q.REVISAR_RESPUESTA, [assessmentId, answerId, req.body.correct])).rows[0];
       if (!r) throw new HttpProblem(404, 'No encontrado', 'La respuesta escrita no existe en esta evaluación', 'not-found');
       return r;
@@ -458,8 +522,9 @@ async function escribirPreguntas(c, evaluacionId, questions) {
 /** Cuerpo de submissions (schema SubmissionInput) -> [{ questionId, selected } | { questionId, text }], o 400. */
 function leerRespuestas(body) {
   const answers = body?.answers;
-  if (!Array.isArray(answers) || answers.length < 1 || answers.length > MAX_PREGUNTAS) {
-    throw invalid(`"answers" debe tener de 1 a ${MAX_PREGUNTAS} respuestas`);
+  // v1.12: puede venir vacía (entregar sin responder, o la entrega automática al acabarse el tiempo): todo cuenta como incorrecto.
+  if (!Array.isArray(answers) || answers.length > MAX_PREGUNTAS) {
+    throw invalid(`"answers" debe ser una lista de hasta ${MAX_PREGUNTAS} respuestas`);
   }
   const vistas = new Set();
   return answers.map((a, i) => {
