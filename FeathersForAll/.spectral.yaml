@@ -77,5 +77,7 @@ rules:
 overrides:
   - files:
       - "api/openapi.yaml#/paths/~1auth~1login/post"
+      # Cambiar la propia clave tampoco crea recursos: reintentarlo con la clave vieja da 422 (v1.12).
+      - "api/openapi.yaml#/paths/~1me~1password/post"
     rules:
       feathersforall-post-idempotency: "off"

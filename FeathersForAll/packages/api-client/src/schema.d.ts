@@ -90,6 +90,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cambiar mi contraseña
+         * @description Cualquier rol. Pide la contraseña actual y una nueva (8 a 256 caracteres, distinta de la actual y del correo).
+         *     Entrega un token nuevo: **los anteriores, incluido el de esta petición, dejan de valer**. Con la clave actual
+         *     equivocada responde `422` (`invalid-current-password`); tras varios intentos fallidos, `429` con `Retry-After`.
+         */
+        post: operations["changeMyPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cuentas del colegio
+         * @description Solo el administrador del colegio (otros roles, `403`). Ordenadas por nombre, paginadas por cursor. Filtros
+         *     opcionales por rol, estado y texto (nombre o correo). Nunca incluye cuentas de otro colegio ni la contraseña.
+         */
+        get: operations["listUsers"];
+        put?: never;
+        /**
+         * Crear una cuenta
+         * @description Solo el administrador. Crea un docente, un estudiante u otro administrador en SU colegio, con la contraseña
+         *     inicial que elige el admin (8 a 256 caracteres, distinta del correo). La respuesta nunca incluye la clave.
+         *     Correo ya usado en el colegio: `409`. Queda registrada en la bitácora.
+         */
+        post: operations["createUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalle de una cuenta
+         * @description Solo el administrador. Incluye los cursos que dicta (docente) o en los que está matriculado (estudiante).
+         */
+        get: operations["getUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Editar, desactivar o reactivar una cuenta
+         * @description Solo el administrador. Cambia nombre, correo o estado. El rol no se cambia (`400` si se envía). Desactivar corta
+         *     las sesiones abiertas de la cuenta en su siguiente petición y le impide entrar; la cuenta y su historial se
+         *     conservan. El admin no puede desactivarse a sí mismo (`409`). Correo ya usado: `409`.
+         */
+        patch: operations["updateUser"];
+        trace?: never;
+    };
+    "/users/{userId}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Restablecer la contraseña de una cuenta
+         * @description Solo el administrador, para OTRA cuenta (la propia se cambia con `changeMyPassword`, `409`). Fija la clave que
+         *     elige el admin y corta las sesiones abiertas de esa cuenta. No devuelve la clave ni la registra.
+         */
+        put: operations["resetUserPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/wards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Avance de mis pupilos
+         * @description Solo el rol `apoderado` (otros, `403`). Por cada estudiante que el admin le vinculó y sigue activo: sus ramos con
+         *     docente y promedio ponderado, sus notas (las provisionales con `pending_review > 0`) y las evaluaciones que aún
+         *     puede rendir. Nunca incluye respuestas, retroalimentación ni datos de otros estudiantes.
+         */
+        get: operations["listMyWards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}/wards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Vincular un estudiante a un apoderado
+         * @description Solo el admin. El estudiante se indica por su correo y debe ser del mismo colegio (si no, `404`). La cuenta debe ser
+         *     de apoderado (si no, `409`); el mismo vínculo dos veces, `409`. Queda en la bitácora.
+         */
+        post: operations["addUserWard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}/wards/{studentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Desvincular un estudiante de un apoderado
+         * @description Solo el admin. Queda en la bitácora. Si no estaba vinculado, `404`.
+         */
+        delete: operations["removeUserWard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bitácora del colegio
+         * @description Solo el administrador. Quién creó, editó, desactivó o reactivó cuentas, restableció claves o cambió la suya,
+         *     de lo más reciente a lo más antiguo. No guarda contraseñas ni contenido. Nadie puede editarla ni borrarla.
+         */
+        get: operations["listAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/courses": {
         parameters: {
             query?: never;
@@ -307,6 +487,31 @@ export interface paths {
         patch: operations["reviewTextAnswer"];
         trace?: never;
     };
+    "/assessments/{assessmentId}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Empezar (o retomar) una evaluación con tiempo
+         * @description v1.12. El estudiante matriculado empieza la evaluación y corre SU reloj: el plazo (`deadline`) es el inicio más
+         *     `duration_minutes`, sin pasar del cierre de la evaluación, y lo calcula el servidor. Repetirlo devuelve el mismo
+         *     intento (`200`) sin reiniciar el tiempo, por eso no lleva `Idempotency-Key`. Con duración, las preguntas solo
+         *     llegan en `getAssessment` después de empezar, y entregar sin haber empezado responde `409`
+         *     (`attempt-not-started`). También sirve sin duración (el plazo es el cierre). Ya entregada, cerrada o vencida:
+         *     `409`. Docente y admin: `403`.
+         */
+        post: operations["startAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assessments/{assessmentId}/submissions": {
         parameters: {
             query?: never;
@@ -323,6 +528,9 @@ export interface paths {
          *     incorrecta. Requiere estar matriculado y que la evaluación esté publicada (si no, 404). Un segundo envío
          *     responde 409 con el resultado anterior en `detail`, y una evaluación cerrada o vencida, 409. Docente y admin
          *     reciben 403. Reintentar con la misma `Idempotency-Key` devuelve la misma respuesta sin duplicar.
+         *     v1.12: `answers` puede venir vacío (todo incorrecto; lo usa la entrega automática al acabarse el tiempo). Con
+         *     `duration_minutes` hay que empezar antes (`startAttempt`); pasado el plazo del intento (con 30 s de margen de
+         *     red), `409` `attempt-expired`.
          */
         post: operations["submitAssessment"];
         delete?: never;
@@ -584,7 +792,12 @@ export interface paths {
         delete: operations["deleteCourseDocument"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Mostrar u ocultar un apunte como material
+         * @description v1.12. El tutor usa el apunte igual; esto decide solo si los estudiantes lo ven y descargan en `listCourseMaterials`.
+         *     Los apuntes subidos antes de v1.8 quedaron ocultos (pueden ser pautas). Solo el docente del curso y el admin.
+         */
+        patch: operations["setCourseDocumentVisibility"];
         trace?: never;
     };
     "/tutor-conversations/{conversationId}": {
@@ -918,7 +1131,7 @@ export interface components {
             /** Format: email */
             email: string;
             /** @enum {string} */
-            role: "estudiante" | "docente" | "admin_colegio";
+            role: "estudiante" | "docente" | "admin_colegio" | "apoderado";
             school: components["schemas"]["School"];
         };
         Session: {
@@ -946,6 +1159,8 @@ export interface components {
             weight?: number;
             /** Format: date-time */
             submitted_at?: string;
+            /** @description v1.12. Respuestas escritas por revisar: si es mayor que 0, la nota es provisional. */
+            pending_review?: number;
         };
         MyCourseGrades: {
             /** Format: uuid */
@@ -1003,6 +1218,8 @@ export interface components {
                 grades: {
                     [key: string]: number | null;
                 };
+                /** @description v1.12. Ids de las evaluaciones cuya nota es provisional (respuestas escritas por revisar). */
+                provisional?: string[];
             }[];
             /** @description Promedio simple de los promedios de los estudiantes. */
             course_average?: number | null;
@@ -1034,6 +1251,8 @@ export interface components {
                 name: string;
                 average: number;
                 assessments_taken?: number;
+                /** @description v1.12. Notas provisionales en su promedio: el riesgo puede cambiar al revisarlas. */
+                provisional_grades?: number;
             }[];
         };
         GradingInput: {
@@ -1112,6 +1331,15 @@ export interface components {
                  * @description Cuándo la entregó. Solo para el estudiante.
                  */
                 submitted_at?: string | null;
+                /** @description v1.12. Minutos por intento; null = sin límite propio. */
+                duration_minutes?: number | null;
+                /**
+                 * Format: date-time
+                 * @description v1.12. Cuándo empezó su intento. Solo para el estudiante.
+                 */
+                started_at?: string | null;
+                /** @description v1.12. Sus respuestas escritas por revisar. Solo para el estudiante. */
+                pending_review?: number;
             }[];
         };
         EnrollmentInput: {
@@ -1177,9 +1405,11 @@ export interface components {
         AssessmentInput: {
             /**
              * Format: date-time
-             * @description Cierre automático (futuro). Sin fecha, la evaluación se cierra a mano.
+             * @description Cierre automático (futuro, con zona horaria). Sin fecha, la evaluación se cierra a mano.
              */
             closes_at?: string | null;
+            /** @description v1.12. Minutos que tiene cada estudiante desde que empieza (startAttempt). null = sin límite propio. */
+            duration_minutes?: number | null;
             /** @example Prueba de fracciones */
             title: string;
             /**
@@ -1206,6 +1436,31 @@ export interface components {
             published_at?: string | null;
             /** Format: date-time */
             closes_at?: string | null;
+            /** @description v1.12. Minutos por intento; null = sin límite propio. */
+            duration_minutes?: number | null;
+            /** @description v1.12 (estudiante). Cuántas preguntas tiene, aunque aún no las reciba (con tiempo, antes de empezar). */
+            questions_count?: number;
+            /** @description v1.12 (estudiante). Su intento, si ya empezó. */
+            attempt?: components["schemas"]["Attempt"] | null;
+            /**
+             * Format: date-time
+             * @description v1.12 (estudiante). Hora del servidor, para corregir el reloj del equipo.
+             */
+            server_time?: string;
+        };
+        Attempt: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            started_at: string;
+            /**
+             * Format: date-time
+             * @description Inicio + duración o el cierre, lo que llegue primero; null = sin plazo.
+             */
+            deadline: string | null;
+            submitted: boolean;
+            /** Format: date-time */
+            server_time?: string;
         };
         GenerateAssessmentInput: {
             /** @example Fracciones: suma con igual denominador */
@@ -1348,6 +1603,8 @@ export interface components {
                 score: number;
                 /** Format: date-time */
                 submitted_at?: string;
+                /** @description v1.12. Respuestas escritas por revisar (nota provisional). */
+                pending_review?: number;
             }[];
         };
         TutorQuestionInput: {
@@ -1445,6 +1702,8 @@ export interface components {
             chunks: number;
             /** @description Bases Curriculares del Mineduc (true) o apunte del docente (false). */
             official: boolean;
+            /** @description v1.12. Si los estudiantes lo descargan como material (no aplica a las Bases). */
+            visible_to_students?: boolean;
             /** @description Solo al subir un PDF: páginas leídas. */
             pages?: number;
         };
@@ -1459,11 +1718,140 @@ export interface components {
             size_bytes: number;
             /** @description true = se descarga el archivo tal como se subió; false = su texto como .txt. */
             original: boolean;
+            /** @description v1.12. El estudiante solo recibe los visibles; el personal ve todos con esta marca. */
+            visible_to_students?: boolean;
             /** Format: date-time */
             uploaded_at: string;
         };
         CourseMaterialList: {
             data: components["schemas"]["CourseMaterial"][];
+        };
+        UserInput: {
+            /** @example Rosa Vidal */
+            name: string;
+            /**
+             * Format: email
+             * @example rosa.vidal@demo-a.cl
+             */
+            email: string;
+            /** @enum {string} */
+            role: "docente" | "estudiante" | "admin_colegio" | "apoderado";
+            /**
+             * Format: password
+             * @description Clave inicial; no se devuelve.
+             */
+            password: string;
+        };
+        UserPatch: {
+            name?: string;
+            /** Format: email */
+            email?: string;
+            active?: boolean;
+        };
+        User: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "docente" | "estudiante" | "admin_colegio" | "apoderado";
+            active: boolean;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        UserDetail: components["schemas"]["User"] & {
+            /** @description Solo en una cuenta de apoderado: los estudiantes a su cargo. */
+            wards?: components["schemas"]["Ward"][];
+            courses: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                period?: string;
+                subject?: string | null;
+                /** @enum {string} */
+                relation: "teacher" | "student";
+            }[];
+        };
+        Ward: {
+            /** Format: uuid */
+            student_id: string;
+            name: string;
+            /** Format: email */
+            email?: string;
+            active?: boolean;
+            /** Format: date-time */
+            linked_at?: string;
+        };
+        WardsOverview: {
+            wards: {
+                /** Format: uuid */
+                student_id: string;
+                name: string;
+                courses: {
+                    /** Format: uuid */
+                    course_id: string;
+                    course: string;
+                    subject?: string | null;
+                    period?: string;
+                    teacher_name?: string;
+                    average?: number | null;
+                    grades: components["schemas"]["GradeEntry"][];
+                    pending: {
+                        /** Format: uuid */
+                        assessment_id: string;
+                        title: string;
+                        /** Format: date-time */
+                        closes_at?: string | null;
+                        duration_minutes?: number | null;
+                    }[];
+                }[];
+            }[];
+        };
+        UserPage: {
+            data: components["schemas"]["User"][];
+            next_cursor: string | null;
+        };
+        PasswordChangeInput: {
+            /** Format: password */
+            current_password: string;
+            /** Format: password */
+            new_password: string;
+        };
+        PasswordResetInput: {
+            /** Format: password */
+            password: string;
+        };
+        AuditEntry: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description usuario.crear | usuario.editar | usuario.desactivar | usuario.reactivar | usuario.restablecer_clave | usuario.cambiar_clave
+             * @example usuario.desactivar
+             */
+            action: string;
+            /** @example usuario */
+            resource: string;
+            /** Format: uuid */
+            resource_id?: string | null;
+            /** @description Qué cambió (sin claves ni contenido). */
+            details?: {
+                [key: string]: unknown;
+            };
+            actor: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                role: string;
+            };
+            /** Format: date-time */
+            created_at: string;
+        };
+        AuditLogPage: {
+            data: components["schemas"]["AuditEntry"][];
+            next_cursor: string | null;
         };
         TaskInput: {
             title: string;
@@ -1677,6 +2065,7 @@ export interface components {
         MaterialName: string;
         /** @description Nombre del archivo con su extensión, codificado con encodeURIComponent. Sin `/ \ : * ? " < > |` ni saltos de línea. */
         FileName: string;
+        UserId: string;
         /** @description Identificador de la evaluación. */
         AssessmentId: string;
         /** @description Cursor opaco devuelto en `next_cursor`. */
@@ -1807,6 +2196,303 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    changeMyPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeInput"];
+            };
+        };
+        responses: {
+            /** @description Contraseña cambiada; usa el token nuevo. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listUsers: {
+        parameters: {
+            query?: {
+                role?: "docente" | "estudiante" | "admin_colegio" | "apoderado";
+                active?: boolean;
+                /** @description Texto que aparece en el nombre o el correo (sin distinguir mayúsculas). */
+                q?: string;
+                /** @description Cursor opaco devuelto en `next_cursor`. */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Tamaño de página. */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Página de cuentas. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createUser: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID generado por el cliente. Misma clave en 24 h = misma respuesta, sin duplicar. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserInput"];
+            };
+        };
+        responses: {
+            /** @description Cuenta creada. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+        };
+    };
+    getUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description La cuenta. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPatch"];
+            };
+        };
+        responses: {
+            /** @description Cuenta actualizada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    resetUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetInput"];
+            };
+        };
+        responses: {
+            /** @description Contraseña restablecida. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listMyWards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pupilos con su avance. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WardsOverview"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    addUserWard: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID generado por el cliente. Misma clave en 24 h = misma respuesta, sin duplicar. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentInput"];
+            };
+        };
+        responses: {
+            /** @description Estudiante vinculado. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ward"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeUserWard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: components["parameters"]["UserId"];
+                /** @description Identificador del estudiante. */
+                studentId: components["parameters"]["StudentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Vínculo quitado. */
+            204: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listAuditLog: {
+        parameters: {
+            query?: {
+                /** @description Cursor opaco devuelto en `next_cursor`. */
+                cursor?: components["parameters"]["Cursor"];
+                /** @description Tamaño de página. */
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Página de la bitácora. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listCourses: {
@@ -2255,6 +2941,45 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    startAttempt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador de la evaluación. */
+                assessmentId: components["parameters"]["AssessmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Intento ya empezado. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attempt"];
+                };
+            };
+            /** @description Intento empezado ahora. */
+            201: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Attempt"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     submitAssessment: {
         parameters: {
             query?: never;
@@ -2610,7 +3335,13 @@ export interface operations {
     };
     putCourseDocument: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description v1.12. Si los estudiantes lo ven y descargan como material. Sin el parámetro, un apunte nuevo queda visible
+                 *     y un reemplazo conserva lo que tenía. Usa `false` para una pauta con respuestas que solo debe usar el tutor.
+                 */
+                visible_to_students?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Identificador del curso. */
@@ -2688,6 +3419,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setCourseDocumentVisibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identificador del curso. */
+                courseId: components["parameters"]["CourseId"];
+                /** @description Nombre del apunte en el curso, con su extensión (por ejemplo `fracciones.pdf`). Codificado con encodeURIComponent. */
+                documentName: components["parameters"]["DocumentName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    visible_to_students: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Visibilidad actualizada. */
+            200: {
+                headers: {
+                    "X-Trace-Id": components["headers"]["X-Trace-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        name: string;
+                        visible_to_students: boolean;
+                    };
+                };
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
