@@ -1312,15 +1312,19 @@
           }
         },
         {
-          "name": "[Javiera · B] La misma pregunta en su curso B → no-info (no ve apuntes de A)",
+          "name": "[Javiera · B] La misma pregunta en su curso B → nunca usa apuntes de A",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"POST /v1/dev/chat → 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"X-Tutor-Turn: no-info\", () => pm.expect(pm.response.headers.get(\"X-Tutor-Turn\")).to.eql(\"no-info\"));"
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "// Lo que se prueba es el AISLAMIENTO: ninguna fuente puede ser del colegio A (fracciones.md, operaciones-basicas.md).",
+                  "// El turno puede ser no-info o grounded en SUS apuntes: geometria.md menciona fracciones en su introducción.",
+                  "const fuentes = JSON.parse(decodeURIComponent(pm.response.headers.get(\"X-Rag-Sources\") || \"[]\")).map((s) => s.doc_id);",
+                  "pm.test(\"ninguna fuente del colegio A\", () => { pm.expect(fuentes).to.not.include(\"fracciones.md\"); pm.expect(fuentes).to.not.include(\"operaciones-basicas.md\"); });",
+                  "pm.test(\"si hay fuentes, son de B\", () => fuentes.forEach((d) => pm.expect(d).to.eql(\"geometria.md\")));"
                 ]
               }
             }

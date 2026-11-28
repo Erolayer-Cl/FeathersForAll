@@ -313,6 +313,18 @@ Hecho sobre `main` (sin commit). Dos agentes revisaron solo leyendo: uno el cód
     - Spectral sin errores;
     - Newman como en CI sobre una base limpia de `crear_bdd.sql` (01–17): 66 requests y 120 aserciones, sin fallas;
     - recorrido de punta a punta en Brave headless contra **NGINX con la CSP real** (`nginx.conf` + `security-headers.conf`; solo se agregó un proxy `/v1` local): 34/34 comprobaciones con admin, docente, estudiante con prueba de 1 minuto y apoderado, a 360 px y sin violaciones de CSP ni errores de consola.
+- **Guía del profesor (`GUIA-PROFESOR.md`), verificada el 27-11-2026 sobre un clon limpio de GitHub:**
+  - recorrido A–E en Brave headless: 21/21;
+  - sección 5: backend 778, frontend 188, lint, build y Spectral;
+  - PowerShell 7 real;
+  - sección G con Ollama real (`qwen2.5:3b` + `bge-m3`): responde con los apuntes, fuera del temario contesta `no-info` y la generación con IA propone preguntas;
+  - Postman completo con el tutor sobre una base nueva: 105 requests y 199 aserciones, sin fallas.
+  - La prueba corrigió tres cosas de la guía: `npm run ingest` necesita los archivos (y los apuntes del colegio B), Postman supone una base recién creada, y el tutor del portal ya no muestra la fuente de cada respuesta (solo «Basado en los apuntes de …»).
+- **Hallazgo del tutor (para AI/Data):**
+  - En el colegio B, «¿Qué indica el numerador?» responde `grounded` sobre `geometria.md` (puntaje 0,41), porque la introducción de ese apunte menciona las fracciones. El modelo completa con conocimiento general.
+  - **No es una fuga:** la única fuente es del propio colegio B, y la prueba de Postman ahora verifica justamente que nunca aparezca una fuente de A.
+  - **Qué hacer:** subir el umbral de la búsqueda híbrida o quitar esa frase del apunte de prueba.
+  - Además, el rediseño del portal dejó de mostrar la fuente de cada respuesta del tutor (`X-Rag-Sources` llega, pero no se pinta): conviene volver a mostrarla.
 - **Datos de QA en la base de desarrollo:** el recorrido creó cuentas «Rosa QA …» y cursos «Física QA …» (sintéticos). `docker compose down -v` los borra.
 
 ## Pendientes y deuda conocida

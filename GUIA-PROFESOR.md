@@ -196,11 +196,13 @@ Requiere [Ollama](https://ollama.com) instalado (unos 3 GB de modelos).
 ```bash
 ollama pull qwen2.5:3b && ollama pull bge-m3
 ollama serve                                   # en otra terminal, si no quedó corriendo
-cd FeathersForAll/code/backend && npm run ingest   # carga los apuntes de ejemplo
+cd FeathersForAll/code/backend
+npm run ingest -- samples/fracciones.md samples/operaciones-basicas.md   # carga los apuntes de ejemplo en Matemáticas
+DEFAULT_TENANT_ID=22222222-2222-2222-2222-222222222222 npm run ingest -- c0000000-0000-0000-0000-0000000000b1 samples/geometria.md   # apuntes del Colegio B (para ver el aislamiento)
 ```
 
 1. Como **Camila**: menú **Tutor IA**, curso Matemáticas, pregunte «¿Qué es una fracción equivalente?».
-   → *La respuesta cita su fuente (los apuntes del curso). Una pregunta fuera del temario («¿quién ganó el mundial?») recibe «no tengo información suficiente».*
+   → *La pantalla indica «Basado en los apuntes de …» y la respuesta usa lo que dicen los apuntes de fracciones. Con el modelo en CPU, la primera respuesta puede tardar 20–40 s. Una pregunta fuera del temario («¿quién ganó el mundial de 2014?») no se inventa: el tutor dice que no tiene esa información en los apuntes.*
 2. Como **Ana Rojas** (docente): **Nueva evaluación → Generar con IA** con el tema «fracciones».
    → *Propone preguntas basadas en los apuntes. No guarda nada hasta que el docente revisa y pulsa Guardar.*
 
@@ -221,14 +223,16 @@ npm test && npm run lint && npm run build
 cd ../../FeathersForAll
 npx --yes @stoplight/spectral-cli@6 lint api/openapi.yaml
 
-# API de punta a punta con Postman/Newman (con la API corriendo en el puerto 3000)
+# API de punta a punta con Postman/Newman (con la API corriendo en el puerto 3000).
+# La colección supone una base RECIÉN creada: si ya la usó, ejecute antes
+#   docker compose down -v && docker compose up -d --wait   (y la carga de apuntes de la sección G, si usará el tutor)
 cd ../code/backend
 npm run test:postman
 ```
 
 Resultado esperado: todas en verde (`fail 0`; Spectral: «No results with a severity of 'error'»).
 
-> `npm run test:postman` incluye la carpeta del tutor, que necesita Ollama. Sin Ollama, esas pocas peticiones fallan; el resto debe pasar. La CI corre solo las carpetas que no usan el tutor.
+> `npm run test:postman` incluye las carpetas del tutor, que necesitan Ollama y los apuntes de la sección G (de **ambos** colegios). Sin Ollama, esas peticiones fallan y el resto debe pasar. La CI corre solo las carpetas que no usan el tutor.
 
 ## 6. Si algo falla
 
