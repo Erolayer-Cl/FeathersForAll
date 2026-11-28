@@ -8,7 +8,7 @@ export const SESSION_KEY = 'fp:session:v1';
 export const LAST_RBD_KEY = 'fp:last-rbd';
 
 /** Rol del backend (JWT) -> rol del portal (config/roles.js). */
-export const PORTAL_ROLE = Object.freeze({ estudiante: 'est', docente: 'doc', admin_colegio: 'adm' });
+export const PORTAL_ROLE = Object.freeze({ estudiante: 'est', docente: 'doc', admin_colegio: 'adm', apoderado: 'apo' });
 
 /** Rol del portal del usuario, o null si su rol no tiene portal. */
 export const portalRoleOf = (user) => PORTAL_ROLE[user?.role] ?? null;
@@ -102,6 +102,19 @@ export function saveSession(session, { remember = false, storages = browserStora
   const [keep, drop] = remember ? [storages.local, storages.session] : [storages.session, storages.local];
   write(keep, SESSION_KEY, JSON.stringify(session));
   write(drop, SESSION_KEY, null);
+}
+
+/**
+ * Cambio de contraseña (v1.12): el servidor entrega un token nuevo y los anteriores dejan de valer. Se reemplaza el
+ * token de la sesión (mismo usuario) y se guarda donde ya estaba: si la sesión era recordada, sigue recordada.
+ * @param {{token: string, expiresAt: number, user: object}} session  sesión actual
+ * @param {{access_token: string, expires_in: number}} body  respuesta de POST /v1/me/password
+ */
+export function renewSession(session, body, { storages = browserStorages(), now = Date.now() } = {}) {
+  const next = { ...session, token: body.access_token, expiresAt: now + body.expires_in * 1000 };
+  const remember = read(storages.local, SESSION_KEY) !== null && read(storages.session, SESSION_KEY) === null;
+  saveSession(next, { remember, storages });
+  return next;
 }
 
 export function clearSession({ storages = browserStorages() } = {}) {

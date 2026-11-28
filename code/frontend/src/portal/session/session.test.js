@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LAST_RBD_KEY, RoleMismatchError, SESSION_KEY, acceptLogin, assertPortalRole, clearSession, isSessionChange, isUsable, loadLastRbd, loadSession,
-  portalRoleOf, saveLastRbd, saveSession, sessionFromLogin, signInWith,
+  portalRoleOf, renewSession, saveLastRbd, saveSession, sessionFromLogin, signInWith,
 } from './session.js';
 
 function fakeStorage(initial = {}) {
@@ -28,6 +28,7 @@ describe('sesión del portal', () => {
     expect(portalRoleOf({ role: 'estudiante' })).toBe('est');
     expect(portalRoleOf({ role: 'docente' })).toBe('doc');
     expect(portalRoleOf({ role: 'admin_colegio' })).toBe('adm');
+    expect(portalRoleOf({ role: 'apoderado' })).toBe('apo');
     expect(portalRoleOf({ role: 'master' })).toBeNull();
     expect(portalRoleOf(null)).toBeNull();
   });
@@ -109,7 +110,7 @@ describe('rol elegido en el login', () => {
   });
 
   it('un rol sin portal también se rechaza, con actual = null', () => {
-    const err = (() => { try { assertPortalRole({ role: 'apoderado' }, 'est'); } catch (e) { return e; } })();
+    const err = (() => { try { assertPortalRole({ role: 'master' }, 'est'); } catch (e) { return e; } })();
     expect(err).toBeInstanceOf(RoleMismatchError);
     expect(err.actual).toBeNull();
   });
@@ -202,5 +203,27 @@ describe('isSessionChange (sesión entre pestañas)', () => {
   it('si el token sigue igual (p. ej. esta pestaña tiene su propia sesión) no hay cambio', () => {
     expect(isSessionChange({ key: SESSION_KEY }, a, { token: 'jwt-a' })).toBe(false);
     expect(isSessionChange({ key: SESSION_KEY }, null, null)).toBe(false);
+  });
+});
+
+describe('cambio de contraseña (v1.12)', () => {
+  const nuevo = { access_token: 'jwt-nuevo', expires_in: 7200 };
+  it('reemplaza el token y el vencimiento, conserva el usuario y sigue en sessionStorage', () => {
+    const storages = fakeStorages();
+    const actual = sessionFromLogin(login, NOW);
+    saveSession(actual, { storages });
+    const next = renewSession(actual, nuevo, { storages, now: NOW + 10 });
+    expect(next).toEqual({ token: 'jwt-nuevo', expiresAt: NOW + 10 + 7_200_000, user: camila });
+    expect(JSON.parse(storages.session.data[SESSION_KEY]).token).toBe('jwt-nuevo');
+    expect(storages.local.data[SESSION_KEY]).toBeUndefined();
+  });
+  it('una sesión recordada sigue recordada (localStorage), y las otras pestañas verán el token nuevo', () => {
+    const storages = fakeStorages();
+    const actual = sessionFromLogin(login, NOW);
+    saveSession(actual, { remember: true, storages });
+    renewSession(actual, nuevo, { storages, now: NOW });
+    expect(JSON.parse(storages.local.data[SESSION_KEY]).token).toBe('jwt-nuevo');
+    expect(storages.session.data[SESSION_KEY]).toBeUndefined();
+    expect(isSessionChange({ key: SESSION_KEY }, actual, JSON.parse(storages.local.data[SESSION_KEY]))).toBe(true);
   });
 });

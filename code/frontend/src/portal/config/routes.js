@@ -5,13 +5,14 @@
 // no cambia esta tabla: las listas se dibujan con los datos que entregue la API.
 // Las pantallas ya hechas se enlazan en pages/index.js; las demás muestran un marcador.
 
-/** @typedef {{id: string, title: string, group: string, role: 'est'|'doc'|'adm'|null, nav?: string, detail?: boolean}} PortalRoute */
+/** @typedef {{id: string, title: string, group: string, role: 'est'|'doc'|'adm'|'apo'|null, nav?: string, detail?: boolean}} PortalRoute */
 
 /** @type {PortalRoute[]} */
 export const PORTAL_ROUTES = [
   { id: 'login-est', title: 'Login Estudiante', group: 'Acceso', role: null },
   { id: 'login-doc', title: 'Login Docente', group: 'Acceso', role: null },
   { id: 'login-adm', title: 'Login Administrador', group: 'Acceso', role: null },
+  { id: 'login-apo', title: 'Login Apoderado', group: 'Acceso', role: null },
 
   { id: 'est-inicio', title: 'Inicio', group: 'Estudiante', role: 'est', nav: 'inicio' },
   { id: 'est-cursos', title: 'Mis cursos', group: 'Estudiante', role: 'est', nav: 'cursos' },
@@ -45,6 +46,7 @@ export const PORTAL_ROUTES = [
   { id: 'adm-usuarios', title: 'Usuarios', group: 'Administrador', role: 'adm', nav: 'usuarios' },
   { id: 'adm-usuario', title: 'Ver usuario', group: 'Administrador', role: 'adm', nav: 'usuarios', detail: true },
   { id: 'adm-usuario-nuevo', title: 'Agregar usuario', group: 'Administrador', role: 'adm', nav: 'usuarios' },
+  { id: 'adm-auditoria', title: 'Bitácora', group: 'Administrador', role: 'adm', nav: 'usuarios' },
   { id: 'adm-cursos', title: 'Cursos', group: 'Administrador', role: 'adm', nav: 'cursos' },
   { id: 'adm-curso', title: 'Ver curso', group: 'Administrador', role: 'adm', nav: 'cursos', detail: true },
   { id: 'adm-curso-nuevo', title: 'Agregar curso', group: 'Administrador', role: 'adm', nav: 'cursos' },
@@ -54,6 +56,9 @@ export const PORTAL_ROUTES = [
   { id: 'adm-reportes-rend', title: 'Reportes · Rendimiento', group: 'Administrador', role: 'adm', nav: 'reportes' },
   { id: 'adm-reportes-tutor', title: 'Reportes · Tutor IA', group: 'Administrador', role: 'adm', nav: 'reportes' },
   { id: 'adm-config', title: 'Configuración', group: 'Administrador', role: 'adm', nav: 'config' },
+
+  { id: 'apo-inicio', title: 'Mis pupilos', group: 'Apoderado', role: 'apo', nav: 'inicio' },
+  { id: 'apo-config', title: 'Configuración', group: 'Apoderado', role: 'apo', nav: 'config' },
 ];
 
 export const DEFAULT_ROUTE = 'login-est';

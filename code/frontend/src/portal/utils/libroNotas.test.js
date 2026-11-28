@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  estudiantesDeCursos, filtrarEstudiantes, leerNumero, leerParamEstudiante, paramEstudiante, tablaLibro, validarCalificacion,
+  estudiantesDeCursos, filtrarEstudiantes, leerNumero, libroACsv, nombreCsv, leerParamEstudiante, paramEstudiante, tablaLibro, validarCalificacion,
 } from './libroNotas.js';
 
 describe('tablaLibro', () => {
@@ -89,5 +89,29 @@ describe('parámetro de la ruta doc-estudiante', () => {
     expect(leerParamEstudiante('c1')).toBeNull();
     expect(leerParamEstudiante('c1/s1/x')).toBeNull();
     expect(leerParamEstudiante(null)).toBeNull();
+  });
+});
+
+describe('exportar el libro a CSV (v1.12)', () => {
+  const columnas = [{ id: 'e1', title: 'Fracciones', weight: 1 }, { id: 'e2', title: 'Decimales; parte 2', weight: 1.5 }];
+  const filas = [
+    { nombre: 'Camila Díaz', notas: [5.25, null], provisionales: [false, false], promedio: 5.3 },
+    { nombre: '=HYPERLINK("x")', notas: [3, 6.5], provisionales: [true, false], promedio: 4.9 },
+  ];
+  const csv = libroACsv(columnas, filas, { curso: 'Matemáticas 7° A' });
+  const lineas = csv.replace('\uFEFF', '').trim().split('\r\n');
+
+  it('usa BOM, punto y coma y coma decimal (Excel en Chile)', () => {
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    expect(lineas[1]).toBe('Estudiante;Fracciones (pond. 1);"Decimales; parte 2 (pond. 1,5)";Promedio');
+    expect(lineas[2]).toBe('Camila Díaz;5,3;;5,3');
+  });
+  it('neutraliza fórmulas, marca las provisionales y explica el asterisco', () => {
+    expect(lineas[3]).toBe(`"'=HYPERLINK(""x"")";3,0*;6,5;4,9`);
+    expect(lineas.at(-1)).toMatch(/provisional/);
+  });
+  it('nombre de archivo sin tildes ni espacios', () => {
+    expect(nombreCsv('Matemáticas 7° Básico A')).toBe('libro-notas-matematicas-7-basico-a.csv');
+    expect(nombreCsv('')).toBe('libro-notas-curso.csv');
   });
 });

@@ -35,3 +35,8 @@
 .search { width: 260px; max-width: 100%; padding: 11px 20px; border: 1px solid transparent; border-radius: var(--fp-radius-pill); background: var(--fp-surface); box-shadow: var(--fp-shadow-sm); font-size: 13.5px; }
 .search::placeholder { color: var(--fp-placeholder); }
 .search:focus { border-color: var(--fp-accent); }
+
+/* v1.12: nota provisional (respuestas escritas por revisar) */
+.provisional{margin-left:2px;font-weight:800;color:var(--fp-warning-ink, var(--fp-ink))}
+.umbral{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:4px 0 12px}
+.umbral select{min-height:36px;padding:6px 10px;border:1px solid var(--fp-line);border-radius:8px;background:var(--fp-field);color:var(--fp-ink);font:inherit}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clearCache } from '../../api/cache.js';
 import { login } from '../../api/portalApi.js';
 import { SessionContext } from './SessionContext.js';
-import { clearSession, isSessionChange, loadSession, portalRoleOf, signInWith } from './session.js';
+import { clearSession, isSessionChange, loadSession, portalRoleOf, renewSession, signInWith } from './session.js';
 
 const AVISO_VENCIDA = 'Tu sesión expiró. Vuelve a iniciar sesión.';
 const AVISO_OTRA_PESTANA = 'Cerraste sesión en otra pestaña.';
@@ -38,6 +38,11 @@ export function SessionProvider({ children }) {
     setSession(null);
   }, []);
 
+  // Cambio de contraseña: mismo usuario, token nuevo (el anterior ya no vale en el servidor).
+  const renew = useCallback((body) => {
+    setSession((actual) => (actual ? renewSession(actual, body) : actual));
+  }, []);
+
   // La API respondió 401 o el token venció: se vuelve al login con un aviso.
   const expire = useCallback(() => signOut(AVISO_VENCIDA), [signOut]);
 
@@ -70,8 +75,9 @@ export function SessionProvider({ children }) {
       signIn,
       signOut,
       expire,
+      renew,
     }),
-    [session, notice, signIn, signOut, expire],
+    [session, notice, signIn, signOut, expire, renew],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

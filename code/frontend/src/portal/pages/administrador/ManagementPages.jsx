@@ -10,6 +10,7 @@ import { useIdempotencyKey } from '../../hooks/useIdempotencyKey.js';
 import { usePortalRoute } from '../../router/usePortalRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { estadoEvaluacion } from '../../utils/evaluaciones.js';
+import { SelectorDocente } from './UsuariosPages.jsx';
 import styles from './Management.module.css';
 
 const subject = (c) => c.subject || c.name;
@@ -36,29 +37,6 @@ function AdminData({children}) {
   return <LoadState loading={data.loading} error={data.error} onRetry={data.reload}>{data.data && children(data.data, data.reload)}</LoadState>;
 }
 function Action({to, param, children}) { return <PortalLink className={styles.action} to={to} param={param}>{children}</PortalLink>; }
-
-export function AdminUsuariosPage() {
-  const [search, setSearch] = useState('');
-  return <><PageHead title="Usuarios" subtitle="Estudiantes identificados mediante las matrículas de tus cursos." />
-    <AdminData>{(grupos) => {
-      const users = [...new Map(grupos.flatMap(({matriculas,curso}) => matriculas.map(e => [e.student_id || e.id,{...e, curso: curso.name, courseId:curso.id}]))).values()];
-      const filtrados = users.filter(e => matches({name:e.name,email:e.email,course:e.curso},search));
-      return <><div className={styles.kpis}><Kpi label="Estudiantes matriculados (únicos)" value={String(users.length)} /><Kpi label="Cursos visibles" value={String(grupos.length)} tone="success" /></div>
-      <Section title="Usuarios registrados" subtitle="Listado parcial: estudiantes con matrícula en cursos del colegio.">
-        <div className={styles.filters}><input type="search" placeholder="Buscar por nombre o correo..." aria-label="Buscar usuario" value={search} onChange={e=>setSearch(e.target.value)}/></div>
-        {!filtrados.length ? <EmptyState>No se encontraron estudiantes matriculados.</EmptyState> : <div className={styles.scroll} role="region" tabIndex={0} aria-label="Tabla de estudiantes"><table className={styles.table}><thead><tr><th>Usuario</th><th>Correo</th><th>Rol</th><th>Curso</th><th>Acción</th></tr></thead><tbody>{filtrados.map(u=><tr key={u.student_id || u.id}><th scope="row">{u.name}</th><td>{u.email}</td><td><span className={styles.pill}>Estudiante</span></td><td>{u.curso}</td><td><PortalLink to="adm-usuario" param={u.student_id || u.id}>Ver</PortalLink></td></tr>)}</tbody></table></div>}
-      </Section><p className={styles.note}>No existe un endpoint general de administración de usuarios en la API. Docentes, cuentas sin matrícula y estados de cuenta no se pueden consultar desde aquí.</p></>;
-    }}</AdminData>
-  </>;
-}
-export function AdminUsuarioPage({param}) {
-  return <><PageHead title="Detalle de usuario" subtitle="Información disponible para consulta." /><AdminData>{(grupos)=>{
-    const registros=grupos.flatMap(({curso,matriculas})=>matriculas.filter(u=>(u.student_id||u.id)===param).map(u=>({...u,curso:curso.name})));
-    const user=registros[0];
-    return <Section title={user?.name||'Usuario no encontrado'} action={<Action to="adm-usuarios">Volver a usuarios</Action>}>{user?<><p>Correo: {user.email}</p><p>Rol: Estudiante</p><p>Inscrito en: {registros.map(r=>r.curso).join(', ')}</p><p className={styles.note}>No hay endpoint de perfil académico del estudiante para el administrador.</p></>:<EmptyState>No existe una matrícula visible para este identificador.</EmptyState>}</Section>;
-  }}</AdminData></>;
-}
-export function AdminUsuarioNuevoPage(){return <><PageHead title="Agregar usuario" subtitle="Registro de cuentas institucionales."/><Section title="Creación no disponible"><p>El backend todavía no implementa un endpoint seguro para crear usuarios. Mantuvimos el acceso a esta página sin incluir un formulario que no podría guardar datos.</p></Section></>;}
 
 export function AdminCursosPage(){
   const [search,setSearch]=useState('');
@@ -114,7 +92,8 @@ export function AdminCursoNuevoPage(){
   const [form,setForm]=useState({name:'',period:'2026-S2',subject:'',grade_level:'',teacher_id:''});
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   async function submit(e){e.preventDefault();if(busy)return;setBusy(true);setError('');try{
-    const data={...form,name:form.name.trim(),subject:form.subject.trim(),grade_level:form.grade_level.trim(),teacher_id:form.teacher_id.trim()};
+    if(!form.teacher_id){setError('Elige el docente que dicta el curso.');return;}
+    const data={...form,name:form.name.trim(),subject:form.subject.trim()||undefined,grade_level:form.grade_level.trim()||undefined,teacher_id:form.teacher_id};
     const curso=await createCourse(token,data,key.get());key.renew();navigate('adm-curso',curso.id);
   }catch(err){if(err.status===401){expire();return;}if(err.status!==0)key.renew();setError(err.message||'No se pudo crear el curso.');}finally{setBusy(false);}}
   return <><PageHead title="Agregar curso" subtitle="Registra un curso para el colegio de tu sesión."/><Section title="Datos del curso"><form className={styles.form} onSubmit={submit}>
@@ -122,8 +101,7 @@ export function AdminCursoNuevoPage(){
     <label>Período<input value={form.period} onChange={e=>setForm(f=>({...f,period:e.target.value}))} required placeholder="2026-S2" pattern="[0-9]{4}-S[12]"/></label>
     <label>Asignatura<input value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} maxLength={80} placeholder="Matemática"/></label>
     <label>Nivel educativo<input value={form.grade_level} onChange={e=>setForm(f=>({...f,grade_level:e.target.value}))} maxLength={10} placeholder="2M"/></label>
-    <label>ID del docente asignado (UUID)<input value={form.teacher_id} onChange={e=>setForm(f=>({...f,teacher_id:e.target.value}))} required pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" placeholder="UUID del docente"/></label>
-    <p className={styles.note}>La API requiere un identificador del docente. No existe todavía un selector de docentes en el backend.</p>
+    <SelectorDocente value={form.teacher_id} onChange={(teacher_id)=>setForm(f=>({...f,teacher_id}))}/>
     {error && <p role="alert" className={styles.error}>{error}</p>}<div className={styles.actions}><button className={styles.action} type="submit" disabled={busy}>{busy?'Creando…':'Agregar curso'}</button><Action to="adm-cursos">Cancelar</Action></div>
   </form></Section></>;
 }

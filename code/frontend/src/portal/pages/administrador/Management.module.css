@@ -45,3 +45,11 @@
 .bar{height:8px;background:var(--fp-track);border-radius:8px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--fp-accent);border-radius:8px}
 @media(max-width:560px){.miniStats{grid-template-columns:1fr 1fr}.question{grid-template-columns:1fr 1fr}.question .bar{grid-column:1/-1;grid-row:2}}
+
+/* v1.12: gestión de usuarios */
+.pill[data-tone="off"]{background:var(--fp-danger-soft);color:var(--fp-danger-ink)}
+.action[data-tone="danger"]{background:var(--fp-danger-ink);color:#fff!important}
+.lista{display:grid;gap:8px;padding-left:18px;font-size:14px}
+.lista a{color:var(--fp-brand-text);font-weight:700}
+.inlineForm .action{flex:0 0 auto}
+button.link{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-weight:700;color:var(--fp-brand-text);text-decoration:underline}

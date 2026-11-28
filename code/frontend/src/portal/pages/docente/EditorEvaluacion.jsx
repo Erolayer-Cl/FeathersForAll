@@ -116,6 +116,9 @@ export function EditorEvaluacion({ initial, courseId, enviando, error, etiqueta,
             <Field label="Día y hora de cierre (opcional)" hint="Puedes dejarlo vacío y elegirlo al publicar, también como duración (por ejemplo, 90 minutos).">
               <input type="datetime-local" name="closes_at" value={draft.closesAt} onChange={(e) => setDraft((d) => ({ ...d, closesAt: e.target.value }))} />
             </Field>
+            <Field label="Tiempo por estudiante, en minutos (opcional)" hint="Cada estudiante tiene este tiempo desde que empieza, sin pasar del cierre. Al acabarse se entrega solo lo que respondió.">
+              <input type="number" inputMode="numeric" min={1} max={600} step={1} name="duration_minutes" placeholder="Sin límite" value={draft.durationMin ?? ''} onChange={(e) => setDraft((d) => ({ ...d, durationMin: e.target.value }))} />
+            </Field>
           </div>
         </Card>
 

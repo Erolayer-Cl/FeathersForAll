@@ -33,7 +33,8 @@ const nuevaClave = () => `q${(contador += 1)}`;
  * docente cambia de tipo y vuelve.
  */
 export const preguntaVacia = (type = 'multiple_choice') => ({ key: nuevaClave(), type, statement: '', options: ['', ''], correct: null, accepted: [''], feedback: '' });
-export const borradorVacio = () => ({ title: '', closesAt: '', questions: [preguntaVacia()] });
+// durationMin: minutos por intento (v1.12), como texto del <input>; '' = sin límite propio.
+export const borradorVacio = () => ({ title: '', closesAt: '', durationMin: '', questions: [preguntaVacia()] });
 
 const preguntaDesdeApi = (q) => {
   const texto = q.type === 'text';
@@ -58,10 +59,10 @@ export function isoALocal(iso) {
 }
 
 /** Evaluación de la API (docente) -> borrador editable. */
-export const borradorDesdeApi = (ev) => ({ title: ev.title, closesAt: isoALocal(ev.closes_at), questions: ev.questions.map(preguntaDesdeApi) });
+export const borradorDesdeApi = (ev) => ({ title: ev.title, closesAt: isoALocal(ev.closes_at), durationMin: ev.duration_minutes ? String(ev.duration_minutes) : '', questions: ev.questions.map(preguntaDesdeApi) });
 
 /** Lo que propuso la IA -> borrador editable (sin cierre: eso lo decide el docente). */
-export const borradorDesdeIa = (gen) => ({ title: gen.title, closesAt: '', questions: gen.questions.map(preguntaDesdeApi) });
+export const borradorDesdeIa = (gen) => ({ title: gen.title, closesAt: '', durationMin: '', questions: gen.questions.map(preguntaDesdeApi) });
 
 /** ¿El borrador ya tiene algo escrito? (para avisar antes de que la IA lo reemplace) */
 export const borradorTieneTexto = (draft) => draft.title.trim() !== '' || draft.questions.some((q) => q.statement.trim() !== '' || q.options.some((o) => o.trim() !== '') || q.accepted.some((a) => a.trim() !== ''));
@@ -82,6 +83,8 @@ export function revisarBorrador(draft) {
   if (draft.title.trim().length < 3) errores.push('Escribe un título de al menos 3 caracteres.');
   if (draft.questions.length === 0) errores.push('Agrega al menos una pregunta.');
   if (draft.closesAt && !(new Date(draft.closesAt).getTime() > Date.now())) errores.push('La fecha de cierre debe ser futura.');
+  const min = String(draft.durationMin ?? '').trim();
+  if (min && !(/^\d+$/.test(min) && Number(min) >= 1 && Number(min) <= 600)) errores.push('El tiempo por estudiante debe ser un número entero de minutos entre 1 y 600.');
   draft.questions.forEach((q, i) => {
     const n = i + 1;
     if (q.statement.trim().length < 3) errores.push(`Pregunta ${n}: escribe el enunciado (mínimo 3 caracteres).`);
@@ -104,6 +107,8 @@ export function borradorACuerpo(draft) {
   return {
     title: draft.title.trim(),
     ...(draft.closesAt && { closes_at: new Date(draft.closesAt).toISOString() }),
+    // PUT reemplaza todo: sin minutos se manda null para quitar el límite que tuviera.
+    duration_minutes: String(draft.durationMin ?? '').trim() ? Number(draft.durationMin) : null,
     questions: draft.questions.map((q) => ({
       statement: q.statement.trim(),
       ...(q.type === 'text'

@@ -12,6 +12,7 @@ import { SessionContext } from './SessionContext.js';
  *     options?: {expectedRole?: 'est' | 'doc' | 'adm'}) => Promise<object>,
  *   signOut: (notice?: string | null) => void,
  *   expire: () => void,
+ *   renew: (body: {access_token: string, expires_in: number}) => void,
  * }}
  */
 export function useSession() {

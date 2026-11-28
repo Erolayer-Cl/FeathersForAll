@@ -63,6 +63,7 @@ describe('borrador de la evaluación', () => {
     const cuerpo = borradorACuerpo({ title: '  Prueba  ', questions: [pregunta({ statement: ' ¿Cuánto es? ', options: [' 1/2 ', '1'], correct: 1 }), pregunta({ feedback: '  ' , correct: null })] });
     expect(cuerpo).toEqual({
       title: 'Prueba',
+      duration_minutes: null,
       questions: [
         { statement: '¿Cuánto es?', options: ['1/2', '1'], correct_option: 1, feedback: 'Es 1.' },
         { statement: '¿Cuánto es 3/4 + 1/4?', options: ['1/2', '1', '4/8'], correct_option: null },
@@ -162,5 +163,24 @@ describe('preguntas de respuesta escrita (v1.10)', () => {
   it('el estudiante envía text_answer; un texto en blanco cuenta como sin responder', () => {
     expect(respuestasACuerpo({ q1: 1, q2: '  siete ', q3: '   ' })).toEqual([{ question_id: 'q1', selected_option: 1 }, { question_id: 'q2', text_answer: 'siete' }]);
     expect(sinResponder([{ id: 'q1' }, { id: 'q2' }, { id: 'q3' }], { q1: 0, q2: 'x', q3: ' ' })).toBe(1);
+  });
+});
+
+describe('tiempo por estudiante (v1.12)', () => {
+  const base = { title: 'Control', closesAt: '', questions: [{ ...preguntaVacia(), statement: '¿Cuánto es 2 + 2?', options: ['3', '4'], correct: 1 }] };
+  it('se envía como entero, o null para quitar el límite', () => {
+    expect(borradorACuerpo({ ...base, durationMin: '45' }).duration_minutes).toBe(45);
+    expect(borradorACuerpo({ ...base, durationMin: '' }).duration_minutes).toBeNull();
+    expect(borradorACuerpo({ ...base }).duration_minutes).toBeNull();
+  });
+  it('valida 1 a 600 minutos enteros', () => {
+    for (const malo of ['0', '601', '1.5', 'abc', '-3']) expect(revisarBorrador({ ...base, durationMin: malo }).errores.join()).toMatch(/minutos/);
+    expect(revisarBorrador({ ...base, durationMin: '90' }).errores).toEqual([]);
+  });
+  it('viene de la API y no de la IA', () => {
+    expect(borradorDesdeApi({ title: 'T', closes_at: null, duration_minutes: 30, questions: [] }).durationMin).toBe('30');
+    expect(borradorDesdeApi({ title: 'T', closes_at: null, duration_minutes: null, questions: [] }).durationMin).toBe('');
+    expect(borradorDesdeIa({ title: 'T', questions: [] }).durationMin).toBe('');
+    expect(borradorVacio().durationMin).toBe('');
   });
 });

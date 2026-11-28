@@ -34,3 +34,7 @@
 .neutral { color: var(--fp-muted); }
 
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* v1.12: nota provisional (respuestas escritas por revisar) */
+.provisional{margin-left:2px;font-weight:800;color:var(--fp-warning-ink, var(--fp-ink))}
+.nota{margin-top:12px;color:var(--fp-muted);font-size:13px}
