@@ -289,7 +289,7 @@ Hecho sobre `main` (sin commit). Dos agentes revisaron solo leyendo: uno el cód
   - Newman con las carpetas del CI contra una base limpia creada con `crear_bdd.sql`: 66 requests y 120 aserciones, sin fallas. En la carpeta 10, «Camila no publica» ahora espera 404.
   - Contrato: Spectral sin errores ni advertencias y cliente TS regenerado con typecheck.
   - Recorrido de punta a punta en Brave headless con la API y la base reales, 26/26 comprobaciones: el admin crea un docente, lo desactiva y lo reactiva, y crea su curso; el docente cambia su clave, matricula y publica una prueba de 1 minuto; el estudiante empieza, recarga sin perder la respuesta y recibe la entrega automática con nota 7,0; el docente la ve en resultados y en el libro. También a 360 px, sin errores de consola.
-  - La colección Postman todavía no tiene carpeta para las rutas de v1.12; las cubren las pruebas `*.pg.test.js`. La CSP con NGINX se verificó después (ver el apoderado, abajo).
+  - Colección Postman: carpeta **11** para v1.12 (usuarios, apoderado, prueba con tiempo, bitácora y cambio de clave), agregada al job de Newman del CI. Con las carpetas del CI sobre una base limpia: 87 requests y 165 aserciones, sin fallas. La CSP con NGINX se verificó después (ver el apoderado, abajo).
 - **Pendiente (equipo):**
   - Revisar y aprobar el ADR 0017.
   - ~~Replicar `TRUST_PROXY: "1"` en `base/` del repo gitops~~: hecho en local en `../feathersforall-gitops` junto con el Ingress `feathersforall-cursos`, la NetworkPolicy y sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH` (kustomize valida base, dev y prod). Falta commit y push en ese repo.
