@@ -207,10 +207,24 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
       - name: Container scan · Trivy (falla con CVE High/Critical que tengan arreglo; respeta las excepciones VEX)
         run: |
+          # 1) Base de datos de vulnerabilidades aparte, con reintentos y un origen de respaldo: si el mirror cae un
+          #    momento (pasó en el PR #33: la descarga se cortó y el gate falló sin escanear nada), no se rompe el gate.
+          #    Si no se logra descargar tras los reintentos, el paso FALLA igual: nunca se escanea sin base.
+          db_ok=false
+          for intento in 1 2 3; do
+            if docker run --rm -v trivy-cache:/root/.cache/trivy aquasec/trivy:0.76.1 image --download-db-only --no-progress \
+                 --db-repository mirror.gcr.io/aquasec/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2; then
+              db_ok=true; break
+            fi
+            echo "::warning::No se pudo descargar la base de Trivy (intento $intento de 3); reintento en $((intento * 15)) s"
+            sleep $((intento * 15))
+          done
+          [ "$db_ok" = true ] || { echo "::error::Sin base de vulnerabilidades de Trivy: no se puede escanear la imagen"; exit 1; }
+          # 2) Escaneo con esa base (sin volver a descargarla). Falla con CVE High/Critical con arreglo, salvo VEX.
           vex=()
           for f in .vex/*.openvex.json; do [ -e "$f" ] && vex+=(--vex "/repo/$f"); done
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/repo:ro" aquasec/trivy:0.76.1 \
-            image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/repo:ro" -v trivy-cache:/root/.cache/trivy aquasec/trivy:0.76.1 \
+            image --skip-db-update --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
             "${vex[@]}" ${{ env.IMAGE }}:${{ github.sha }}
       - name: SBOM CycloneDX de la imagen (S09, lo que de verdad llega a producción)
         run: >-
