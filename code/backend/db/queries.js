@@ -812,6 +812,10 @@ RETURNING titulo, visible_estudiante`;
 export const VISIBILIDAD_APUNTES_CURSO = `
 SELECT titulo, visible_estudiante FROM apuntes_curso WHERE curso_id = $1`;
 
+// Visibilidad de UN apunte (después de subirlo sin pedir un cambio de visibilidad).
+export const VISIBILIDAD_DE_APUNTE = `
+SELECT titulo, visible_estudiante FROM apuntes_curso WHERE curso_id = $1 AND titulo = $2`;
+
 // Guarda (o reemplaza) el archivo original del apunte recién indexado. 0 filas si el apunte no existe.
 export const GUARDAR_ARCHIVO_APUNTE = `
 INSERT INTO apuntes_archivos (apunte_id, curso_id, nombre, tipo, bytes, contenido)

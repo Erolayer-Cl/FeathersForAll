@@ -85,8 +85,10 @@ export function createUsuariosRouter({ db, jwtSecret, tokenTtlSeconds, limiter }
 
   router.get('/v1/users', async (req, res) => {
     soloAdmin(req.user);
-    const { role, active, q } = req.query;
-    if (role !== undefined && !ROLES.has(role)) throw invalid('"role" debe ser docente, estudiante, admin_colegio o apoderado');
+    // Filtro de la lista, no el rol de la sesión (ese sale solo de req.user). Se llama filter_role para que nunca
+    // se confunda con un rol tomado del cliente (regla ffa-tenant-desde-el-cliente).
+    const { filter_role: filtroRol, active, q } = req.query;
+    if (filtroRol !== undefined && !ROLES.has(filtroRol)) throw invalid('"filter_role" debe ser docente, estudiante, admin_colegio o apoderado');
     if (active !== undefined && active !== 'true' && active !== 'false') throw invalid('"active" debe ser true o false');
     if (q !== undefined && (typeof q !== 'string' || q.length > 100)) throw invalid('"q" debe ser un texto de hasta 100 caracteres');
     const busqueda = typeof q === 'string' && q.trim() ? escaparLike(q.trim()) : null;
@@ -94,7 +96,7 @@ export function createUsuariosRouter({ db, jwtSecret, tokenTtlSeconds, limiter }
     const after = req.query.cursor === undefined ? [null, null] : decodeCursor(req.query.cursor, cursorUsuarios);
 
     const rows = await read(req.user, async (c) => (await c.query(Q.USUARIOS_LISTA, [
-      role ?? null, active === undefined ? null : active === 'true', busqueda, limit + 1, ...after,
+      filtroRol ?? null, active === undefined ? null : active === 'true', busqueda, limit + 1, ...after,
     ])).rows);
     const page = rows.slice(0, limit);
     const last = page.at(-1);

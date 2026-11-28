@@ -176,7 +176,7 @@ export function createApuntesRouter({ db, rag }) {
         await guardarOriginal(req, ref.courseId, name, isPdf ? 'application/pdf' : /\.md$|\.markdown$/i.test(name) ? 'text/markdown' : 'text/plain', body);
         // Visibilidad como material: la pedida; si no viene, un apunte nuevo queda visible y un reemplazo conserva la suya.
         const fila = (await db.withUser(req.user, (c) => (visible === undefined
-          ? c.query(Q.VISIBILIDAD_APUNTES_CURSO + ' AND titulo = $2', [ref.courseId, name])
+          ? c.query(Q.VISIBILIDAD_DE_APUNTE, [ref.courseId, name])
           : c.query(Q.VISIBILIDAD_APUNTE, [ref.courseId, name, visible])))).rows[0];
         // 200 = reemplazó a uno con ese nombre; 201 = nuevo (lo decide la misma transacción que guarda).
         res.status(result.created === false ? 200 : 201).json(toDocument(result, input.pages?.length, fila?.visible_estudiante));

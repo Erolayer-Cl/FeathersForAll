@@ -3295,7 +3295,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/v1/users?role=docente",
+              "raw": "{{baseUrl}}/v1/users?filter_role=docente",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3305,7 +3305,7 @@
               ],
               "query": [
                 {
-                  "key": "role",
+                  "key": "filter_role",
                   "value": "docente"
                 }
               ]

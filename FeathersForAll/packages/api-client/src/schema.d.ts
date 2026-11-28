@@ -2230,7 +2230,8 @@ export interface operations {
     listUsers: {
         parameters: {
             query?: {
-                role?: "docente" | "estudiante" | "admin_colegio" | "apoderado";
+                /** @description Filtra la lista por rol de la cuenta (no cambia los permisos de quien consulta). */
+                filter_role?: "docente" | "estudiante" | "admin_colegio" | "apoderado";
                 active?: boolean;
                 /** @description Texto que aparece en el nombre o el correo (sin distinguir mayúsculas). */
                 q?: string;

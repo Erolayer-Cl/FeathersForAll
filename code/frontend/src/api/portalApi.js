@@ -368,7 +368,7 @@ export async function getUsers(token, { role, active, q } = {}, opts) {
   let cursor = null;
   for (let page = 0; page < 50; page++) {
     const params = new URLSearchParams({ limit: '100' });
-    if (role) params.set('role', role);
+    if (role) params.set('filter_role', role);
     if (active !== undefined) params.set('active', String(active));
     if (q) params.set('q', q);
     if (cursor) params.set('cursor', cursor);

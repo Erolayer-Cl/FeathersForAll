@@ -283,8 +283,9 @@ paths:
         opcionales por rol, estado y texto (nombre o correo). Nunca incluye cuentas de otro colegio ni la contraseña.
       operationId: listUsers
       parameters:
-        - name: role
+        - name: filter_role
           in: query
+          description: Filtra la lista por rol de la cuenta (no cambia los permisos de quien consulta).
           schema: { type: string, enum: [docente, estudiante, admin_colegio, apoderado] }
         - name: active
           in: query

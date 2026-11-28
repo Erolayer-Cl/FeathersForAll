@@ -73,13 +73,13 @@ describe('gestión de usuarios (PostgreSQL)', { skip: SKIP }, () => {
   });
 
   test('filtros por rol, estado y búsqueda (los comodines de LIKE no se interpretan)', async () => {
-    const docentes = await (await call('/v1/users?role=docente', { token: marta() })).json();
+    const docentes = await (await call('/v1/users?filter_role=docente', { token: marta() })).json();
     assert.ok(docentes.data.length >= 2 && docentes.data.every((u) => u.role === 'docente'));
     const ana2 = await (await call('/v1/users?q=ROJAS', { token: marta() })).json();
     assert.deepEqual(ana2.data.map((u) => u.id), [DEMO.ana]);
     const comodin = await (await call('/v1/users?q=%25', { token: marta() })).json();
     assert.equal(comodin.data.length, 0);
-    assert.equal((await call('/v1/users?role=master', { token: marta() })).status, 400);
+    assert.equal((await call('/v1/users?filter_role=master', { token: marta() })).status, 400);
     assert.equal((await call('/v1/users?active=si', { token: marta() })).status, 400);
   });
 
