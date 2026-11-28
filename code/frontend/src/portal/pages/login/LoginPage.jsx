@@ -8,10 +8,10 @@ import { useSession } from '../../session/useSession.js';
 import { LOGIN_TABS, LOGIN_TEXTOS } from './textos.js';
 import styles from './LoginPage.module.css';
 
-const TAB_ICON = { est: 'book', doc: 'users', adm: 'school' };
+const TAB_ICON = { est: 'book', doc: 'users', adm: 'school', apo: 'home' };
 /** Las tres cuentas como pastillas bajo el formulario (diseño Figma). LOGIN_TABS sigue siendo solo est/doc. */
-const PILLS = [...LOGIN_TABS, 'adm'];
-const LOGIN_ROLE = { 'login-est': 'est', 'login-doc': 'doc', 'login-adm': 'adm' };
+const PILLS = [...LOGIN_TABS, 'apo', 'adm'];
+const LOGIN_ROLE = { 'login-est': 'est', 'login-doc': 'doc', 'login-adm': 'adm', 'login-apo': 'apo' };
 
 /**
  * Un mismo componente para las tres rutas de acceso (pages/index.jsx): al cambiar de pestaña React lo conserva

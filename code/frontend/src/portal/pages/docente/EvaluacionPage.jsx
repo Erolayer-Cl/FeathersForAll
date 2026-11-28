@@ -60,7 +60,10 @@ function Resultados({ assessmentId, preguntas }) {
                       <tr key={s.student_id}>
                         <th scope="row">{s.name}</th>
                         <td>{formatNumero(s.score)} %</td>
-                        <td className={styles[tonoNota(s.grade)]}><b>{formatNota(s.grade)}</b></td>
+                        <td className={styles[tonoNota(s.grade)]}>
+                          <b>{formatNota(s.grade)}</b>
+                          {s.pending_review > 0 && <small> · provisional ({s.pending_review} por revisar)</small>}
+                        </td>
                         <td>{formatFecha(s.submitted_at)}</td>
                       </tr>
                     ))}

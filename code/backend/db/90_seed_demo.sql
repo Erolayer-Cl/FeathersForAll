@@ -15,6 +15,7 @@
 --   estudiantes            e0000000-0000-0000-0000-00000000000{1..4}
 --   curso Matemáticas 7°A  c0000000-0000-0000-0000-000000000001 (Ana)
 --   curso Historia 7°A     c0000000-0000-0000-0000-000000000002 (Luis)
+--   apoderada Carolina Díaz f0000000-0000-0000-0000-000000000001 (pupila: Camila; 16_apoderado.sql)
 -- Colegio B (22222222-…): un curso y un estudiante, para probar el aislamiento.
 -- =============================================================================
 
@@ -115,5 +116,13 @@ INSERT INTO evaluaciones (id, curso_id, titulo, estado, fecha_publicacion) VALUE
 INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id, fecha_inicio, fecha_envio, puntaje) VALUES
     ('c0000000-0000-0000-0000-0000000000b1', 'd0000000-0000-0000-0000-0000000000b1', 'b0000000-0000-0000-0000-000000000002',
      now() - interval '2 days', now() - interval '2 days' + interval '20 minutes', 80);
+
+-- ---------------------------------------------------------------- Apoderada (16, MVP 5)
+-- Requiere 15_rol_apoderado.sql. Mismo hash que Camila (clave demo1234): son datos sintéticos.
+INSERT INTO usuarios (id, colegio_id, nombre, email, password_hash, rol) VALUES
+    ('f0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Carolina Díaz', 'carolina.diaz@demo-a.cl',
+     'scrypt$16384$8$5$_sNVEu7OWIIbXMIt2n5ECQ$SnzTFuxT0XarE_hQcr_gnnlSUSlsYCJJu7kpNF9oHOo', 'apoderado');
+INSERT INTO apoderados_estudiantes (colegio_id, apoderado_id, estudiante_id) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'f0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001');
 
 COMMIT;

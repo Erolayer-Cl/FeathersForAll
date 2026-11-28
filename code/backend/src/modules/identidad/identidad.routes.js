@@ -5,7 +5,7 @@ import { HttpProblem } from '../../platform/problem.js';
 import * as Q from '../../../db/queries.js';
 
 // Roles que entran por este login. El master (sin colegio) opera con feathersforall_plataforma.
-const ROLES_DE_COLEGIO = new Set(['docente', 'estudiante', 'admin_colegio']);
+const ROLES_DE_COLEGIO = new Set(['docente', 'estudiante', 'admin_colegio', 'apoderado']);
 const MAX_LARGO = { rbd: 20, email: 150, password: 256 };
 
 // Freno del login en tres llaves. Topes en múltiplos del máximo del limiter (5 fallos en 15 min por defecto):
@@ -71,6 +71,10 @@ async function autenticar(db, { rbd, email, password }) {
   for (const cuenta of cuentas) {
     if ((await verifyPassword(password, cuenta.password_hash)) && ROLES_DE_COLEGIO.has(cuenta.rol)) validas.push(cuenta);
   }
+  // Más cuentas que las que entrega cuentas_por_correo() (14, LIMIT 21): no se adivina, se pide el RBD.
+  if (!rbd && cuentas.length > 20) {
+    throw new HttpProblem(409, 'Cuenta en varios colegios', 'Este correo está en más de un colegio: ingresa también el RBD', 'school-required');
+  }
   // Mismo correo y misma clave en dos colegios: no se adivina cuál; se pide entrar con el RBD.
   if (validas.length > 1) {
     throw new HttpProblem(409, 'Cuenta en varios colegios', 'Este correo está en más de un colegio: ingresa también el RBD', 'school-required');
@@ -118,22 +122,33 @@ export function createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds, limiter 
       throw new HttpProblem(429, 'Demasiados intentos', `Espera ${Math.ceil(espera / 60)} min antes de volver a intentar`, 'too-many-attempts');
     }
 
-    const user = await autenticar(db, credenciales);
-    if (!user) {
-      for (const { key } of llaves) limiter.recordFailure(key);
-      throw credencialesInvalidas();
+    // El intento se anota ANTES de verificar la clave (scrypt tarda): si se anotara después, cien logins
+    // simultáneos leerían todos el contador en 0 y el freno no frenaría nada. Si la clave es correcta se devuelve.
+    for (const { key } of llaves) limiter.recordFailure(key);
+    let user;
+    try {
+      user = await autenticar(db, credenciales);
+    } catch (err) {
+      // 409 (cuenta en varios colegios) o la base caída: no es una clave mala, no cuenta.
+      for (const { key } of llaves) limiter.forgive(key);
+      throw err;
     }
-    // La clave correcta limpia lo de esta cuenta; el contador de la IP sigue (no se "lava" con una cuenta propia).
+    if (!user) throw credencialesInvalidas();
+    // La clave correcta limpia lo de esta cuenta; a la IP solo se le devuelve este intento (no se "lava" con una cuenta propia).
     limiter.reset(llaves[0].key);
     limiter.reset(llaves[2].key);
+    limiter.forgive(llaves[1].key);
 
     // El JWT lleva lo mínimo (datos de menores): quién es, de qué colegio y con qué rol.
-    const accessToken = signJwt({ sub: user.id, tenant_id: user.colegioId, role: user.rol }, jwtSecret, { expiresInSec: tokenTtlSeconds });
+    // El iat va explícito para cargar el perfil con la misma sesión que tendrá el token: si la clave
+    // cambió hace poco (sesiones_desde, 13), un perfil cargado sin iat se tomaría por sesión vencida.
+    const iat = Math.floor(Date.now() / 1000);
+    const accessToken = signJwt({ sub: user.id, tenant_id: user.colegioId, role: user.rol, iat }, jwtSecret, { expiresInSec: tokenTtlSeconds });
     res.json({
       access_token: accessToken,
       token_type: 'Bearer',
       expires_in: tokenTtlSeconds,
-      user: await cargarPerfil(db, user),
+      user: await cargarPerfil(db, { ...user, iat }),
     });
   });
 

@@ -85,6 +85,7 @@ export function MisNotasPage() {
                         {/* El title solo se ve con mouse: el lector de pantalla recibe el nombre por aquí. */}
                         {nota && <span className={styles.srOnly}>{nota.title}: </span>}
                         {formatNota(nota?.grade)}
+                        {nota?.pending_review > 0 && <span className={styles.provisional} title="Provisional: tu docente aún revisa respuestas escritas">*<span className={styles.srOnly}> (provisional)</span></span>}
                       </td>
                     ))}
                     <td className={`${styles.average} ${styles[tonoNota(fila.promedio)]}`}>{formatNota(fila.promedio)}</td>
@@ -93,6 +94,9 @@ export function MisNotasPage() {
               </tbody>
             </table>
           </div>
+        )}
+        {ramos.some((r) => r.grades.some((g) => g.pending_review > 0)) && (
+          <p className={styles.nota}>* Nota provisional: tu docente aún revisa algunas respuestas escritas. Mientras tanto cuentan como incorrectas.</p>
         )}
       </LoadState>
     </>

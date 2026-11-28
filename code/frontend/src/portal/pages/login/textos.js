@@ -13,6 +13,11 @@ export const LOGIN_TEXTOS = {
     detalle: 'Ingresa con tu correo institucional para gestionar tus cursos y las evaluaciones de tus estudiantes.',
     ejemplo: 'profesor@colegio.cl',
   },
+  apo: {
+    titulo: 'Bienvenido, Apoderado',
+    detalle: 'Ingresa con el correo que registraste en el colegio para seguir el avance de tus pupilos.',
+    ejemplo: 'apoderado@correo.cl',
+  },
   adm: {
     titulo: 'Panel de Administración',
     detalle: 'Accede con tus credenciales institucionales para gestionar usuarios, cursos y la configuración del colegio.',

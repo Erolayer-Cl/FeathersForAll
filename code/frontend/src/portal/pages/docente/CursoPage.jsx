@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { APUNTE_EXTENSIONES, MAX_APUNTE_BYTES, deleteCourseDocument, getCourse, getCourseDocuments, uploadCourseFile } from '../../../api/portalApi.js';
+import { APUNTE_EXTENSIONES, MAX_APUNTE_BYTES, deleteCourseDocument, getCourse, getCourseDocuments, setCourseDocumentVisibility, uploadCourseFile } from '../../../api/portalApi.js';
 import { Button, Card, Chip, EmptyState, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { routeHref } from '../../router/parseRoute.js';
@@ -39,6 +39,9 @@ export function DocenteCursoPage({ param: courseId }) {
   const [envios, setEnvios] = useState([]); // [{ id, nombre, estado: 'subiendo' | 'ok' | 'error', detalle }]
   const [arrastrando, setArrastrando] = useState(false);
   const [borrando, setBorrando] = useState(null);
+  // v1.12: «solo para el tutor» (p. ej. una pauta con respuestas): se sube oculta para los estudiantes.
+  const [soloTutor, setSoloTutor] = useState(false);
+  const [cambiando, setCambiando] = useState(null);
   const [errorBorrar, setErrorBorrar] = useState(null);
   const inputRef = useRef(null);
   const subiendo = envios.some((e) => e.estado === 'subiendo');
@@ -62,7 +65,7 @@ export function DocenteCursoPage({ param: courseId }) {
       }
       actualizar(id, { estado: 'subiendo', detalle: 'Leyendo el archivo e indexándolo…' });
       try {
-        const r = await uploadCourseFile(token, courseId, file);
+        const r = await uploadCourseFile(token, courseId, file, { visible: soloTutor ? false : undefined });
         actualizar(id, { estado: 'ok', detalle: `${contar(r.chunks, 'fragmento')} ${r.chunks === 1 ? 'indexado' : 'indexados'}${r.pages ? ` (${contar(r.pages, 'página')})` : ''}` });
         docs.reload();
       } catch (err) {
@@ -88,6 +91,20 @@ export function DocenteCursoPage({ param: courseId }) {
       else setErrorBorrar(err.message);
     } finally {
       setBorrando(null);
+    }
+  }
+
+  async function cambiarVisible(nombre, visible) {
+    setCambiando(nombre);
+    setErrorBorrar(null);
+    try {
+      await setCourseDocumentVisibility(token, courseId, nombre, visible);
+      docs.reload();
+    } catch (err) {
+      if (err?.status === 401) expire();
+      else setErrorBorrar(err.message);
+    } finally {
+      setCambiando(null);
     }
   }
 
@@ -120,9 +137,13 @@ export function DocenteCursoPage({ param: courseId }) {
             <h2 id="subir-titulo" className={styles.h2}>Subir material y apuntes</h2>
             <p className={styles.sub}>
               Acepta PDF, TXT o MD (hasta {MAX_APUNTE_BYTES / 1024 / 1024} MB). El tutor los lee, los divide en fragmentos y responde a tus
-              estudiantes citando este material. Tus estudiantes también lo ven y lo pueden descargar en su curso. Si subes un archivo
-              con el mismo nombre, se reemplaza.
+              estudiantes citando este material. Tus estudiantes también lo ven y lo pueden descargar en su curso, salvo que lo marques
+              como solo para el tutor. Si subes un archivo con el mismo nombre, se reemplaza.
             </p>
+            <label className={styles.check}>
+              <input type="checkbox" checked={soloTutor} onChange={(e) => setSoloTutor(e.target.checked)} disabled={subiendo} />
+              Solo para el tutor: mis estudiantes no lo descargan (por ejemplo, una pauta con las respuestas)
+            </label>
 
             <label
               className={`${styles.drop} ${arrastrando ? styles.dropOver : ''}`}
@@ -176,6 +197,18 @@ export function DocenteCursoPage({ param: courseId }) {
                       <small>{contar(d.chunks, 'fragmento')}</small>
                     </div>
                     {d.official && <Chip tone="accent">Bases Mineduc</Chip>}
+                    {!d.official && d.visible_to_students !== undefined && (
+                      <label className={styles.check} title="Si tus estudiantes lo ven y descargan como material">
+                        <input
+                          type="checkbox"
+                          checked={d.visible_to_students}
+                          disabled={cambiando === d.name}
+                          onChange={(e) => cambiarVisible(d.name, e.target.checked)}
+                          aria-label={`${d.name}: visible para estudiantes`}
+                        />
+                        Visible para estudiantes
+                      </label>
+                    )}
                     <Button size="sm" variant="warn" disabled={borrando === d.name} onClick={() => borrar(d.name)} aria-label={`Quitar ${d.name}`}>
                       {borrando === d.name ? 'Quitando…' : 'Quitar'}
                     </Button>

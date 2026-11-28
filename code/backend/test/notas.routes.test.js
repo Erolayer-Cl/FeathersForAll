@@ -45,6 +45,8 @@ describe('rutas de notas (unitarias, sin base)', () => {
   beforeEach(() => {
     db.handlers.clear();
     db.calls.length = 0;
+    // v1.12: las lecturas de notas cierran antes los intentos con tiempo vencidos (no hay ninguno aquí).
+    db.handlers.set(Q.CERRAR_INTENTOS_VENCIDOS, () => []);
   });
 
   describe('GET /v1/me/grades (mis ramos y mis notas)', () => {
@@ -69,22 +71,23 @@ describe('rutas de notas (unitarias, sin base)', () => {
         { ...mate, grades: undefined },
         { course_id: MATE, course: 'Matemáticas 7° Básico A', subject: 'Matemática', period: '2026-S2', teacher_name: 'Ana Rojas', tutor_available: true, average: 5.7, grades: undefined },
       );
-      assert.deepEqual(mate.grades[1], { assessment_id: DECIMALES, title: 'Números decimales', score: 90, grade: 6.0, weight: 2, submitted_at: '2026-10-20T12:00:00.000Z' });
+      assert.deepEqual(mate.grades[1], { assessment_id: DECIMALES, title: 'Números decimales', score: 90, grade: 6.0, weight: 2, submitted_at: '2026-10-20T12:00:00.000Z', pending_review: 0 });
       assert.equal(historia.average, null);
       assert.deepEqual(historia.grades, []);
       assert.equal(historia.tutor_available, false);
     });
 
-    test('el estudiante sale del JWT (nunca del cliente) y la lectura es de solo lectura, con su sesión', async () => {
+    test('el estudiante sale del JWT (nunca del cliente) y la consulta corre con su sesión', async () => {
       db.handlers.set(Q.RAMOS_ESTUDIANTE, () => []);
       db.handlers.set(Q.NOTAS_ESTUDIANTE, () => []);
       // Un intento de pedir las notas de otra persona por query se ignora: no existe ese parámetro.
       const body = await json(`/v1/me/grades?student_id=${SOFIA.id}`, { token: T.CAMILA });
       assert.equal(body.student_id, CAMILA.id);
       for (const call of db.calls) {
-        assert.equal(call.params[0], CAMILA.id);
-        assert.equal(call.readOnly, true);
         assert.deepEqual(call.session, { colegioId: A, usuarioId: CAMILA.id, rol: 'estudiante' });
+        // Única escritura: cerrar SUS intentos vencidos (el RLS limita a los propios). Lo demás, con su id.
+        if (call.text === Q.CERRAR_INTENTOS_VENCIDOS) continue;
+        assert.equal(call.params[0], CAMILA.id);
       }
     });
 
@@ -92,10 +95,11 @@ describe('rutas de notas (unitarias, sin base)', () => {
       db.handlers.set(Q.RAMOS_ESTUDIANTE, () => []);
       db.handlers.set(Q.NOTAS_ESTUDIANTE, () => []);
       await json(`/v1/me/grades?course_id=${MATE}`, { token: T.CAMILA });
-      assert.deepEqual(db.calls.map((c) => c.params[1]), [MATE, MATE]);
+      // Las tres consultas reciben el curso: cerrar vencidos ($2), ramos ($2) y notas ($2).
+      assert.deepEqual(db.calls.map((c) => c.params[1]), [MATE, MATE, MATE]);
       db.calls.length = 0;
       await json('/v1/me/grades', { token: T.CAMILA });
-      assert.deepEqual(db.calls.map((c) => c.params[1]), [null, null]);
+      assert.deepEqual(db.calls.map((c) => c.params[1]), [null, null, null]);
     });
 
     test('course_id que no es UUID -> 400, sin consultar la base', async () => {
@@ -152,7 +156,7 @@ describe('rutas de notas (unitarias, sin base)', () => {
       db.handlers.set(Q.LIBRO_NOTAS_ESTUDIANTES, () => filas);
       const body = await json(`/v1/courses/${MATE}/gradebook`, { token: T.ANA });
       assert.equal(body.students.length, 3);
-      assert.deepEqual(body.students[0], { student_id: CAMILA.id, name: 'Camila Díaz', average: 5.2, grades: { [FRACCIONES]: 5.2 } });
+      assert.deepEqual(body.students[0], { student_id: CAMILA.id, name: 'Camila Díaz', average: 5.2, grades: { [FRACCIONES]: 5.2 }, provisional: [] });
       assert.deepEqual(body.students[2].grades, {});
       assert.equal(body.course_average, 5.9); // (5.2 + 6.5) / 2 = 5.85 -> 5.9
       assert.deepEqual(body.assessments[0], { id: FRACCIONES, title: 'Fracciones', status: 'cerrada', pass_threshold: 60, weight: 1, published_at: '2026-09-25T12:00:00.000Z' });

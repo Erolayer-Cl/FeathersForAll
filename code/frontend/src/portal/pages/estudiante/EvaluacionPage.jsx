@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { clearCache } from '../../../api/cache.js';
-import { getAssessment, getAssessments, submitAssessment } from '../../../api/portalApi.js';
+import { getAssessment, getAssessments, startAttempt, submitAssessment } from '../../../api/portalApi.js';
 import { Button, Card, Chip, EmptyState, FormMessage, Kpi, LoadState, PageHead } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { useNow } from '../../hooks/useNow.js';
@@ -8,7 +8,8 @@ import { useIdempotencyKey } from '../../hooks/useIdempotencyKey.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { useSession } from '../../session/useSession.js';
 import { respondida, respuestasACuerpo, sinResponder } from '../../utils/evaluaciones.js';
-import { formatCierre, tiempoRestante, tonoPlazo } from '../../utils/fechas.js';
+import { formatCierre, formatDuracion, tiempoRestante, tonoPlazo } from '../../utils/fechas.js';
+import { ENTREGA_ANTICIPADA_MS, borrarBorrador, desfaseReloj, guardarBorrador, leerBorrador, plazoDe, relojRestante, tonoReloj } from '../../utils/intento.js';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
 import styles from './EvaluacionPage.module.css';
 
@@ -26,11 +27,28 @@ function describirPreguntas(questions) {
 
 const NO_DISPONIBLE = { title: 'Evaluación no disponible', action: <Button size="sm" variant="soft" href="#/portal/est-cursos">Volver a Mis cursos</Button> };
 
-/** La evaluación y, si ya la rindió, su entrada en la lista del curso (nota y fecha). */
+/** La evaluación y, si ya la rindió, su entrada en la lista del curso (nota y fecha). `desfase`: reloj del servidor − equipo. */
 async function cargar(token, assessmentId, opts) {
   const ev = await getAssessment(token, assessmentId, opts);
+  const desfase = desfaseReloj(ev.server_time);
   const lista = await getAssessments(token, ev.course_id, opts);
-  return { ev, mia: lista.data.find((e) => e.id === assessmentId) ?? null };
+  return { ev, desfase, mia: lista.data.find((e) => e.id === assessmentId) ?? null };
+}
+
+/** Antes de empezar una evaluación con tiempo: cuánto dura y qué pasa al acabarse. */
+function Empezar({ ev, onEmpezar, empezando, problema }) {
+  return (
+    <Card as="section" aria-labelledby="empezar-titulo" className={styles.empezar}>
+      <h2 id="empezar-titulo" className={styles.h2}>Evaluación con tiempo</h2>
+      <p>
+        Tienes <b>{formatDuracion(ev.duration_minutes)}</b> desde que empieces para responder {ev.questions_count === 1 ? 'la pregunta' : `las ${ev.questions_count} preguntas`}
+        {ev.closes_at ? `, y la evaluación cierra ${formatCierre(ev.closes_at)}: lo que llegue primero` : ''}.
+      </p>
+      <p>El reloj corre aunque cierres la página. Cuando se acabe el tiempo, se entregará solo lo que alcanzaste a responder. Tienes un solo intento.</p>
+      {problema && <FormMessage>{problema}</FormMessage>}
+      <div><Button onClick={onEmpezar} disabled={empezando}>{empezando ? 'Empezando…' : 'Empezar ahora'}</Button></div>
+    </Card>
+  );
 }
 
 /** Resultado al instante: puntaje, nota y la retroalimentación de cada pregunta (H4). */
@@ -73,33 +91,69 @@ function Resultado({ ev, resultado }) {
 
 /** Estudiante · Rendir una evaluación (est-evaluacion/<id>): responde, entrega y ve su nota y retroalimentación al instante (H4). */
 export function EvaluacionPage({ param: assessmentId }) {
-  const { token, expire } = useSession();
+  const { token, user, expire } = useSession();
   const { data, loading, error, reload } = useApiData((t, opts) => cargar(t, assessmentId, opts), assessmentId);
   const key = useIdempotencyKey();
-  const [elegidas, setElegidas] = useState({});
+  // Las respuestas se recuperan del borrador local (recarga, corte de luz) y se guardan en cada cambio.
+  const [elegidas, setElegidasState] = useState(() => leerBorrador(assessmentId, user?.id));
+  const setElegidas = (fn) => setElegidasState((x) => {
+    const next = fn(x);
+    guardarBorrador(assessmentId, user?.id, next);
+    return next;
+  });
   const [enviando, setEnviando] = useState(false);
+  const [empezando, setEmpezando] = useState(false);
   const [problema, setProblema] = useState(null);
   const [resultado, setResultado] = useState(null);
+  const [automatica, setAutomatica] = useState(false);
+  const autoEnviada = useRef(false);
   const ev = data?.ev;
   const mia = data?.mia;
-  // Se refresca cada 15 s: el aviso de tiempo baja solo y, al llegar la hora, el formulario se bloquea.
-  const ahora = useNow(15_000);
-  const vencida = Boolean(ev?.closes_at) && new Date(ev.closes_at).getTime() <= ahora;
+  const conTiempo = Boolean(ev?.duration_minutes);
+  const plazo = plazoDe(ev);
+  const formularioPosible = ev?.status === 'published' && !mia?.submitted && !resultado && (!conTiempo || ev.attempt);
+  // Con un plazo a la vista, el reloj avanza cada segundo; si no, cada 15 s. Siempre con la hora del SERVIDOR.
+  const ahora = useNow(formularioPosible && plazo ? 1_000 : 15_000) + (data?.desfase ?? 0);
+  const queda = plazo === null ? null : plazo - ahora;
+  const vencida = queda !== null && queda <= 0;
   const respondidas = ev ? ev.questions.length - sinResponder(ev.questions, elegidas) : 0;
 
-  async function entregar(e) {
-    e.preventDefault();
+  async function empezar() {
+    if (empezando) return;
+    setEmpezando(true);
+    setProblema(null);
+    try {
+      await startAttempt(token, assessmentId);
+      reload(); // ahora sí llegan las preguntas y el plazo del intento
+    } catch (err) {
+      if (err.status === 401) {
+        expire();
+        return;
+      }
+      setProblema(err.message);
+      if (err.status === 409) reload();
+    } finally {
+      setEmpezando(false);
+    }
+  }
+
+  async function entregar(e, { auto = false } = {}) {
+    e?.preventDefault();
     if (enviando) return;
-    const faltan = sinResponder(ev.questions, elegidas);
-    const aviso = faltan > 0
-      ? `Te falta responder ${faltan} pregunta${faltan === 1 ? '' : 's'}: contarán como incorrectas. Solo tienes un intento. ¿Entregar de todos modos?`
-      : 'Solo tienes un intento. ¿Entregar tus respuestas?';
-    if (!window.confirm(aviso)) return;
+    if (!auto) {
+      const faltan = sinResponder(ev.questions, elegidas);
+      const aviso = faltan > 0
+        ? `Te falta responder ${faltan} pregunta${faltan === 1 ? '' : 's'}: contarán como incorrectas. Solo tienes un intento. ¿Entregar de todos modos?`
+        : 'Solo tienes un intento. ¿Entregar tus respuestas?';
+      if (!window.confirm(aviso)) return;
+    }
     setEnviando(true);
     setProblema(null);
     try {
       setResultado(await submitAssessment(token, assessmentId, respuestasACuerpo(elegidas), key.get()));
+      setAutomatica(auto);
       key.renew();
+      borrarBorrador(assessmentId, user?.id);
       clearCache(); // Inicio, Curso y Mis notas guardados tienen la evaluación sin nota: que no se vean así al volver
 
     } catch (err) {
@@ -115,6 +169,16 @@ export function EvaluacionPage({ param: assessmentId }) {
     }
   }
 
+  // Entrega automática unos segundos antes del plazo (el servidor da 30 s de margen): lo respondido no se pierde.
+  const debeEntregarSola = formularioPosible && queda !== null && queda <= ENTREGA_ANTICIPADA_MS;
+  useEffect(() => {
+    if (!debeEntregarSola || autoEnviada.current) return;
+    autoEnviada.current = true;
+    entregar(null, { auto: true });
+    // entregar cambia en cada render; la condición la decide debeEntregarSola.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debeEntregarSola]);
+
   return (
     <>
       <p className={styles.crumbs}>
@@ -123,15 +187,19 @@ export function EvaluacionPage({ param: assessmentId }) {
       <LoadState loading={loading} error={error} onRetry={reload} notFound={NO_DISPONIBLE}>
         {ev && (
           <>
-            <PageHead title={ev.title} subtitle={`${describirPreguntas(ev.questions)} · un solo intento${ev.closes_at ? ` · ${vencida ? 'cerró' : 'cierra'} ${formatCierre(ev.closes_at, ahora)}` : ''}`}>
-              {ev.closes_at && ev.status === 'published' && !mia?.submitted && !resultado && (
-                <span className={styles.estado}><Chip tone={tonoPlazo(ev.closes_at, ahora)}>{vencida ? 'Tiempo terminado' : tiempoRestante(ev.closes_at, ahora)}</Chip></span>
+            <PageHead title={ev.title} subtitle={`${conTiempo && !ev.attempt ? `${ev.questions_count} pregunta${ev.questions_count === 1 ? '' : 's'} · ${formatDuracion(ev.duration_minutes)}` : describirPreguntas(ev.questions)} · un solo intento${ev.closes_at ? ` · ${vencida && !ev.attempt ? 'cerró' : 'cierra'} ${formatCierre(ev.closes_at, ahora)}` : ''}`}>
+              {plazo !== null && ev.status === 'published' && !mia?.submitted && !resultado && (
+                formularioPosible && conTiempo
+                  ? <span className={styles.estado} role="timer" aria-live="off" aria-label={`Tiempo restante ${relojRestante(queda)}`}><Chip tone={tonoReloj(queda)}>⏱ {relojRestante(queda)}</Chip></span>
+                  : <span className={styles.estado}><Chip tone={tonoPlazo(plazo, ahora)}>{vencida ? 'Tiempo terminado' : tiempoRestante(plazo, ahora)}</Chip></span>
               )}
             </PageHead>
 
             {resultado && (
               <>
-                <FormMessage tone="success">Entregaste tu evaluación. Este es tu resultado:</FormMessage>
+                <FormMessage tone={automatica ? 'info' : 'success'}>
+                  {automatica ? 'Se acabó el tiempo: entregamos automáticamente lo que alcanzaste a responder. Este es tu resultado:' : 'Entregaste tu evaluación. Este es tu resultado:'}
+                </FormMessage>
                 <Resultado ev={ev} resultado={resultado} />
                 <div><Button variant="soft" href={`#/portal/est-curso/${encodeURIComponent(ev.course_id)}`}>Volver al curso</Button></div>
               </>
@@ -144,13 +212,20 @@ export function EvaluacionPage({ param: assessmentId }) {
               </EmptyState>
             )}
 
-            {!resultado && !mia?.submitted && (ev.status === 'closed' || (ev.status === 'published' && vencida)) && (
+            {!resultado && !mia?.submitted && (ev.status === 'closed' || (ev.status === 'published' && vencida && !enviando)) && (
               <EmptyState title={vencida && ev.status === 'published' ? 'Se acabó el tiempo' : 'Esta evaluación ya está cerrada'}>
-                {ev.closes_at ? `Cerró ${formatCierre(ev.closes_at, ahora)} y ya no se puede rendir.` : 'Ya no se puede rendir.'} Si crees que es un error, habla con tu docente.
+                {ev.attempt
+                  ? 'Tu intento se cerró con lo que alcanzaste a entregar: tu nota aparecerá en el curso y en Mis notas.'
+                  : ev.closes_at ? `Cerró ${formatCierre(ev.closes_at, ahora)} y ya no se puede rendir.` : 'Ya no se puede rendir.'} Si crees que es un error, habla con tu docente.
+                {problema && <div style={{ marginTop: 12 }}><FormMessage>{problema}</FormMessage></div>}
               </EmptyState>
             )}
 
-            {!resultado && !mia?.submitted && ev.status === 'published' && !vencida && (
+            {!resultado && !mia?.submitted && ev.status === 'published' && conTiempo && !ev.attempt && !vencida && (
+              <Empezar ev={ev} onEmpezar={empezar} empezando={empezando} problema={problema} />
+            )}
+
+            {formularioPosible && (!vencida || enviando) && (
               <form onSubmit={entregar} aria-busy={enviando} className={styles.form}>
                 {ev.questions.map((q, i) => {
                   const lista = respondida(elegidas[q.id]);
@@ -195,6 +270,9 @@ export function EvaluacionPage({ param: assessmentId }) {
                   );
                 })}
                 {problema && <FormMessage>{problema}</FormMessage>}
+                {conTiempo && queda !== null && queda <= 60_000 && !enviando && (
+                  <FormMessage tone="info">Queda menos de un minuto: si no entregas, se entregará solo lo que respondiste.</FormMessage>
+                )}
                 <div className={styles.footer}>
                   <Button type="submit" disabled={enviando}>{enviando ? 'Entregando…' : 'Entregar evaluación'}</Button>
                   <div className={styles.avance}>

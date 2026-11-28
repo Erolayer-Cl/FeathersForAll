@@ -12,6 +12,8 @@ export function tablaLibro(libro) {
     id: s.student_id,
     nombre: s.name,
     notas: columnas.map((c) => s.grades?.[c.id] ?? null),
+    // v1.12: true en las notas con respuestas escritas por revisar (pueden cambiar).
+    provisionales: columnas.map((c) => (s.provisional ?? []).includes(c.id)),
     promedio: s.average ?? null,
     rendidas: columnas.filter((c) => s.grades?.[c.id] !== undefined && s.grades?.[c.id] !== null).length,
   }));
@@ -74,4 +76,38 @@ export const paramEstudiante = (courseId, studentId) => `${courseId}/${studentId
 export function leerParamEstudiante(param) {
   const [courseId, studentId, ...resto] = String(param ?? '').split('/');
   return courseId && studentId && resto.length === 0 ? { courseId, studentId } : null;
+}
+
+/** Una celda de CSV: entre comillas si hace falta y sin fórmulas (= + - @ al inicio se neutralizan con '). */
+function celdaCsv(valor) {
+  let texto = valor === null || valor === undefined ? '' : String(valor);
+  // Inyección de fórmulas (CSV injection): Excel ejecutaría "=HYPERLINK(...)" escrito en un nombre o título.
+  if (/^[=+\-@\t\r]/.test(texto)) texto = `'${texto}`;
+  return /[";\n\r]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+}
+
+/** 5.25 -> "5,3" (nota) con coma decimal, como la lee Excel en Chile; null -> "". */
+const notaCsv = (n) => (n === null || n === undefined ? '' : Number(n).toFixed(1).replace('.', ','));
+
+/**
+ * Libro de notas -> CSV para Excel en español: separador ";", coma decimal y BOM UTF-8 (tildes y ñ bien).
+ * Una fila por estudiante, una columna por evaluación y el promedio. Las notas provisionales llevan "*".
+ * @returns {string}
+ */
+export function libroACsv(columnas, filas, { curso = '' } = {}) {
+  const lineas = [];
+  if (curso) lineas.push([celdaCsv(`Libro de notas · ${curso}`)].join(';'));
+  lineas.push(['Estudiante', ...columnas.map((c) => `${c.title} (pond. ${String(c.weight ?? 1).replace('.', ',')})`), 'Promedio'].map(celdaCsv).join(';'));
+  for (const f of filas) {
+    const notas = f.notas.map((n, i) => (n === null ? '' : `${notaCsv(n)}${f.provisionales?.[i] ? '*' : ''}`));
+    lineas.push([f.nombre, ...notas, notaCsv(f.promedio)].map(celdaCsv).join(';'));
+  }
+  if (filas.some((f) => f.provisionales?.some(Boolean))) lineas.push(celdaCsv('* Nota provisional: tiene respuestas escritas por revisar.'));
+  return `\uFEFF${lineas.join('\r\n')}\r\n`;
+}
+
+/** Nombre del archivo: "libro-notas-matematica-7-basico-a.csv" (sin tildes ni espacios). */
+export function nombreCsv(curso) {
+  const base = String(curso ?? 'curso').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `libro-notas-${base || 'curso'}.csv`;
 }

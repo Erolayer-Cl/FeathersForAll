@@ -21,7 +21,7 @@
 | **Tutor IA** | Apuntes del curso, embeddings (RAG) y consultas asíncronas al LLM | Apunte (embeddings), Consulta (fuentes) | `apuntes_curso`, `apuntes_embeddings`, `consultas_tutor_ia`, `consultas_fuentes` | H5 |
 | *Plataforma (soporte, no es dominio)* | Outbox de eventos, idempotencia, trazas | — | `outbox_eventos`, `claves_idempotencia` | transversal |
 
-Fuera del MVP (backlog "Won't have"): **Seguimiento del apoderado**. Será un contexto consumidor de `intento.corregido`, sin escribir en Evaluaciones.
+**Seguimiento del apoderado** (MVP 5, ADR 0018, 27-11-2026): contexto de solo lectura. Lee Evaluaciones y Gestión académica con funciones `SECURITY DEFINER` de la base (`ramos_pupilo`, `notas_pupilo`, `pendientes_pupilo`), limitadas a los estudiantes vinculados al apoderado, sin escribir en ningún otro contexto. Se pensó como consumidor de `intento.corregido`, pero no hay worker ni cola (ADR 0013): si se agregan avisos por correo, ahí sí conviene el evento.
 
 ## Context map
 
@@ -33,7 +33,7 @@ flowchart LR
   TU["Tutor IA<br/>(core, diferenciador)"]
   LLM["Proveedor LLM<br/>(externo)"]
   SSO["Auth institucional SSO<br/>(externo)"]
-  AP["Seguimiento apoderado<br/>(futuro)"]
+  AP["Seguimiento apoderado<br/>(solo lectura, ADR 0018)"]
 
   SSO -- "ACL: token SSO → JWT propio" --> ID
   ID -- "Open Host: JWT con tenant_id y rol" --> GA
@@ -52,7 +52,7 @@ flowchart LR
 | Gestión académica → Evaluaciones | Customer / Supplier | Evaluaciones usa el curso y la matrícula para validar quién puede rendir (FK a `matriculas`); no los modifica. |
 | Gestión académica → Tutor IA | Eventos | `estudiante.matriculado` habilita al estudiante en el tutor del curso. |
 | Tutor IA → LLM | Anticorruption Layer | `modules/tutor/llm-client.js` es la única pieza que conoce al proveedor (hoy Ollama en desarrollo). |
-| Evaluaciones → Apoderado (futuro) | Eventos | Consumirá `intento.corregido`. |
+| Evaluaciones → Apoderado | Conformist (lectura) | Lee notas, promedios y pendientes de sus estudiantes vinculados con funciones de la base (`16_apoderado.sql`). Los avisos por correo, si llegan, consumirían `intento.corregido`. |
 
 ## Reglas de frontera
 

@@ -25,8 +25,9 @@ import { DocenteTareaPage } from './docente/TareaPage.jsx';
 import { EvaluacionPage } from './estudiante/EvaluacionPage.jsx';
 import { SettingsPage } from './shared/SettingsPage.jsx';
 import { AdministradorInicioPage } from './administrador/InicioPage.jsx';
+import { ApoderadoInicioPage } from './apoderado/InicioPage.jsx';
+import { AdminAuditoriaPage, AdminUsuarioNuevoPage, AdminUsuarioPage, AdminUsuariosPage } from './administrador/UsuariosPages.jsx';
 import {
-  AdminUsuariosPage, AdminUsuarioPage, AdminUsuarioNuevoPage,
   AdminCursosPage, AdminCursoPage, AdminCursoNuevoPage,
   AdminEvaluacionesPage, AdminEvaluacionPage,
   AdminReportesPage, AdminRendimientoPage, AdminTutorReportePage,
@@ -36,6 +37,7 @@ export const PAGES = {
   'login-est': LoginRoute,
   'login-doc': LoginRoute,
   'login-adm': LoginRoute,
+  'login-apo': LoginRoute,
   'est-inicio': EstudianteInicioPage,
   'est-cursos': MisCursosPage,
   'est-curso': CursoPage,
@@ -63,6 +65,7 @@ export const PAGES = {
   'adm-usuarios': AdminUsuariosPage,
   'adm-usuario': AdminUsuarioPage,
   'adm-usuario-nuevo': AdminUsuarioNuevoPage,
+  'adm-auditoria': AdminAuditoriaPage,
   'adm-cursos': AdminCursosPage,
   'adm-curso': AdminCursoPage,
   'adm-curso-nuevo': AdminCursoNuevoPage,
@@ -72,4 +75,6 @@ export const PAGES = {
   'adm-reportes-rend': AdminRendimientoPage,
   'adm-reportes-tutor': AdminTutorReportePage,
   'adm-config': () => <SettingsPage role="adm" />,
+  'apo-inicio': ApoderadoInicioPage,
+  'apo-config': () => <SettingsPage role="apo" />,
 };

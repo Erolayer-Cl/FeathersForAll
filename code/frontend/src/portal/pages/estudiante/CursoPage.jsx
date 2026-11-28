@@ -5,9 +5,10 @@ import { Button, Card, Chip, EmptyState, LoadState, PageHead } from '../../compo
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
 import { routeHref } from '../../router/parseRoute.js';
-import { formatCierre } from '../../utils/fechas.js';
+import { formatCierre, formatDuracion } from '../../utils/fechas.js';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
 import { MaterialCard, TareasCard } from './ContenidoCurso.jsx';
+import { assessmentCategory } from './studentAssessments.js';
 import styles from './CursoPage.module.css';
 
 // 404: el curso no existe o no participas en él (la API no distingue, para no revelar nada).
@@ -67,9 +68,10 @@ export function CursoPage({ param: courseId }) {
   const [abierta, setAbierta] = useState(null);
   const curso = data?.curso;
   const notas = data?.ramo?.grades ?? [];
-  // Pendientes: publicadas que aún no rindo. Las cerradas sin rendir se avisan aparte (ya no se pueden rendir).
-  const porRendir = (data?.evaluaciones ?? []).filter((e) => e.status === 'published' && !e.submitted);
-  const sinRendir = (data?.evaluaciones ?? []).filter((e) => e.status === 'closed' && !e.submitted);
+  // Pendientes: las que todavía se pueden rendir (misma regla que «Evaluaciones»: publicada y sin cierre vencido).
+  // Las cerradas o vencidas sin rendir se avisan aparte: ya no se pueden rendir.
+  const porRendir = (data?.evaluaciones ?? []).filter((e) => assessmentCategory(e) === 'pendiente');
+  const sinRendir = (data?.evaluaciones ?? []).filter((e) => assessmentCategory(e) === 'cerrada');
 
   return (
     <>
@@ -104,16 +106,20 @@ export function CursoPage({ param: courseId }) {
                         <li key={e.id} className={styles.pendiente}>
                           <span className={styles.grow}>
                             <b>{e.title}</b>
-                            <small>{e.questions_count} pregunta{e.questions_count === 1 ? '' : 's'}{e.closes_at ? ` · cierra ${formatCierre(e.closes_at)}` : ''}</small>
+                            <small>
+                              {e.questions_count} pregunta{e.questions_count === 1 ? '' : 's'}
+                              {e.duration_minutes ? ` · ${formatDuracion(e.duration_minutes)} desde que empieces` : ''}
+                              {e.closes_at ? ` · cierra ${formatCierre(e.closes_at)}` : ''}
+                            </small>
                           </span>
-                          <Button size="sm" href={routeHref('est-evaluacion', e.id)} aria-label={`Rendir ${e.title}`}>Rendir</Button>
+                          <Button size="sm" href={routeHref('est-evaluacion', e.id)} aria-label={`${e.started_at ? 'Continuar' : 'Rendir'} ${e.title}`}>{e.started_at ? 'Continuar' : 'Rendir'}</Button>
                         </li>
                       ))}
                     </ul>
                   </section>
                 )}
                 {sinRendir.length > 0 && (
-                  <p className={styles.sub}>Hay {sinRendir.length} evaluación{sinRendir.length === 1 ? '' : 'es'} cerrada{sinRendir.length === 1 ? '' : 's'} que no rendiste: {sinRendir.map((e) => e.title).join(', ')}.</p>
+                  <p className={styles.sub}>Hay {sinRendir.length} evaluaci{sinRendir.length === 1 ? 'ón' : 'ones'} cerrada{sinRendir.length === 1 ? '' : 's'} que no rendiste: {sinRendir.map((e) => e.title).join(', ')}.</p>
                 )}
                 <h2>Evaluaciones de {curso.subject ?? curso.name}</h2>
                 <p className={styles.sub}>Solo lectura: las notas se calculan con el puntaje y la exigencia de cada evaluación.</p>

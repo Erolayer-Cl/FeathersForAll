@@ -76,6 +76,10 @@ describe('privacidad de lectura en la base (PostgreSQL)', { skip: SKIP }, () => 
     const benja = como(DEMO.benja, 'estudiante');
 
     test('una respuesta mala guardada como correcta queda incorrecta', async () => {
+      // La alternativa mala se busca como superusuario: desde 17 el estudiante no puede leer es_correcta.
+      const { rows: [mala] } = await testDb.superuser.query(
+        `SELECT p.id AS pregunta_id, a.id AS alternativa_id FROM preguntas p JOIN alternativas a ON a.pregunta_id = p.id AND NOT a.es_correcta
+         WHERE p.evaluacion_id = $1 AND p.orden = 1 LIMIT 1`, [DEMO.decimales]);
       await assert.rejects(escribir(benja, async (c) => {
         const { rows: [intento] } = await c.query(
           'INSERT INTO intentos_evaluacion (curso_id, evaluacion_id, estudiante_id) VALUES ($1, $2, $3) RETURNING id',
@@ -83,15 +87,29 @@ describe('privacidad de lectura en la base (PostgreSQL)', { skip: SKIP }, () => 
         );
         const { rows: [r] } = await c.query(
           `INSERT INTO respuestas_estudiante (evaluacion_id, intento_id, pregunta_id, alternativa_elegida_id, es_correcta)
-           SELECT p.evaluacion_id, $1, p.id, a.id, true
-           FROM preguntas p JOIN alternativas a ON a.pregunta_id = p.id AND NOT a.es_correcta
-           WHERE p.evaluacion_id = $2 AND p.orden = 1 LIMIT 1
+           VALUES ($2, $1, $3, $4, true)
            RETURNING es_correcta`,
-          [intento.id, DEMO.decimales],
+          [intento.id, DEMO.decimales, mala.pregunta_id, mala.alternativa_id],
         );
         assert.equal(r.es_correcta, false);
         throw new Error('rollback');
       }), /rollback/);
+    });
+
+    test('17: ninguna sesión de la API lee alternativas.es_correcta ni preguntas.respuestas_aceptadas directo', async () => {
+      for (const [u, rol] of [[DEMO.benja, 'estudiante'], [DEMO.ana, 'docente'], [DEMO.marta, 'admin_colegio']]) {
+        await assert.rejects(leer(como(u, rol), 'SELECT es_correcta FROM alternativas'), { code: '42501' });
+        await assert.rejects(leer(como(u, rol), 'SELECT respuestas_aceptadas FROM preguntas'), { code: '42501' });
+      }
+      // El estudiante sí lee el texto de las alternativas (para rendir), y la función del personal no le entrega nada.
+      const textos = await leer(benja, 'SELECT count(*)::int AS n FROM alternativas_publicas');
+      assert.ok(textos[0].n > 0);
+      const staff = await db.withUser(benja, (c) => c.query('SELECT * FROM alternativas_staff($1)', [DEMO.decimales]), { readOnly: true });
+      assert.equal(staff.rows.length, 0);
+      const docente = await db.withUser(como(DEMO.ana, 'docente'), (c) => c.query('SELECT * FROM alternativas_staff($1)', [DEMO.decimales]), { readOnly: true });
+      assert.ok(docente.rows.some((a) => a.es_correcta));
+      const otro = await db.withUser(como(DEMO.luis, 'docente'), (c) => c.query('SELECT * FROM alternativas_staff($1)', [DEMO.decimales]), { readOnly: true });
+      assert.equal(otro.rows.length, 0, 'otro docente del colegio no las ve');
     });
 
     test('enviar el intento con puntaje 100 sin responder deja 0', async () => {

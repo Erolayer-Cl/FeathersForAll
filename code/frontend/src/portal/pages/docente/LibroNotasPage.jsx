@@ -6,7 +6,8 @@ import { PortalLink } from '../../router/PortalLink.jsx';
 import { routeHref } from '../../router/parseRoute.js';
 import { useSession } from '../../session/useSession.js';
 import { normalizarEstado } from '../../utils/evaluaciones.js';
-import { paramEstudiante, tablaLibro, validarCalificacion } from '../../utils/libroNotas.js';
+import { libroACsv, nombreCsv, paramEstudiante, tablaLibro, validarCalificacion } from '../../utils/libroNotas.js';
+import { guardarArchivo } from '../../utils/tareas.js';
 import { formatFecha, formatNota, formatNumero, tonoNota } from '../../utils/notas.js';
 import gestion from './Gestion.module.css';
 import styles from './Notas.module.css';
@@ -71,7 +72,9 @@ export function DocenteLibroNotasPage({ param: courseId }) {
   const curso = useApiData((t, opts) => getCourse(t, courseId, opts), courseId);
   // Con caché: al recargar (después de guardar una calificación) se sigue viendo el libro en vez de «Cargando…».
   const libro = useApiData((t, opts) => getGradebook(t, courseId, opts), courseId, { cache: 'doc-libro' });
-  const resumen = useApiData((t, opts) => getGradesSummary(t, courseId, opts), courseId, { cache: 'doc-resumen' });
+  // Umbral de riesgo elegido en pantalla (v1.12): el servidor calcula quiénes quedan bajo esa nota.
+  const [umbral, setUmbral] = useState(4);
+  const resumen = useApiData((t, opts) => getGradesSummary(t, courseId, { threshold: umbral, ...opts }), `${courseId}|${umbral}`, { cache: 'doc-resumen' });
   const recargar = () => {
     libro.reload();
     resumen.reload();
@@ -89,6 +92,10 @@ export function DocenteLibroNotasPage({ param: courseId }) {
       <LoadState loading={libro.loading} error={libro.error} onRetry={libro.reload} notFound={NO_DISPONIBLE}>
         <PageHead title="Libro de notas" subtitle={`${curso.data?.name ?? ''} · Notas en escala 1,0 a 7,0. El promedio pondera cada evaluación según su peso.`}>
           <Button size="sm" variant="soft" onClick={recargar}>Actualizar</Button>
+          <Button size="sm" variant="soft" disabled={!libro.data} onClick={() => guardarArchivo({
+            blob: new Blob([libroACsv(columnas, filas, { curso: curso.data?.name ?? '' })], { type: 'text/csv;charset=utf-8' }),
+            name: nombreCsv(curso.data?.name),
+          })}>Exportar CSV</Button>
           <Button size="sm" variant="ghost" href={routeHref('doc-curso', courseId)}>Volver al curso</Button>
         </PageHead>
 
@@ -101,6 +108,9 @@ export function DocenteLibroNotasPage({ param: courseId }) {
 
         <Card as="section" aria-labelledby="libro-titulo">
           <h2 id="libro-titulo" className={gestion.h2}>Notas por estudiante</h2>
+          {filas.some((f) => f.provisionales?.some(Boolean)) && (
+            <p className={gestion.sub}>* Nota provisional: tiene respuestas escritas por revisar (cuentan 0 hasta que las revises en la evaluación).</p>
+          )}
           {filas.length === 0 ? (
             <EmptyState title="Aún no hay estudiantes">Matricúlalos desde la página del curso.</EmptyState>
           ) : (
@@ -127,6 +137,7 @@ export function DocenteLibroNotasPage({ param: courseId }) {
                         <td key={columnas[i].id} className={styles[tonoNota(nota)]}>
                           <span className={styles.srOnly}>{columnas[i].title}: </span>
                           {nota === null ? <span aria-label="sin rendir">—</span> : formatNota(nota)}
+                          {f.provisionales?.[i] && <span className={styles.provisional} title="Provisional: tiene respuestas escritas por revisar">*<span className={styles.srOnly}> (provisional, por revisar)</span></span>}
                         </td>
                       ))}
                       <td className={`${styles.average} ${styles[tonoNota(f.promedio)]}`}>{formatNota(f.promedio)}</td>
@@ -141,7 +152,13 @@ export function DocenteLibroNotasPage({ param: courseId }) {
         <div className={gestion.split}>
           <Card as="section" aria-labelledby="riesgo-titulo">
             <h2 id="riesgo-titulo" className={gestion.h2}>Estudiantes en riesgo</h2>
-            <p className={gestion.sub}>Promedio bajo {formatNota(resumen.data?.at_risk_threshold ?? 4)} con las evaluaciones que ya rindieron.</p>
+            <p className={gestion.sub}>Promedio bajo {formatNota(resumen.data?.at_risk_threshold ?? umbral)} con las evaluaciones que ya rindieron.</p>
+            <label className={styles.umbral}>
+              Umbral de riesgo
+              <select value={umbral} onChange={(e) => setUmbral(Number(e.target.value))}>
+                {[3.5, 4, 4.5, 5, 5.5].map((n) => <option key={n} value={n}>Bajo {formatNota(n)}</option>)}
+              </select>
+            </label>
             <LoadState loading={resumen.loading} error={resumen.error} onRetry={resumen.reload}>
               {enRiesgo.length === 0 ? (
                 <EmptyState title="Nadie en riesgo por ahora">Todos los que rindieron tienen promedio aprobatorio.</EmptyState>
@@ -151,7 +168,10 @@ export function DocenteLibroNotasPage({ param: courseId }) {
                     <li key={s.student_id} className={gestion.row}>
                       <div className={gestion.grow}>
                         <b>{s.name}</b>
-                        <small>{s.assessments_taken} evaluaci{s.assessments_taken === 1 ? 'ón rendida' : 'ones rendidas'}</small>
+                        <small>
+                          {s.assessments_taken} evaluaci{s.assessments_taken === 1 ? 'ón rendida' : 'ones rendidas'}
+                          {s.provisional_grades > 0 && ` · ${s.provisional_grades} nota${s.provisional_grades === 1 ? '' : 's'} provisional${s.provisional_grades === 1 ? '' : 'es'}: puede cambiar al revisar`}
+                        </small>
                       </div>
                       <b className={styles.danger}>{formatNota(s.average)}</b>
                       <PortalLink className={gestion.rowLink} to="doc-estudiante" param={paramEstudiante(courseId, s.student_id)}>Ver notas</PortalLink>

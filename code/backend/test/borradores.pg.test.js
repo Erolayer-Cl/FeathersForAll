@@ -106,7 +106,8 @@ describe('borradores de evaluación (PostgreSQL)', { skip: SKIP }, () => {
       assert.equal((await patch({ status: 'published', closes_at: en(60 * 24 * 400) })).status, 400);
       assert.equal((await patch({ status: 'closed', closes_at: en(60) })).status, 400);
       assert.equal((await patch({})).status, 400);
-      assert.equal((await patch({ closes_at: en(60) }, CAMILA)).status, 403);
+      // Un borrador no existe para el estudiante (14: el RLS ya no se lo muestra): 404, no 403.
+      assert.equal((await patch({ closes_at: en(60) }, CAMILA)).status, 404);
       await ok(await patch({ status: 'published' }), 200);
       await ok(await patch({ status: 'closed' }), 200);
       assert.equal((await patch({ closes_at: en(60) })).status, 409);
@@ -263,7 +264,7 @@ describe('borradores de evaluación (PostgreSQL)', { skip: SKIP }, () => {
       assert.equal(intacta.questions.length, 2, 'un PUT inválido no toca las preguntas');
 
       assert.equal((await call('PUT', `/v1/assessments/${ev.id}`, { user: LUIS, body: { title: 'Pirata', questions: preguntas } })).status, 403);
-      assert.equal((await call('PUT', `/v1/assessments/${ev.id}`, { user: CAMILA, body: { title: 'Pirata', questions: preguntas } })).status, 403);
+      assert.equal((await call('PUT', `/v1/assessments/${ev.id}`, { user: CAMILA, body: { title: 'Pirata', questions: preguntas } })).status, 404);
       assert.equal((await call('PUT', `/v1/assessments/${ev.id}`, { body: { title: 'Pirata', questions: preguntas } })).status, 401);
     });
 
@@ -290,7 +291,7 @@ describe('borradores de evaluación (PostgreSQL)', { skip: SKIP }, () => {
       assert.equal((await call('DELETE', `/v1/assessments/${pub.id}`, { user: ANA })).status, 409);
       const ev = await crear();
       assert.equal((await call('DELETE', `/v1/assessments/${ev.id}`, { user: LUIS })).status, 403);
-      assert.equal((await call('DELETE', `/v1/assessments/${ev.id}`, { user: CAMILA })).status, 403);
+      assert.equal((await call('DELETE', `/v1/assessments/${ev.id}`, { user: CAMILA })).status, 404);
     });
   });
 

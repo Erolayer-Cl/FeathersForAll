@@ -22,7 +22,7 @@ const pregunta = { statement: '¿Cuánto es 3/4 + 1/4?', options: ['1/2', '1'], 
 describe('leerEvaluacion (validación del cuerpo)', () => {
   test('normaliza espacios y devuelve la forma interna', () => {
     const r = leerEvaluacion({ title: '  Prueba de fracciones ', questions: [{ ...pregunta, statement: ' ¿Cuánto es? ', options: [' a ', 'b'] }] });
-    assert.deepEqual(r, { title: 'Prueba de fracciones', closesAt: null, questions: [{ type: 'multiple_choice', statement: '¿Cuánto es?', options: ['a', 'b'], correct: 1, accepted: null, feedback: 'Es 1.' }] });
+    assert.deepEqual(r, { title: 'Prueba de fracciones', closesAt: null, durationMin: null, questions: [{ type: 'multiple_choice', statement: '¿Cuánto es?', options: ['a', 'b'], correct: 1, accepted: null, feedback: 'Es 1.' }] });
   });
   test('correct_option y feedback son opcionales (se exigen al publicar, no al crear)', () => {
     const [q] = leerEvaluacion({ title: 'Borrador', questions: [{ statement: 'Enunciado', options: ['a', 'b'] }] }).questions;
@@ -44,7 +44,7 @@ describe('rutas del ciclo mínimo (unitarias, sin base)', () => {
   let api;
   before(async () => { db = fakeDb(); api = await startApi(db); });
   after(() => api.close());
-  beforeEach(() => { db.handlers.clear(); db.calls.length = 0; });
+  beforeEach(() => { db.handlers.clear(); db.calls.length = 0; db.handlers.set(Q.CERRAR_INTENTOS_VENCIDOS, () => []); });
 
   const post = (path, user, body, key = randomUUID()) => fetch(api.url + path, {
     method: 'POST',
@@ -138,7 +138,7 @@ describe('rutas del ciclo mínimo (unitarias, sin base)', () => {
       const ruta = `/v1/assessments/${EV}/submissions`;
       assert.equal((await post(ruta, 'ANA', { answers: [{ question_id: Q1, selected_option: 0 }] })).status, 403);
       assert.equal((await post(ruta, 'MARTA', { answers: [{ question_id: Q1, selected_option: 0 }] })).status, 403);
-      for (const answers of [undefined, [], [{ question_id: 'x', selected_option: 0 }], [{ question_id: Q1, selected_option: -1 }], [{ question_id: Q1, selected_option: 0 }, { question_id: Q1, selected_option: 1 }]]) {
+      for (const answers of [undefined, 'no-es-lista', [{ question_id: 'x', selected_option: 0 }], [{ question_id: Q1, selected_option: -1 }], [{ question_id: Q1, selected_option: 0 }, { question_id: Q1, selected_option: 1 }]]) {
         assert.equal((await post(ruta, 'CAMILA', { answers })).status, 400, JSON.stringify(answers));
       }
       assert.equal(db.callsOf(Q.CREAR_INTENTO).length, 0);

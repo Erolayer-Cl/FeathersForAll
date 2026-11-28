@@ -32,6 +32,11 @@
 \ir 10_material_y_tareas.sql
 \ir 11_preguntas_texto.sql
 \ir 12_revision_docente.sql
+\ir 13_gestion_usuarios.sql
+\ir 14_correcciones_revision.sql
+\ir 15_rol_apoderado.sql
+\ir 16_apoderado.sql
+\ir 17_secreto_respuestas.sql
 
 -- Usuario de la API: sin superusuario ni BYPASSRLS, o el RLS no aplica.
 -- El rol es del servidor (no de la base): puede existir de otra base.

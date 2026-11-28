@@ -1312,15 +1312,19 @@
           }
         },
         {
-          "name": "[Javiera · B] La misma pregunta en su curso B → no-info (no ve apuntes de A)",
+          "name": "[Javiera · B] La misma pregunta en su curso B → nunca usa apuntes de A",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"POST /v1/dev/chat → 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"X-Tutor-Turn: no-info\", () => pm.expect(pm.response.headers.get(\"X-Tutor-Turn\")).to.eql(\"no-info\"));"
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "// Lo que se prueba es el AISLAMIENTO: ninguna fuente puede ser del colegio A (fracciones.md, operaciones-basicas.md).",
+                  "// El turno puede ser no-info o grounded en SUS apuntes: geometria.md menciona fracciones en su introducción.",
+                  "const fuentes = JSON.parse(decodeURIComponent(pm.response.headers.get(\"X-Rag-Sources\") || \"[]\")).map((s) => s.doc_id);",
+                  "pm.test(\"ninguna fuente del colegio A\", () => { pm.expect(fuentes).to.not.include(\"fracciones.md\"); pm.expect(fuentes).to.not.include(\"operaciones-basicas.md\"); });",
+                  "pm.test(\"si hay fuentes, son de B\", () => fuentes.forEach((d) => pm.expect(d).to.eql(\"geometria.md\")));"
                 ]
               }
             }
@@ -2921,14 +2925,14 @@
           }
         },
         {
-          "name": "[Camila] No publica → 403",
+          "name": "[Camila] No publica un borrador → 404 (para ella no existe)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"estudiante → 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"estudiante sobre un borrador → 404 (v1.12: el RLS no se lo muestra)\", () => pm.response.to.have.status(404));",
                   "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
                 ]
               }
@@ -3262,6 +3266,961 @@
           }
         }
       ]
+    },
+    {
+      "name": "11 · Usuarios, pruebas con tiempo y apoderado (v1.12; sin Ollama)",
+      "item": [
+        {
+          "name": "[Marta] Lista los docentes del colegio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"solo docentes, sin contraseña\", () => { pm.expect(b.data.length).to.be.above(0); b.data.forEach((u) => { pm.expect(u.role).to.eql(\"docente\"); pm.expect(u).to.not.have.property(\"password_hash\"); }); });",
+                  "pm.test(\"ninguno del colegio B\", () => pm.expect(b.data.map((u) => u.email).join()).to.not.include(\"demo-b.cl\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users?filter_role=docente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "filter_role",
+                  "value": "docente"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] No lista cuentas → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"estudiante → 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Marta] Crea una cuenta de apoderado",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"v112_email\", `apoderado.postman.${Date.now()}@demo-a.cl`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const u = pm.response.json();",
+                  "pm.collectionVariables.set(\"v112_apo\", u.id);",
+                  "pm.test(\"rol apoderado y sin la clave en la respuesta\", () => { pm.expect(u.role).to.eql(\"apoderado\"); pm.expect(JSON.stringify(u)).to.not.include(\"clave-postman-1\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Apoderado Postman\",\n  \"email\": \"{{v112_email}}\",\n  \"role\": \"apoderado\",\n  \"password\": \"clave-postman-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Marta] Vincula a Camila como pupila",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"es Camila\", () => pm.expect(pm.response.json().name).to.eql(\"Camila Díaz\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{v112_apo}}/wards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "{{v112_apo}}",
+                "wards"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_email\": \"camila@demo-a.cl\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Marta] Vincular otra vez → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{v112_apo}}/wards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "{{v112_apo}}",
+                "wards"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_email\": \"camila@demo-a.cl\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Marta] Vincular a alguien de otro colegio → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{v112_apo}}/wards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "users",
+                "{{v112_apo}}",
+                "wards"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"student_email\": \"javiera@demo-b.cl\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Apoderado] Login con su correo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"rol apoderado\", () => pm.expect(b.user.role).to.eql(\"apoderado\"));",
+                  "pm.collectionVariables.set(\"token_apoderado\", b.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{v112_email}}\",\n  \"password\": \"clave-postman-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Apoderado] Ve el avance de Camila (solo lectura)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"un pupilo: Camila, con ramos y notas\", () => { pm.expect(b.wards).to.have.length(1); pm.expect(b.wards[0].name).to.eql(\"Camila Díaz\"); pm.expect(b.wards[0].courses.length).to.be.above(0); });",
+                  "pm.test(\"sin respuestas ni retroalimentación\", () => pm.expect(JSON.stringify(b)).to.not.match(/feedback|selected_option|es_correcta/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_apoderado}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/wards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "wards"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Apoderado] No ve cursos (RLS) → lista vacía",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"0 cursos\", () => pm.expect(pm.response.json().data).to.have.length(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_apoderado}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Apoderado] No usa «Mis notas» del estudiante → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_apoderado}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/grades",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "grades"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Ana] Crea un control de 30 minutos por estudiante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const e = pm.response.json();",
+                  "pm.collectionVariables.set(\"v112_eval\", e.id);",
+                  "pm.test(\"guarda la duración\", () => pm.expect(e.duration_minutes).to.eql(30));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_ana}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/c0000000-0000-0000-0000-000000000001/assessments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "c0000000-0000-0000-0000-000000000001",
+                "assessments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Control con tiempo (Postman)\",\n  \"duration_minutes\": 30,\n  \"questions\": [\n    { \"statement\": \"¿Cuánto es 2 + 2?\", \"options\": [\"3\", \"4\"], \"correct_option\": 1, \"feedback\": \"Es 4.\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Ana] Publica el control",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_ana}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"published\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Antes de empezar no recibe las preguntas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json();",
+                  "pm.test(\"sin preguntas, pero sabe cuántas son\", () => { pm.expect(e.questions).to.have.length(0); pm.expect(e.questions_count).to.eql(1); pm.expect(e.attempt).to.eql(null); });",
+                  "pm.test(\"trae la hora del servidor\", () => pm.expect(Date.parse(e.server_time)).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Entregar sin empezar → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));",
+                  "pm.test(\"attempt-not-started\", () => pm.expect(pm.response.json().type).to.include(\"attempt-not-started\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Camila] Empieza: el plazo lo calcula el servidor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const a = pm.response.json();",
+                  "pm.collectionVariables.set(\"v112_intento\", a.id);",
+                  "pm.test(\"30 minutos desde que empezó\", () => pm.expect((Date.parse(a.deadline) - Date.parse(a.started_at)) / 60000).to.eql(30));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}/attempts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}",
+                "attempts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Repetir no reinicia el reloj → 200, mismo intento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"mismo intento\", () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"v112_intento\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}/attempts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}",
+                "attempts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Ahora sí ve la pregunta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const e = pm.response.json();",
+                  "pm.collectionVariables.set(\"v112_pregunta\", e.questions[0].id);",
+                  "pm.test(\"1 pregunta, sin la correcta\", () => { pm.expect(e.questions).to.have.length(1); pm.expect(e.questions[0]).to.not.have.property(\"correct_option\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Entrega dentro del plazo: nota 7,0",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\", () => pm.response.to.have.status(201));",
+                  "const r = pm.response.json();",
+                  "pm.test(\"100 % y nota 7\", () => { pm.expect(r.percentage).to.eql(100); pm.expect(r.grade).to.eql(7); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/assessments/{{v112_eval}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "assessments",
+                "{{v112_eval}}",
+                "submissions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [ { \"question_id\": \"{{v112_pregunta}}\", \"selected_option\": 1 } ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "[Marta] La bitácora registra la cuenta y el vínculo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "const acciones = pm.response.json().data.filter((e) => e.resource_id === pm.collectionVariables.get(\"v112_apo\")).map((e) => e.action);",
+                  "pm.test(\"crear y vincular\", () => { pm.expect(acciones).to.include(\"usuario.crear\"); pm.expect(acciones).to.include(\"apoderado.vincular\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_marta}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/audit-log",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "audit-log"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Ana] No lee la bitácora → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_ana}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/audit-log",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "audit-log"
+              ]
+            }
+          }
+        },
+        {
+          "name": "[Camila] Cambiar la clave con la actual equivocada → 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"error RFC 7807\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/problem+json\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_camila}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"no-es-mi-clave\",\n  \"new_password\": \"otra-clave-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "v112_email",
+      "value": ""
+    },
+    {
+      "key": "v112_apo",
+      "value": ""
+    },
+    {
+      "key": "v112_eval",
+      "value": ""
+    },
+    {
+      "key": "v112_intento",
+      "value": ""
+    },
+    {
+      "key": "v112_pregunta",
+      "value": ""
+    },
+    {
+      "key": "token_apoderado",
+      "value": ""
     }
   ]
 }

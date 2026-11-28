@@ -4,6 +4,7 @@ import { ROLES } from '../../config/roles.js';
 import { PREFERENCE_OPTIONS } from '../../preferences/preferences.js';
 import { usePreferences } from '../../preferences/usePreferences.js';
 import { useSession } from '../../session/useSession.js';
+import { CambiarClave } from './CambiarClave.jsx';
 import styles from './SettingsPage.module.css';
 
 /** Configuración (igual para los tres roles): perfil, notificaciones, apariencia y cuenta. */
@@ -27,7 +28,7 @@ export function SettingsPage({ role }) {
                   {ROLES[role].label} · {user?.school.name} (RBD {user?.school.rbd})
                 </span>
               </div>
-              {/* Aún no hay endpoints para editar el perfil ni cambiar la contraseña: se explica en vez de un botón muerto. */}
+              {/* El nombre y el correo los edita el administrador del colegio (v1.12); la contraseña, cada uno abajo. */}
               <span className={styles.line}>Para corregir tus datos, pídeselo a tu colegio.</span>
             </div>
           </Card>
@@ -78,10 +79,7 @@ export function SettingsPage({ role }) {
 
         <Card as="section">
           <h2>Cuenta</h2>
-          <div className={styles.account}>
-            <b>Cambiar contraseña</b>
-            <span>Por ahora la restablece tu colegio. Pronto podrás cambiarla desde aquí.</span>
-          </div>
+          <CambiarClave />
           <div className={styles.logout}>
             {/* Borra la sesión guardada; la guardia de rutas lleva al login. */}
             <Button variant="warn" block onClick={() => signOut()}>

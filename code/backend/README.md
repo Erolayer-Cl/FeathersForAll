@@ -61,6 +61,7 @@ Contraseña de todos: **`demo1234`**. Login: `POST /v1/auth/login` con `{ "rbd",
 | Colegio Demo A | `99901` | camila@demo-a.cl · benjamin@demo-a.cl · sofia@demo-a.cl · tomas@demo-a.cl | estudiante |
 | Colegio Demo A | `99901` | ana.rojas@demo-a.cl (Matemáticas) · luis.perez@demo-a.cl (Historia) | docente |
 | Colegio Demo A | `99901` | marta.soto@demo-a.cl | admin_colegio |
+| Colegio Demo A | `99901` | carolina.diaz@demo-a.cl (apoderada de Camila; entra sin RBD) | apoderado |
 | Colegio Demo B | `99902` | javiera@demo-b.cl | estudiante |
 | Colegio Demo B | `99902` | pedro.lagos@demo-b.cl | docente |
 

@@ -41,7 +41,7 @@ Leyenda de la columna **SQS (MVP)**: **Sí** = se publica en la cola en el pilot
 | 6 | `evaluacion.publicada` | 1.0 | Evaluaciones | `PATCH /assessments/{id}` → published (H2) | `evaluacion_id`, `curso_id`, `fecha_publicacion` | Notificaciones (avisa a estudiantes matriculados) | Sí |
 | 7 | `evaluacion.cerrada` | 1.0 | Evaluaciones | `PATCH /assessments/{id}` → closed | `evaluacion_id`, `curso_id` | Resultados (cierre del dashboard), Notificaciones | Outbox |
 | 8 | `intento.enviado` | 1.0 | Evaluaciones | `POST /assessments/{id}/submissions` (H4) | `intento_id`, `evaluacion_id`, `estudiante_id` | Corrección automática | Outbox (en el MVP se corrige en la misma transacción) |
-| 9 | `intento.corregido` | 1.0 | Evaluaciones | corrección automática terminada (H4) | `intento_id`, `evaluacion_id`, `correctas`, `total_preguntas` | Resultados (dashboard H3), (futuro) panel del apoderado | Outbox |
+| 9 | `intento.corregido` | 1.0 | Evaluaciones | corrección automática terminada (H4) | `intento_id`, `evaluacion_id`, `correctas`, `total_preguntas` | Resultados (dashboard H3), (futuro) avisos al apoderado; el panel del apoderado lee la base directo (ADR 0018) | Outbox |
 | 10 | `apunte.cargado` | 1.0 | Tutor IA | docente sube un apunte al curso | `apunte_id`, `curso_id` | Worker de indexación (chunks + embeddings) | Sí |
 | 11 | `apunte.indexado` | 1.0 | Tutor IA | worker terminó los embeddings | `apunte_id`, `curso_id`, `chunks` | (futuro) aviso al docente | Outbox |
 | 12 | `consulta_tutor.encolada` | 1.0 | Tutor IA | `POST /courses/{id}/tutor-questions` (H5) | `consulta_id`, `curso_id`, `estudiante_id` | Worker del tutor (RAG + LLM) | Sí |

@@ -11,6 +11,8 @@ import { createIdentidadRouter } from './modules/identidad/identidad.routes.js';
 import { createCursosRouter } from './modules/cursos/cursos.routes.js';
 import { createEvaluacionesRouter } from './modules/evaluaciones/evaluaciones.routes.js';
 import { createContenidoRouter } from './modules/contenido/contenido.routes.js';
+import { createUsuariosRouter } from './modules/usuarios/usuarios.routes.js';
+import { createApoderadoRouter } from './modules/apoderado/apoderado.routes.js';
 import { createLoginLimiter } from './platform/login-limiter.js';
 import { createRateLimiter } from './platform/rate-limiter.js';
 
@@ -77,8 +79,12 @@ export function createApp({
   if (db) {
     // Las rutas con datos de colegio exigen JWT. La única excepción es POST /v1/auth/login,
     // donde el colegio sale de la cuenta encontrada (nunca de un header ni del token).
-    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tasks', '/v1/tutor-conversations'], requireAuth(jwtSecret));
+    app.use(['/v1/me', '/v1/courses', '/v1/assessments', '/v1/tasks', '/v1/tutor-conversations', '/v1/users', '/v1/audit-log'], requireAuth(jwtSecret));
     app.use(createIdentidadRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
+    // Gestión de usuarios del admin y cambio de la propia contraseña (v1.12, ADR 0017).
+    app.use(createUsuariosRouter({ db, jwtSecret, tokenTtlSeconds: jwtTtlSeconds, limiter: loginLimiter }));
+    // Panel del apoderado (MVP 5): solo lectura de sus pupilos vinculados.
+    app.use(createApoderadoRouter({ db }));
     app.use(createCursosRouter({ db }));
     app.use(createEvaluacionesRouter({ db, llm, rag, tenantId, aiLimiter }));
     app.use(createNotasRouter({ db }));

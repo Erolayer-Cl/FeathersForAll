@@ -93,9 +93,14 @@ describe('PDF real por el worker', () => {
     let peor = 0;
     const t = setInterval(() => { const now = performance.now(); peor = Math.max(peor, now - last - 10); last = now; }, 10);
     const t0 = performance.now();
-    const pages = await extractPdfPages(pdf, { offloader: o });
+    let pages;
+    try {
+      pages = await extractPdfPages(pdf, { offloader: o });
+    } finally {
+      // Si la lectura falla, el intervalo no debe quedar vivo: colgaría todo `npm test`.
+      clearInterval(t);
+    }
     const total = performance.now() - t0;
-    clearInterval(t);
     assert.equal(pages.length, 250);
     assert.ok(total > 300, `el PDF debía tardar (tardó ${total.toFixed(0)} ms): si no, la prueba no demuestra nada`);
     assert.ok(peor < 100, `el hilo principal se atrasó ${peor.toFixed(0)} ms mientras se leía el PDF`);

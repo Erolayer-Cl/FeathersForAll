@@ -1,4 +1,4 @@
-// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.11.0).
+// Cliente de la API para el portal (contrato: FeathersForAll/api/openapi.yaml v1.12.0).
 // Cada función recibe el token de la sesión; `opts` acepta { signal, fetchImpl }.
 import { API_URL, ApiError, requestJson, toApiError } from './http.js';
 
@@ -81,11 +81,13 @@ export function getCourseDocuments(token, courseId, opts) {
  * Sube un PDF, .txt o .md como cuerpo binario; el formato lo dice la extensión del nombre.
  * Un PDF grande tarda: el servidor lo lee y calcula los embeddings antes de responder.
  */
-export async function uploadCourseFile(token, courseId, file, { signal, fetchImpl = fetch } = {}) {
+export async function uploadCourseFile(token, courseId, file, { signal, fetchImpl = fetch, visible } = {}) {
   const ext = (file.name.split('.').pop() ?? '').toLowerCase();
+  // v1.12: visible = false -> solo lo usa el tutor (p. ej. una pauta con respuestas); sin valor, lo decide el servidor.
+  const query = visible === undefined ? '' : `?visible_to_students=${visible ? 'true' : 'false'}`;
   let res;
   try {
-    res = await fetchImpl(`${API_URL}${documentoPath(courseId, file.name)}`, {
+    res = await fetchImpl(`${API_URL}${documentoPath(courseId, file.name)}${query}`, {
       method: 'PUT',
       headers: {
         authorization: `Bearer ${token}`,
@@ -101,6 +103,11 @@ export async function uploadCourseFile(token, courseId, file, { signal, fetchImp
   }
   if (!res.ok) throw await toApiError(res);
   return res.json();
+}
+
+/** PATCH /v1/courses/{id}/documents/{nombre} (v1.12) → { name, visible_to_students }. Muestra u oculta el apunte como material. */
+export function setCourseDocumentVisibility(token, courseId, name, visible, opts) {
+  return requestJson(documentoPath(courseId, name), { method: 'PATCH', token, body: { visible_to_students: visible }, ...opts });
 }
 
 /** DELETE /v1/courses/{id}/documents/{nombre} → null (204). El tutor deja de usar ese apunte. */
@@ -177,6 +184,14 @@ export function updateAssessment(token, assessmentId, input, opts) {
 /** DELETE /v1/assessments/{id} → null (204). Solo borradores. */
 export function deleteAssessment(token, assessmentId, opts) {
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}`, { method: 'DELETE', token, ...opts });
+}
+
+/**
+ * POST /v1/assessments/{id}/attempts (v1.12) → { id, started_at, deadline, submitted, server_time }. Empieza (201) o
+ * retoma (200) la evaluación con tiempo: el plazo lo calcula el servidor y repetirlo no reinicia el reloj.
+ */
+export function startAttempt(token, assessmentId, opts) {
+  return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/attempts`, { method: 'POST', token, ...opts });
 }
 
 /** POST /v1/assessments/{id}/submissions → { score, max_score, percentage, grade, answers: [{ question_id, correct, feedback }] }. 409 si ya la rindió. */
@@ -338,4 +353,73 @@ export function getTextAnswers(token, assessmentId, opts) {
 /** PATCH /v1/assessments/{id}/text-answers/{answerId} → { id, correct, reviewed_at, student_percentage, student_grade } */
 export function reviewTextAnswer(token, assessmentId, answerId, correct, opts) {
   return requestJson(`/v1/assessments/${encodeURIComponent(assessmentId)}/text-answers/${encodeURIComponent(answerId)}`, { method: 'PATCH', token, body: { correct }, ...opts });
+}
+
+// --- Gestión de usuarios del administrador y cambio de la propia clave (contrato v1.12, ADR 0017).
+
+/** POST /v1/me/password → { access_token, token_type, expires_in }: los tokens anteriores dejan de valer. 422 si la actual no calza. */
+export function changeMyPassword(token, currentPassword, newPassword, opts) {
+  return requestJson('/v1/me/password', { method: 'POST', token, body: { current_password: currentPassword, new_password: newPassword }, ...opts });
+}
+
+/** GET /v1/users → todas las cuentas del colegio que calzan con el filtro (recorre las páginas). Solo admin. */
+export async function getUsers(token, { role, active, q } = {}, opts) {
+  const users = [];
+  let cursor = null;
+  for (let page = 0; page < 50; page++) {
+    const params = new URLSearchParams({ limit: '100' });
+    if (role) params.set('filter_role', role);
+    if (active !== undefined) params.set('active', String(active));
+    if (q) params.set('q', q);
+    if (cursor) params.set('cursor', cursor);
+    const body = await requestJson(`/v1/users?${params}`, { token, ...opts });
+    users.push(...body.data);
+    cursor = body.next_cursor;
+    if (!cursor) break;
+  }
+  return users;
+}
+
+/** GET /v1/users/{id} → la cuenta con sus cursos ({ ..., courses: [{ id, name, period, subject, relation }] }). */
+export function getUser(token, userId, opts) {
+  return requestJson(`/v1/users/${encodeURIComponent(userId)}`, { token, ...opts });
+}
+
+/** POST /v1/users → la cuenta creada. `input`: { name, email, role, password }. 409 si el correo ya existe. */
+export function createUser(token, input, idempotencyKey, opts) {
+  return requestJson('/v1/users', { method: 'POST', token, body: input, idempotencyKey, ...opts });
+}
+
+/** PATCH /v1/users/{id} → la cuenta. `cambios`: { name?, email?, active? }. */
+export function updateUser(token, userId, cambios, opts) {
+  return requestJson(`/v1/users/${encodeURIComponent(userId)}`, { method: 'PATCH', token, body: cambios, ...opts });
+}
+
+/** PUT /v1/users/{id}/password → null (204). Corta las sesiones abiertas de esa cuenta. */
+export function resetUserPassword(token, userId, password, opts) {
+  return requestJson(`/v1/users/${encodeURIComponent(userId)}/password`, { method: 'PUT', token, body: { password }, ...opts });
+}
+
+/** GET /v1/audit-log → { data: [{ id, action, resource, resource_id, details, actor, created_at }], next_cursor }. */
+export function getAuditLog(token, { cursor, limit = 50 } = {}, opts) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set('cursor', cursor);
+  return requestJson(`/v1/audit-log?${params}`, { token, ...opts });
+}
+
+// --- Panel del apoderado (MVP 5, contrato v1.12, ADR 0018).
+
+/** GET /v1/me/wards → { wards: [{ student_id, name, courses: [{ course_id, course, subject, teacher_name, average, grades, pending }] }] } */
+export function getMyWards(token, opts) {
+  return requestJson('/v1/me/wards', { token, ...opts });
+}
+
+/** POST /v1/users/{id}/wards → { student_id, name, email } (admin). 404 si el correo no es de un estudiante del colegio. */
+export function addUserWard(token, userId, email, idempotencyKey, opts) {
+  return requestJson(`/v1/users/${encodeURIComponent(userId)}/wards`, { method: 'POST', token, body: { student_email: email }, idempotencyKey, ...opts });
+}
+
+/** DELETE /v1/users/{id}/wards/{studentId} → null (204). */
+export function removeUserWard(token, userId, studentId, opts) {
+  return requestJson(`/v1/users/${encodeURIComponent(userId)}/wards/${encodeURIComponent(studentId)}`, { method: 'DELETE', token, ...opts });
 }

@@ -1,7 +1,7 @@
 # AGENTS.md — contexto del proyecto para agentes de IA y personas nuevas
 
 > Léelo antes de tocar el repo. Se actualiza al cerrar cada etapa.
-> El contenido de las clases del taller (PPT S01–S07) y el estado por sesión están en [`models.md`](models.md); la vista general, en [`readme.md`](readme.md).
+> El contenido de las clases del taller (PPT S01–S07) y el estado por sesión están en [`models.md`](models.md); la vista general, en [`readme.md`](readme.md). Cómo funciona el programa (roles, flujos, seguridad y cómo levantarlo): [`COMO-FUNCIONA.md`](COMO-FUNCIONA.md).
 
 ## Qué es
 
@@ -37,8 +37,8 @@
 
 | Pieza | Dónde | Notas |
 |---|---|---|
-| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `cursos`, `evaluaciones`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
-| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `06`, luego `permisos_app.sql` y el seed `90_seed_demo.sql`. Todas las consultas están en `queries.js` |
+| API | `code/backend/` | Node.js 22 + Express 5, monolito modular (ADR 0002). Módulos en `src/modules/`: `tutor` (RAG), `notas`, `identidad`, `usuarios`, `cursos`, `evaluaciones`, `contenido`, `apoderado`. Plataforma en `src/platform/`: db, auth JWT, errores, contraseñas |
+| Base de datos | `code/backend/db/` | PostgreSQL 16 + pgvector + citext. Se aplican en orden `01` a `17`, luego `permisos_app.sql` y el seed `90_seed_demo.sql` (`npm run db:setup` aplica las que falten). Todas las consultas están en `queries.js` |
 | Frontend | `code/frontend/` | React 19 + Vite (ADR 0005). `index.html` = chat del tutor; `portal.html` = portal por rol (`src/portal/`, router por hash `#/portal/<id>`) |
 | Contrato | `FeathersForAll/api/` | OpenAPI 3.1 con ejemplos ejecutables contra Prism |
 | Infra | `k8s/`, `terraform/` | Laboratorio S07: kind + Kustomize + Terraform (ADR 0006) |
@@ -58,6 +58,7 @@
 - `02` §9: quién puede escribir, según el rol.
 - `04`: quién puede leer. El estudiante ve solo lo suyo, el docente solo sus cursos y una sesión sin rol no ve nada.
 - `05`: conversaciones del tutor (ADR 0008). Solo el estudiante dueño las lee, escribe y borra; ni el docente ni el admin. Se purgan al terminar el año escolar (`npm run tutor:purgar`).
+- `14`: el estudiante no ve borradores. `16`: el apoderado no ve ninguna tabla académica (política `sin_apoderado`); lee solo por funciones limitadas a sus pupilos. `17`: nadie lee `alternativas.es_correcta` ni `preguntas.respuestas_aceptadas` con un `SELECT` directo.
 
 **Contraseñas**
 - La API no puede leer `password_hash`: tiene permisos por columna (`permisos_app.sql`).
@@ -69,7 +70,7 @@
 
 **JWT**
 - HS256, con solo `sub`, `tenant_id` y `role`.
-- Se emite en `POST /v1/auth/login` (RBD + correo + contraseña). Para pruebas también existe `npm run dev:token`.
+- Se emite en `POST /v1/auth/login` (correo + contraseña; el admin agrega el RBD). Roles: `estudiante`, `docente`, `admin_colegio` y `apoderado`. Para pruebas también existe `npm run dev:token`.
 
 ## Cómo correrlo en local
 
@@ -97,6 +98,7 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 - **RAG v1.0 (PR #16, rama `rag-V1.0`):** revisado y corregido el 14-11-2026 (detalle abajo). Falta la decisión del equipo sobre el Mineduc antes de mergear.
 - **Nociones básicas del tutor (contrato v1.6):** el tutor responde sin apuntes los cálculos (`1+1`, `3/4 + 1/2`, con calculadora exacta) y los conceptos elementales del glosario (`rag/basics-glossary.json`), con el nuevo turno `X-Tutor-Turn: basic`. Los apuntes del docente siguen mandando y lo que no es básico sigue sin inventarse (detalle en `code/backend/README.md`). Falta probarlo con el LLM real (`qwen2.5:3b`) y que el equipo revise el glosario.
 - **Ciclo mínimo H1, H2, H4:** hecho el 14-11-2026 sobre la misma rama (detalle abajo): el docente crea curso, matricula y crea y publica evaluaciones; el estudiante las rinde y ve su nota.
+- **Revisión con dos agentes + v1.12 (27-11-2026, sin commit sobre `main`):** gestión de usuarios del admin, cambio de clave con revocación de sesiones, bitácora, pruebas con tiempo por intento y las correcciones de la revisión. Detalle en «Cambios v1.12» abajo y ADR 0017.
 
 ### Etapa 1 — rol estudiante (cerrada el 16-10-2026; commit `29cccce`, llevado a la rama `Ignacio`, donde sigue el trabajo)
 
@@ -210,9 +212,10 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 
 | Rol | Ya puede | Le falta |
 |---|---|---|
-| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar), editar y borrar borradores, publicar y cerrar; ver resultados; subir apuntes al tutor (que sus estudiantes ven y descargan); crear tareas con hora límite y descargar las entregas (v1.8); libro de notas con estudiantes en riesgo, notas de cada estudiante, exigencia y ponderación, «Mis estudiantes» y «Reportes» | Exportar el libro (CSV/PDF), umbral de riesgo configurable en pantalla |
-| **Estudiante** | Ver cursos y notas, rendir evaluaciones con nota y retroalimentación al instante, usar el tutor IA con historial; ver y descargar el material del curso y entregar tareas antes de su hora límite (v1.8) | «Progreso», contenido del curso (`est-contenido`), columnas Examen/Final de «Mis notas» (no existen en la base) |
-| **Administrador** | Entrar y leer cursos y notas de su colegio por la API | Todo en el portal: gestión de usuarios (crear, desactivar, restablecer clave), vista de cursos, evaluaciones y reportes del colegio |
+| **Docente** | Crear cursos, matricular por correo, ver estudiantes; crear evaluaciones (a mano, con IA o con IA y editar) **con tiempo por estudiante (v1.12)**, editar y borrar borradores, publicar y cerrar; ver resultados; revisar respuestas escritas; subir apuntes al tutor y elegir cuáles ven sus estudiantes (v1.12); crear tareas con hora límite y descargar las entregas (v1.8); libro de notas con notas provisionales marcadas, **exportar a CSV** y **umbral de riesgo en pantalla** (v1.12), notas de cada estudiante, exigencia y ponderación, «Mis estudiantes» y «Reportes»; cambiar su clave | Exportar el libro a PDF; nota a mano o anular una pregunta ya publicada |
+| **Estudiante** | Ver cursos y notas (las provisionales marcadas), rendir evaluaciones con nota y retroalimentación al instante, **pruebas con reloj del servidor, borrador local y entrega automática (v1.12)**, usar el tutor IA con historial; ver y descargar el material del curso, entregar tareas, «Progreso» y cambiar su clave | Columnas Examen/Final de «Mis notas» (no existen en la base) |
+| **Apoderado** (MVP 5) | Entrar con su correo y ver, solo lectura, las notas (provisionales marcadas), promedios y evaluaciones por rendir de sus pupilos vinculados; cambiar su clave | Avisos por correo cuando hay una nota nueva |
+| **Administrador** | **Gestión de usuarios (v1.12):** listar y filtrar, crear, editar, desactivar y reactivar cuentas, restablecer claves y ver la bitácora; crear cursos eligiendo al docente; ver cursos, evaluaciones y reportes del colegio; cambiar su clave | Métricas del tutor por colegio (no hay endpoint agregado) |
 
 ### Fases
 
@@ -224,8 +227,8 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
    - `gradebook` y `grades/summary` entregan el estado en español (`publicada`, así dice su contrato) y `/assessments` en inglés: el portal los normaliza en `utils/evaluaciones.js` (`normalizarEstado`). Unificarlo es un cambio de contrato para v2.
    - Observación: un docente del mismo colegio que no dicta el curso recibe 403 (no 404) en estas rutas; el backend no cambió.
    - **Verificado en local:** frontend 148 pruebas, lint y build; recorrido en Brave headless con la API real y una base desechable (docente, escritorio, 360 px y tema oscuro, sin errores de consola): cambiar la exigencia de 60 a 50 % sube la nota de Sofía de 2,3 a 2,5; permisos 403 (otro docente, estudiante) y 404 (otro colegio). No verificado: la CSP (el recorrido fue con Vite, sin NGINX).
-4. ⬜ **Administrador.** Gestión de usuarios (crear, desactivar, restablecer clave: hoy no hay cambio ni restablecimiento de contraseña), vista de cursos y evaluaciones del colegio. Pide contrato nuevo (`/users`) y probablemente un ADR (ciclo de vida de la cuenta).
-5. ⬜ **Estudiante: Progreso** (evolución de notas por ramo) y contenido del curso.
+4. ✅ **Administrador** (27-11-2026, contrato v1.12, ADR 0017): gestión de usuarios, bitácora y selector de docente al crear cursos.
+5. ✅ **Estudiante: Progreso y contenido del curso** (pantallas `est-progreso` y material/tareas en `est-curso`, del PR #25 y v1.8), y pruebas con tiempo (v1.12).
 6. ⬜ **Transversal.** Ver «Arquitectura: lo que falta» abajo.
 
 ### Arquitectura: lo que falta
@@ -234,10 +237,10 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 |---|---|---|
 | Límite de solicitudes | Solo login e IA (en memoria, por pod) | Límite por usuario en el tutor y en los POST (el contrato declara 429); en producción, Redis o el Ingress |
 | Outbox y cola SQS | Decididos en ADR 0002 y 0004; existe la tabla `outbox_eventos`, no hay worker | Definir si se implementa o se corrige el ADR: hoy ningún flujo lo necesita |
-| Ciclo de vida de la cuenta | Sin cambio ni restablecimiento de clave ni cierre de sesión en el servidor (el JWT dura 8 h) | ADR + rutas; revocación de tokens |
-| Auditoría | Sin registro de quién subió apuntes, publicó o cambió una exigencia (R-1 del threat model) | Tabla de auditoría escrita por la API |
+| Ciclo de vida de la cuenta | ✅ v1.12: crear, desactivar, restablecer y cambiar clave; el cambio de clave invalida los tokens anteriores (`sesiones_desde`) | Flujo de «primera entrada» que obligue a cambiar la clave inicial; cerrar sesión en el servidor sin cambiar la clave |
+| Auditoría | Tabla `auditoria` (v1.12), solo agregar; registra las acciones sobre cuentas | Registrar también apuntes, publicaciones y cambios de exigencia (R-1) |
 | Métricas | El NFR promete 99,5 % y p95 < 500 ms, pero no se mide | Endpoint de métricas y paneles |
-| Migraciones | El esquema son archivos SQL aplicados en orden (`01`–`06`) | Herramienta de migraciones antes de tener datos reales |
+| Migraciones | El esquema son archivos SQL aplicados en orden (`01`–`17`) | Herramienta de migraciones antes de tener datos reales |
 | Tope del tutor por pod | El límite de preguntas vive en memoria de cada pod: con N réplicas el tope real es N veces mayor | Contador compartido (Redis o la base) si se escala |
 | Revisión de apuntes | El escáner de órdenes a la IA es heurístico y solo mira apuntes nuevos; los ya subidos no se revisan | Revisar los existentes; sumar un clasificador si hace falta |
 | Documentos | `atributos-calidad.md` aún dice «HTML/JS» como frontend | Actualizar |
@@ -245,9 +248,84 @@ npm install && npm run dev           # portal en http://localhost:5173/portal.ht
 ### Decisiones que son del equipo (no se pueden cerrar desde código)
 
 - **Mineduc en el RAG:** ADR con el diseño (corpus compartido de solo lectura, sin `colegio_id`, o copia por curso como hoy) y que Ignacio valide la fuente antes de cargar ningún PDF.
-- **Repo gitops:** replicar en `base/` el ConfigMap sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`, el Ingress `feathersforall-cursos` y `networkpolicy.yaml`; aplicar la migración `06` en bases existentes.
+- **Repo gitops:** el ConfigMap (con `TRUST_PROXY`, sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH`), el Ingress `feathersforall-cursos` y `networkpolicy.yaml` ya están en `base/` de `../feathersforall-gitops` (27-11-2026, sin commit): falta revisarlos, commit y push. Aplicar las migraciones hasta la `17` en bases existentes (`npm run db:setup`).
 - **Calidad de las preguntas con IA:** que un docente revise las generadas con el modelo real (`qwen2.5:3b`).
 - **Propuestas de la auditoría de rendimiento (P1–P8)** de la sección siguiente.
+
+## Cambios v1.12 (27-11-2026): revisión con dos agentes, gestión de usuarios y pruebas con tiempo
+
+Hecho sobre `main` (sin commit). Dos agentes revisaron solo leyendo: uno el código de los PR #25–#32 y otro las interacciones entre roles. Sus hallazgos se verificaron y se corrigieron, salvo los anotados como pendientes.
+
+- **Base:**
+  - `13_gestion_usuarios.sql`: `sesiones_desde` con su trigger, rol y colegio inmutables desde la API, `cambiar_mi_clave()` y la tabla `auditoria`.
+  - `14_correcciones_revision.sql`:
+    - el estudiante no ve borradores (RLS);
+    - `apuntes_curso.visible_estudiante` (los anteriores a v1.8 quedan ocultos);
+    - números a la chilena en las respuestas escritas, con tildes en mayúscula;
+    - `cuentas_por_correo` con orden estable;
+    - `evaluaciones.duracion_min`, `plazo_intento()`, las horas del intento puestas por la base y la respuesta fuera de plazo rechazada (`55000` → 409).
+  - Hay que aplicarlas con `npm run db:setup`. La base del compose de desarrollo ya las tiene: se aplicaron 06–14 el 27-11-2026.
+- **API (contrato v1.12.0, módulo `src/modules/usuarios/`):**
+  - `/v1/users`, `/v1/users/{id}`, `/v1/users/{id}/password`, `/v1/me/password`, `/v1/audit-log`, `POST /v1/assessments/{id}/attempts` y `PATCH /v1/courses/{id}/documents/{nombre}`.
+  - `duration_minutes` en las evaluaciones y `answers` vacío permitido.
+  - `pending_review`, `provisional` y `provisional_grades` en las notas.
+  - Las lecturas de notas y de evaluaciones cierran los intentos vencidos (`CERRAR_INTENTOS_VENCIDOS`).
+- **Correcciones de la revisión:**
+  - El freno del login reserva el intento antes de verificar la clave (antes, pedidos en paralelo se lo saltaban).
+  - Bloqueo del intento en la revisión docente (antes, dos revisiones simultáneas perdían puntaje).
+  - El conteo de entregas de tareas solo cuenta matrículas activas.
+  - El original viejo de un apunte se quita si falla guardar el nuevo.
+  - `closes_at` exige zona horaria también al crear.
+  - `offload.test.js` ya no cuelga `npm test`.
+- **Portal:**
+  - Administrador: «Usuarios», «Agregar usuario», «Gestionar usuario» y «Bitácora» (`pages/administrador/UsuariosPages.jsx`), y el selector de docente en «Agregar curso».
+  - Todos los roles: «Cambiar contraseña» en Configuración (`renewSession`).
+  - Estudiante: «Empezar ahora», reloj con la hora del servidor, borrador en `sessionStorage` y entrega automática 5 s antes del plazo (`utils/intento.js`).
+  - Docente: minutos por estudiante en el editor, visibilidad de los apuntes, notas provisionales marcadas, CSV del libro (con protección contra fórmulas) y umbral de riesgo.
+  - Estudiante: «Por rendir» ya no muestra evaluaciones vencidas.
+- **Verificado en local:**
+  - Backend: 771 pruebas con PostgreSQL (`test/usuarios.pg.test.js`, `test/revision-v112.pg.test.js`) y lint.
+  - Frontend: 186 pruebas vitest, lint y build.
+  - Newman con las carpetas del CI contra una base limpia creada con `crear_bdd.sql`: 66 requests y 120 aserciones, sin fallas. En la carpeta 10, «Camila no publica» ahora espera 404.
+  - Contrato: Spectral sin errores ni advertencias y cliente TS regenerado con typecheck.
+  - Recorrido de punta a punta en Brave headless con la API y la base reales, 26/26 comprobaciones: el admin crea un docente, lo desactiva y lo reactiva, y crea su curso; el docente cambia su clave, matricula y publica una prueba de 1 minuto; el estudiante empieza, recarga sin perder la respuesta y recibe la entrega automática con nota 7,0; el docente la ve en resultados y en el libro. También a 360 px, sin errores de consola.
+  - Colección Postman: carpeta **11** para v1.12 (usuarios, apoderado, prueba con tiempo, bitácora y cambio de clave), agregada al job de Newman del CI. Con las carpetas del CI sobre una base limpia: 87 requests y 165 aserciones, sin fallas. La CSP con NGINX se verificó después (ver el apoderado, abajo).
+- **Pendiente (equipo):**
+  - Revisar y aprobar el ADR 0017.
+  - ~~Replicar `TRUST_PROXY: "1"` en `base/` del repo gitops~~: hecho en local en `../feathersforall-gitops` junto con el Ingress `feathersforall-cursos`, la NetworkPolicy y sin `ENABLE_DEV_ROUTES`/`CHAT_REQUIRE_AUTH` (kustomize valida base, dev y prod). Falta commit y push en ese repo.
+  - Nota de quien **nunca abrió** una prueba ya cerrada: queda «sin rendir» y decide el docente según el reglamento del colegio (Decreto 67; ADR 0018, punto 6). El equipo debe ratificarlo.
+  - ~~Ocultar `alternativas.es_correcta` en la base~~: hecho en `17_secreto_respuestas.sql` (ADR 0018).
+  - 403/404 de «otro docente del mismo colegio»: se deja como está documentado en `permisos.md` (ADR 0018, punto 7). El equipo debe ratificarlo.
+  - ~~Panel del apoderado (MVP 5)~~: hecho, ver abajo (ADR 0018).
+- **Panel del apoderado (MVP 5) y respuesta correcta secreta (ADR 0018):**
+  - Base:
+    - `15_rol_apoderado.sql` agrega el valor del enum (va solo, por cómo funcionan los enums en PostgreSQL);
+    - `16_apoderado.sql` crea el vínculo, la política `sin_apoderado`, las funciones `mis_pupilos`/`ramos_pupilo`/`notas_pupilo`/`pendientes_pupilo` y el login por correo;
+    - `17_secreto_respuestas.sql` agrega el permiso por columna y `alternativas_staff()`/`aceptadas_staff()`.
+  - Seed: la apoderada demo Carolina Díaz (`carolina.diaz@demo-a.cl`, `demo1234`), pupila Camila.
+  - API: `GET /v1/me/wards` (`src/modules/apoderado/`) y `POST`/`DELETE /v1/users/{id}/wards`.
+  - Portal:
+    - rol `apo` con su pestaña en el login y la pantalla «Mis pupilos» (`pages/apoderado/`);
+    - en «Gestionar usuario», el admin vincula y desvincula pupilos.
+  - Verificado:
+    - backend: 778 pruebas con PostgreSQL (`test/apoderado.pg.test.js` y la prueba nueva de `test/privacidad.pg.test.js`);
+    - frontend: 188 pruebas, lint y build;
+    - Spectral sin errores;
+    - Newman como en CI sobre una base limpia de `crear_bdd.sql` (01–17): 66 requests y 120 aserciones, sin fallas;
+    - recorrido de punta a punta en Brave headless contra **NGINX con la CSP real** (`nginx.conf` + `security-headers.conf`; solo se agregó un proxy `/v1` local): 34/34 comprobaciones con admin, docente, estudiante con prueba de 1 minuto y apoderado, a 360 px y sin violaciones de CSP ni errores de consola.
+- **Guía del profesor (`GUIA-PROFESOR.md`), verificada el 27-11-2026 sobre un clon limpio de GitHub:**
+  - recorrido A–E en Brave headless: 21/21;
+  - sección 5: backend 778, frontend 188, lint, build y Spectral;
+  - PowerShell 7 real;
+  - sección G con Ollama real (`qwen2.5:3b` + `bge-m3`): responde con los apuntes, fuera del temario contesta `no-info` y la generación con IA propone preguntas;
+  - Postman completo con el tutor sobre una base nueva: 105 requests y 199 aserciones, sin fallas.
+  - La prueba corrigió tres cosas de la guía: `npm run ingest` necesita los archivos (y los apuntes del colegio B), Postman supone una base recién creada, y el tutor del portal ya no muestra la fuente de cada respuesta (solo «Basado en los apuntes de …»).
+- **Hallazgo del tutor (para AI/Data):**
+  - En el colegio B, «¿Qué indica el numerador?» responde `grounded` sobre `geometria.md` (puntaje 0,41), porque la introducción de ese apunte menciona las fracciones. El modelo completa con conocimiento general.
+  - **No es una fuga:** la única fuente es del propio colegio B, y la prueba de Postman ahora verifica justamente que nunca aparezca una fuente de A.
+  - **Qué hacer:** subir el umbral de la búsqueda híbrida o quitar esa frase del apunte de prueba.
+  - Además, el rediseño del portal dejó de mostrar la fuente de cada respuesta del tutor (`X-Rag-Sources` llega, pero no se pinta): conviene volver a mostrarla.
+- **Datos de QA en la base de desarrollo:** el recorrido creó cuentas «Rosa QA …» y cursos «Física QA …» (sintéticos). `docker compose down -v` los borra.
 
 ## Pendientes y deuda conocida
 

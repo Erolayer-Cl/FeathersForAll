@@ -49,7 +49,7 @@ export function createRagRouter({ rag, tenantId }) {
       throw new HttpProblem(403, 'Prohibido', 'Solo el docente del curso o el administrador del colegio pueden gestionar apuntes', 'forbidden');
     }
   };
-  const actorOf = (req) => (req.user ? { id: req.user.id, rol: req.user.rol } : undefined);
+  const actorOf = (req) => (req.user ? { id: req.user.id, rol: req.user.rol, iat: req.user.iat } : undefined);
 
   router.get('/:courseId/documents', async (req, res) => {
     const ref = ctx(req);

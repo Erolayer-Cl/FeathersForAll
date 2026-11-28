@@ -39,3 +39,13 @@ condition = "AND"
 regexTarget = "line"
 paths = ['''^code/frontend/src/api/portalApi\.test\.js$''']
 regexes = ['''const KEY = '[0-9a-fA-F-]{36}';''']
+
+# Contraseñas SINTÉTICAS de las pruebas de gestión de usuarios (v1.12): claves que la prueba elige para restablecer o
+# cambiar la de una cuenta demo en una base temporal que se borra al terminar. No existen en ningún ambiente.
+# Y el NOMBRE de una variable de la colección Postman (v112_pregunta), que gitleaks toma por un valor junto a "key".
+# Se exceptúan solo esos valores exactos y solo en esos dos archivos (el historial ya los contiene).
+[[allowlists]]
+description = "Claves sintéticas de test/usuarios.pg.test.js y variable v112_pregunta de Postman"
+condition = "AND"
+paths = ['''^code/backend/test/usuarios\.pg\.test\.js$''', '''^code/backend/requests/postman/FeathersForAll\.postman_collection\.json$''']
+regexes = ['''^(otra-clave-123|luis-nueva-123|v112_pregunta)$''']

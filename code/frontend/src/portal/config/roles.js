@@ -1,7 +1,7 @@
 // Roles del portal y su menú lateral. Para agregar una sección al menú: una línea en `nav`
 // (y su ruta en config/routes.js).
 
-/** @typedef {'est'|'doc'|'adm'} RoleId */
+/** @typedef {'est'|'doc'|'adm'|'apo'} RoleId */
 
 export const ROLES = {
   est: {
@@ -50,6 +50,17 @@ export const ROLES = {
       { key: 'reportes', label: 'Reportes', icon: 'bars', route: 'adm-reportes' },
     ],
   },
+};
+
+// Apoderado (MVP 5): solo lectura del avance de sus pupilos.
+ROLES.apo = {
+  id: 'apo',
+  label: 'Apoderado',
+  modeLabel: 'Modo apoderado',
+  home: 'apo-inicio',
+  config: 'apo-config',
+  login: 'login-apo',
+  nav: [{ key: 'inicio', label: 'Mis pupilos', icon: 'users', route: 'apo-inicio' }],
 };
 
 export const ROLE_IDS = Object.keys(ROLES);

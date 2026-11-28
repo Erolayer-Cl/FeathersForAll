@@ -45,6 +45,17 @@ export function createLoginLimiter({ maxFailures = 5, windowMs = 15 * 60_000, ma
       failures.set(key, { count: 1, resetAt: now() + windowMs });
     },
 
+    /**
+     * Devuelve un intento reservado (el login lo anota ANTES de verificar la clave, ver identidad.routes.js):
+     * si la clave resultó correcta, ese intento no cuenta como fallo.
+     */
+    forgive(key) {
+      const entry = current(key);
+      if (!entry) return;
+      entry.count -= 1;
+      if (entry.count <= 0) failures.delete(key);
+    },
+
     reset(key) {
       failures.delete(key);
     },

@@ -290,8 +290,11 @@ describe('login, perfil y JWT (unitarias, sin base)', () => {
       }
     };
 
-    test('un token válido deja req.user = { id, colegioId, rol }', () => {
-      assert.deepEqual(auth(`Bearer ${signJwt(claims, SECRET)}`), CAMILA);
+    test('un token válido deja req.user = { id, colegioId, rol, iat }', () => {
+      const { iat, ...user } = auth(`Bearer ${signJwt(claims, SECRET)}`);
+      assert.deepEqual(user, CAMILA);
+      // iat: la base invalida los tokens emitidos antes del último cambio de contraseña (13).
+      assert.ok(Number.isInteger(iat) && Math.abs(iat - Date.now() / 1000) < 5);
     });
 
     test('firma de otro secreto, payload adulterado, vencido o mal formado -> rechazado', () => {

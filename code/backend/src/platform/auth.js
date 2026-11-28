@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { HttpProblem } from './problem.js';
 
 // Contrato S05 (bearerAuth): el JWT trae sub, tenant_id y role.
-const ROLES = new Set(['docente', 'estudiante', 'admin_colegio']);
+const ROLES = new Set(['docente', 'estudiante', 'admin_colegio', 'apoderado']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
@@ -49,7 +49,8 @@ export function requireAuth(secret) {
     if (!claims || !UUID.test(claims.sub ?? '') || !UUID.test(claims.tenant_id ?? '') || !ROLES.has(claims.role)) {
       throw new HttpProblem(401, 'No autenticado', 'Falta un token válido (Authorization: Bearer <JWT>)', 'unauthorized');
     }
-    req.user = { id: claims.sub, colegioId: claims.tenant_id, rol: claims.role };
+    // iat: la base invalida los tokens emitidos antes del último cambio de contraseña (db.withUser).
+    req.user = { id: claims.sub, colegioId: claims.tenant_id, rol: claims.role, iat: typeof claims.iat === 'number' ? claims.iat : undefined };
     next();
   };
 }

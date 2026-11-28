@@ -1,4 +1,4 @@
-import { getCourses } from '../../../api/portalApi.js';
+import { getCourses, getUsers } from '../../../api/portalApi.js';
 import { LoadState } from '../../components/ui/index.js';
 import { useApiData } from '../../hooks/useApiData.js';
 import { PortalLink } from '../../router/PortalLink.jsx';
@@ -9,6 +9,7 @@ import styles from './InicioPage.module.css';
 export function AdministradorInicioPage() {
   const { user } = useSession();
   const { data, loading, error, reload } = useApiData(getCourses);
+  const usuarios = useApiData((t, opts) => getUsers(t, { active: true }, opts), 'activos');
   const courses = data ?? [];
   const withCounts = courses.every((c) => Number.isFinite(c.students_count));
   const enrolled = withCounts ? courses.reduce((total, c) => total + c.students_count, 0) : null;
@@ -20,7 +21,7 @@ export function AdministradorInicioPage() {
         <article><span>Cursos registrados</span><strong>{courses.length}</strong><small>Visibles en tu establecimiento</small></article>
         <article><span>Asignaturas</span><strong>{subjects.size}</strong><small>Áreas académicas registradas</small></article>
         <article><span>Matrículas en cursos</span><strong>{enrolled ?? '—'}</strong><small>{enrolled === null ? 'Sin información disponible' : 'Puede incluir estudiantes repetidos'}</small></article>
-        <article><span>Usuarios registrados</span><strong>—</strong><small>La API actual no expone un listado de usuarios</small></article>
+        <article><span>Cuentas activas</span><strong>{usuarios.data ? usuarios.data.length : '—'}</strong><small>{usuarios.data ? `${usuarios.data.filter((u) => u.role === 'docente').length} docentes · ${usuarios.data.filter((u) => u.role === 'estudiante').length} estudiantes` : 'Cargando…'}</small></article>
       </div>
       <div className={styles.columns}>
         <section className={styles.card}><div className={styles.cardTitle}><div><h2>Cursos del establecimiento</h2><p>Consulta las asignaturas registradas y su estado de material.</p></div><PortalLink to="adm-cursos" className={styles.action}>Ver cursos →</PortalLink></div>
@@ -28,7 +29,7 @@ export function AdministradorInicioPage() {
           {!courses.length && <p className={styles.empty}>Todavía no hay cursos registrados.</p>}
         </section>
         <section className={styles.card}><div className={styles.cardTitle}><div><h2>Gestión de la plataforma</h2><p>Secciones administrativas</p></div></div>
-          <div className={styles.shortcuts}><PortalLink to="adm-cursos">Cursos <span>→</span></PortalLink><PortalLink to="adm-usuarios">Usuarios <span>→</span></PortalLink><PortalLink to="adm-evaluaciones">Evaluaciones <span>→</span></PortalLink><PortalLink to="adm-reportes">Reportes <span>→</span></PortalLink></div>
+          <div className={styles.shortcuts}><PortalLink to="adm-cursos">Cursos <span>→</span></PortalLink><PortalLink to="adm-usuarios">Usuarios <span>→</span></PortalLink><PortalLink to="adm-evaluaciones">Evaluaciones <span>→</span></PortalLink><PortalLink to="adm-reportes">Reportes <span>→</span></PortalLink><PortalLink to="adm-auditoria">Bitácora <span>→</span></PortalLink></div>
         </section>
       </div>
     </LoadState>
