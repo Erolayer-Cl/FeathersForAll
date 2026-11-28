@@ -130,6 +130,8 @@ La API se conecta como `feathersforall_app`, sin superusuario ni `BYPASSRLS`. As
 
 ## 6. Levantarlo en local
 
+> Guía paso a paso con todo lo que hay que probar y el resultado esperado: [`GUIA-PROFESOR.md`](GUIA-PROFESOR.md).
+
 ```bash
 # 1. Base de datos (PostgreSQL + pgvector con esquema y datos demo)
 cd code/backend

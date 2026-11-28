@@ -12,7 +12,9 @@
 
 ## Qué es esto
 
-> **¿Cómo funciona el programa?** Roles, flujos, seguridad y cómo levantarlo: [`COMO-FUNCIONA.md`](COMO-FUNCIONA.md).
+> **Profesor: para probar el sistema paso a paso** (comandos, cuentas de ejemplo y qué debería ver en cada paso): [`GUIA-PROFESOR.md`](GUIA-PROFESOR.md).
+>
+> **¿Cómo funciona el programa?** Roles, flujos, seguridad y arquitectura: [`COMO-FUNCIONA.md`](COMO-FUNCIONA.md).
 
 Un grupo de colegios necesita modernizar su experiencia de aprendizaje. FeathersForAll entrega a docentes y estudiantes una plataforma multi-tenant con gestión de cursos, evaluaciones auto-corregidas y un **tutor IA anclado al currículum vigente del MINEDUC** mediante RAG sobre los apuntes de cada curso.
 
