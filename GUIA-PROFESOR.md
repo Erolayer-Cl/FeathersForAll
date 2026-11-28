@@ -46,7 +46,12 @@ Debe aparecer un registro con `"msg":"servidor iniciado"` y `"port":3000`. Para 
 curl http://localhost:3000/readyz      # → {"status":"ready","db":"up"}
 ```
 
-> **Windows sin bash (PowerShell):** en el paso 2 use `Copy-Item .env.example .env` y escriba a mano en `.env` una línea `JWT_SECRET=` seguida de 64 caracteres cualquiera (por ejemplo, la salida de `[guid]::NewGuid().ToString('N') * 2`).
+> **Windows sin bash (PowerShell):** reemplace el paso 2 por estas dos líneas (probadas en PowerShell 7):
+>
+> ```powershell
+> Copy-Item .env.example .env
+> (Get-Content .env) -replace '^JWT_SECRET=$', ('JWT_SECRET=' + [guid]::NewGuid().ToString('N') * 2) | Set-Content .env
+> ```
 
 ### Terminal 2: portal
 
@@ -117,7 +122,7 @@ Se recomienda seguir el orden: cada parte usa lo que se creó en la anterior. Us
 ### C. Estudiante: rendir con tiempo y ver la nota (≈ 3 min)
 
 1. En otra ventana privada, entre en la pestaña **Estudiante** con `camila@demo-a.cl` / `demo1234`.
-2. **Mis cursos → Ciencias 8° A**. En «Por rendir» aparece «Control relámpago · 2 min desde que empieces». Pulse **Rendir**.
+2. **Mis cursos →** en la fila de «Ciencias 8° A», **Entrar →**. En «Por rendir» aparece «Control relámpago · 2 min desde que empieces». Pulse **Rendir**.
    → *Todavía **no** se ven las preguntas: aparece «Evaluación con tiempo» y el botón **Empezar ahora**.*
 3. Pulse **Empezar ahora**.
    → *Aparecen las preguntas y un reloj ⏱ 2:00 que baja.*
